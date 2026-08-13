@@ -1,6 +1,7 @@
 # Pixiv NAI Gallery Core: gallery, Pixiv intake and local NAI metadata only.
 httpx>=0.27.0
 fastapi>=0.115.0
+python-multipart>=0.0.32
 uvicorn>=0.32.0
 aiofiles>=24.1.0
 Pillow>=10.0.0

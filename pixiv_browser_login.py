@@ -9,13 +9,16 @@ import re
 import secrets
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 from urllib.request import getproxies
 
 import httpx
-from playwright.async_api import Request, Response, async_playwright
 
 from paths import data_dir
+
+if TYPE_CHECKING:
+    from playwright.async_api import Request, Response
 
 ROOT = Path(__file__).resolve().parent
 PROFILE_DIR: Path | None = None
@@ -215,6 +218,8 @@ async def browser_login_pixiv(
     }
     if proxy:
         ctx_kwargs["proxy"] = proxy
+
+    from playwright.async_api import async_playwright
 
     async with async_playwright() as p:
         context = None

@@ -38,6 +38,7 @@ class CoreDependencyProfileTests(unittest.TestCase):
             "numpy",
             "pillow",
             "psutil",
+            "python-multipart",
             "pyyaml",
             "uvicorn",
         ):

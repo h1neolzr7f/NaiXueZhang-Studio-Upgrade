@@ -9,9 +9,10 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from playwright.async_api import Locator, Page, Response, async_playwright
+if TYPE_CHECKING:
+    from playwright.async_api import Locator, Page, Response
 
 from paths import data_dir
 from pixiv_browser_login import profile_dir_for_account, proxy_settings
@@ -682,6 +683,8 @@ async def probe_pixiv_upload_page(
             phase="browser",
         )
 
+    from playwright.async_api import async_playwright
+
     page: Page | None = None
     try:
         async with async_playwright() as p:
@@ -740,6 +743,8 @@ async def upload_illust_via_web(
         raise PixivWebUploadError(
             "浏览器投稿占用中（可能正在登录或另一次上传）。请稍后再试。"
         )
+
+    from playwright.async_api import async_playwright
 
     try:
         async with async_playwright() as p:
