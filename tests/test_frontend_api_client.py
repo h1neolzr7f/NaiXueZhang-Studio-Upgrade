@@ -53,6 +53,8 @@ context.window.ApiClient.raw('/api/example', { method: 'POST', body: '{"x":1}' }
             capture_output=True,
             text=True,
             timeout=10,
+            encoding="utf-8",
+            errors="replace",
         )
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertEqual(
@@ -99,6 +101,8 @@ vm.runInNewContext(source, context);
             capture_output=True,
             text=True,
             timeout=10,
+            encoding="utf-8",
+            errors="replace",
         )
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertEqual(result.stdout, '{"sessionHits":2,"header":"tok-ok","posts":1}')
@@ -136,6 +140,8 @@ context.window.ApiClient.raw('/api/example', { method: 'POST', body: '{}' })
             capture_output=True,
             text=True,
             timeout=10,
+            encoding="utf-8",
+            errors="replace",
         )
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertEqual(result.stdout, '{"sessionHits":2,"posts":["old","new"]}')

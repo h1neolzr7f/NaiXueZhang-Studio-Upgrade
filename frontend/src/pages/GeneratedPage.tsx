@@ -60,14 +60,41 @@ export function GeneratedPage({ search }: { search: string }) {
   }
 
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+    get<GeneratedPayload>("/api/generated")
+      .then((next) => {
+        if (!cancelled) setPayload(next);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      });
+    get<{ items?: TrashItem[] }>("/api/generated/trash")
+      .then((data) => {
+        if (!cancelled) setTrash(data.items || []);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     const running = payload.batch?.status === "running" || payload.queue?.status === "running";
     if (!running) return;
-    const timer = window.setInterval(refresh, 2000);
-    return () => window.clearInterval(timer);
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      get<GeneratedPayload>("/api/generated")
+        .then((next) => {
+          if (!cancelled) setPayload(next);
+        })
+        .catch((err: Error) => {
+          if (!cancelled) setError(err.message);
+        });
+    }, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [payload.batch?.status, payload.queue?.status]);
 
   useEffect(() => {
@@ -75,14 +102,21 @@ export function GeneratedPage({ search }: { search: string }) {
       setDetail(null);
       return;
     }
+    let cancelled = false;
     get<{ ok?: boolean; group?: GeneratedGroup; source_prompt?: SourcePrompt; source?: GeneratedGroup["source"] }>(
       `/api/generated/${encodeURIComponent(groupId)}`,
     )
       .then((data) => {
+        if (cancelled) return;
         const group = data.group || (data as GeneratedGroup);
         setDetail({ ...group, source_prompt: data.source_prompt || group.source_prompt, source: data.source || group.source });
       })
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [groupId]);
 
   async function removeGroup(id: string) {

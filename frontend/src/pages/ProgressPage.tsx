@@ -42,9 +42,27 @@ export function ProgressPage() {
   }
 
   useEffect(() => {
-    refresh();
-    const timer = window.setInterval(refresh, 4000);
-    return () => window.clearInterval(timer);
+    let cancelled = false;
+    function poll() {
+      get<{ status?: CrawlerStatus }>("/api/crawler/status")
+        .then((payload) => {
+          if (!cancelled) setStatus(payload.status || null);
+        })
+        .catch((err: Error) => {
+          if (!cancelled) setError(err.message);
+        });
+      get<{ report?: CrawlerReport }>("/api/crawler/report")
+        .then((payload) => {
+          if (!cancelled) setReport(payload.report || null);
+        })
+        .catch(() => undefined);
+    }
+    poll();
+    const timer = window.setInterval(poll, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   async function run(path: string, extra: Record<string, unknown> = {}) {

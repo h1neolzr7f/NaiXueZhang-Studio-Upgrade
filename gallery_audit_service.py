@@ -17,6 +17,7 @@ from PIL import Image, ImageFilter, ImageOps, ImageStat, UnidentifiedImageError
 
 from gallery_catalog import get_db, get_spec
 from nai_prompt_optimizer import ai_status
+from paths import canonical_path, path_is_within
 from pixiv_launch import chat_json
 from server_shared import DATA_DIR, DB, GALLERY_LOCAL_ONLY, GALLERY_SCOPE
 from work_refs import WorkRef
@@ -83,8 +84,9 @@ def _safe_local_path(raw_path: Any, gallery_id: str = "site") -> Path | None:
         gallery_candidate = get_spec(gallery_id).images_dir / candidate
         candidate = data_candidate if data_candidate.is_file() else gallery_candidate
     try:
-        resolved = candidate.resolve()
-        resolved.relative_to(DATA_DIR.resolve())
+        resolved = canonical_path(candidate)
+        if not path_is_within(resolved, DATA_DIR):
+            return None
     except (OSError, ValueError):
         return None
     return resolved if resolved.is_file() else None

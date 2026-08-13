@@ -788,19 +788,17 @@ def _probe_provider(token: str, api_base: str = "", timeout: float = 8.0) -> str
         return PROVIDER_UNKNOWN
     # 先尝试 NAI 订阅接口
     try:
-        import api.httpx
         headers = {"Authorization": f"Bearer {raw}"}
-        r = api.httpx.get("https://api.novelai.net/user/subscription", headers=headers, timeout=timeout)
+        r = httpx.get("https://api.novelai.net/user/subscription", headers=headers, timeout=timeout)
         if r.status_code == 200:
             return PROVIDER_NOVELAI
     except Exception:
         pass
     # 再尝试闲云提交接口
     try:
-        import api.httpx
         test_base = (api_base or api.XIANYUN_API_BASE).rstrip("/")
         headers = {"Authorization": f"Bearer {raw}", "Content-Type": "application/json"}
-        r = api.httpx.post(f"{test_base}/generate_image", headers=headers, json={}, timeout=timeout)
+        r = httpx.post(f"{test_base}/generate_image", headers=headers, json={}, timeout=timeout)
         if r.status_code in {400, 422} or (r.status_code != 404 and r.status_code < 500):
             return PROVIDER_XIANYUN
     except Exception:

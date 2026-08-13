@@ -10,6 +10,8 @@ from typing import Iterable
 
 from PIL import Image, ImageOps
 
+from paths import canonical_path, path_is_within, relative_to_canonical
+
 
 class GalleryStorageQuotaExceeded(RuntimeError):
     retryable = False
@@ -128,7 +130,7 @@ class GalleryAssetStore:
 
     def thumbnail_relative(self, original_relative: str) -> str:
         original = self._resolve_relative(original_relative)
-        relative = original.relative_to(self.images_dir)
+        relative = Path(relative_to_canonical(original, self.images_dir))
         return (Path("_thumbs") / relative.parent / f"{relative.stem}.webp").as_posix()
 
     def storage_status(self, *, quota_bytes: int = 0) -> dict[str, int | bool]:
@@ -178,7 +180,7 @@ class GalleryAssetStore:
         live: set[str] = set()
         for relative in referenced_originals:
             original = self._resolve_relative(relative)
-            normalized = original.relative_to(self.images_dir).as_posix()
+            normalized = relative_to_canonical(original, self.images_dir)
             live.add(normalized)
             thumb = Path("_thumbs") / Path(normalized).parent / (
                 Path(normalized).stem + ".webp"
@@ -190,13 +192,11 @@ class GalleryAssetStore:
             candidate = Path(quarantine)
             if not candidate.is_absolute():
                 candidate = self.images_dir / candidate
-            resolved = candidate.resolve()
-            try:
-                resolved.relative_to(self.images_dir)
-            except ValueError as exc:
+            resolved = canonical_path(candidate)
+            if not path_is_within(resolved, self.images_dir):
                 raise ValueError(
                     "quarantine directory must live under images_dir"
-                ) from exc
+                )
             quarantine_dir = resolved
         orphans: list[Path] = []
         orphan_bytes = 0
@@ -204,7 +204,7 @@ class GalleryAssetStore:
             for path in self.images_dir.rglob("*"):
                 if not path.is_file() or path.is_symlink():
                     continue
-                relative = path.relative_to(self.images_dir).as_posix()
+                relative = relative_to_canonical(path, self.images_dir)
                 # Quarantined files are already handled; never re-flag them.
                 if relative.split("/", 1)[0] == "_orphans":
                     continue
@@ -214,11 +214,9 @@ class GalleryAssetStore:
         quarantined = 0
         if quarantine_dir is not None and orphans:
             for path in orphans:
-                relative = path.relative_to(self.images_dir)
+                relative = Path(relative_to_canonical(path, self.images_dir))
                 target = quarantine_dir / relative
-                try:
-                    target.relative_to(self.images_dir)
-                except ValueError:
+                if not path_is_within(target, self.images_dir):
                     continue
                 target.parent.mkdir(parents=True, exist_ok=True)
                 if target.exists():
@@ -250,9 +248,7 @@ class GalleryAssetStore:
         }
 
     def _resolve_relative(self, relative: str) -> Path:
-        candidate = (self.images_dir / str(relative).replace("\\", "/")).resolve()
-        try:
-            candidate.relative_to(self.images_dir)
-        except ValueError as exc:
-            raise ValueError("gallery asset path escapes images directory") from exc
+        candidate = canonical_path(self.images_dir / str(relative).replace("\\", "/"))
+        if not path_is_within(candidate, self.images_dir):
+            raise ValueError("gallery asset path escapes images directory")
         return candidate

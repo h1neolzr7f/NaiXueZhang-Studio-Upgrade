@@ -1,9 +1,11 @@
+import asyncio
 import hashlib
 import json
 import sys
 import tempfile
 import time
 import subprocess
+from typing import Any
 from pathlib import Path
 import httpx
 
@@ -45,7 +47,7 @@ from production_queue import (
     summary as queue_summary,
     toggle as queue_toggle,
 )
-from paths import storage_paths
+from paths import canonical_path, path_is_within, storage_paths
 from atomic_io import atomic_write_bytes
 from gallery_cache import cached
 from nai_image_metadata import NAIParseResult, parse_nai_image
@@ -85,9 +87,9 @@ def _safe_child_file(root: Path, raw_path: str) -> Path:
     normalized = str(raw_path or "").replace("\\", "/").lstrip("/")
     if not normalized or "\x00" in normalized:
         raise HTTPException(status_code=404, detail="not found")
-    root_resolved = root.resolve()
-    candidate = (root_resolved / normalized).resolve()
-    if candidate == root_resolved or root_resolved not in candidate.parents:
+    root_resolved = canonical_path(root)
+    candidate = canonical_path(root_resolved / normalized)
+    if candidate == root_resolved or not path_is_within(candidate, root_resolved):
         raise HTTPException(status_code=404, detail="not found")
     return candidate
 
@@ -151,43 +153,15 @@ _DROP_MAX_BYTES = 64 * 1024 * 1024
 _DROP_GALLERIES = frozenset({"codex", "qqgroup"})
 
 
-@router.post("/api/gallery/{gallery_id}/import-drop")
-async def api_gallery_import_drop(
-    gallery_id: str,
-    category: str = Form(""),
-    files: list[UploadFile] = File(...),
-) -> dict:
-    """Import locally dropped images after strict NovelAI metadata parsing.
-
-    Only local-import galleries (codex / qqgroup) accept drops.  Every file is
-    parsed for NovelAI provenance; non-NAI images are rejected and reported.
-    A category (小类) is required to organize the codex gallery.
-    """
-    gid = normalize_gallery_id(gallery_id)
-    if gid not in _DROP_GALLERIES:
-        raise HTTPException(
-            status_code=400,
-            detail="import-drop is only supported for local-import galleries (codex/qqgroup)",
-        )
-    if not files:
-        raise HTTPException(status_code=400, detail="no files uploaded")
-    category = str(category or "").strip()[:80] or "未分类"
-    spec = get_gallery_spec(gid)
+def _import_drop_files(
+    gid: str,
+    category: str,
+    spec,
+    buffered: list[tuple[str, bytes]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     accepted: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
-    for upload in files:
-        name = str(upload.filename or "image.png").strip() or "image.png"
-        try:
-            data = await upload.read(_DROP_MAX_BYTES + 1)
-        except Exception:
-            rejected.append({"file": name, "reason": "read_failed"})
-            continue
-        if not data:
-            rejected.append({"file": name, "reason": "empty"})
-            continue
-        if len(data) > _DROP_MAX_BYTES:
-            rejected.append({"file": name, "reason": "too_large"})
-            continue
+    for name, data in buffered:
         ext = Path(name).suffix.lower() or ".png"
         if ext == ".jpeg":
             ext = ".jpg"
@@ -211,7 +185,6 @@ async def api_gallery_import_drop(
         digest = hashlib.sha256(data).hexdigest()
         work_id = stable_work_id("drop", digest)
         category_safe = sanitize_filename(category)
-        # Block path traversal: sanitize alone keeps ".." as a legal folder name.
         if (
             not category_safe
             or category_safe in {".", ".."}
@@ -241,9 +214,52 @@ async def api_gallery_import_drop(
             category=category,
             source=f"local-drop:{category}",
         )
-        accepted.append(
-            {"file": name, "work_id": work_id, "category": category}
+        accepted.append({"file": name, "work_id": work_id, "category": category})
+    return accepted, rejected
+
+
+@router.post("/api/gallery/{gallery_id}/import-drop")
+async def api_gallery_import_drop(
+    gallery_id: str,
+    category: str = Form(""),
+    files: list[UploadFile] = File(...),
+) -> dict:
+    """Import locally dropped images after strict NovelAI metadata parsing.
+
+    Only local-import galleries (codex / qqgroup) accept drops.  Every file is
+    parsed for NovelAI provenance; non-NAI images are rejected and reported.
+    A category (小类) is required to organize the codex gallery.
+    """
+    gid = normalize_gallery_id(gallery_id)
+    if gid not in _DROP_GALLERIES:
+        raise HTTPException(
+            status_code=400,
+            detail="import-drop is only supported for local-import galleries (codex/qqgroup)",
         )
+    if not files:
+        raise HTTPException(status_code=400, detail="no files uploaded")
+    category = str(category or "").strip()[:80] or "未分类"
+    spec = get_gallery_spec(gid)
+    buffered: list[tuple[str, bytes]] = []
+    rejected: list[dict[str, Any]] = []
+    for upload in files:
+        name = str(upload.filename or "image.png").strip() or "image.png"
+        try:
+            data = await upload.read(_DROP_MAX_BYTES + 1)
+        except Exception:
+            rejected.append({"file": name, "reason": "read_failed"})
+            continue
+        if not data:
+            rejected.append({"file": name, "reason": "empty"})
+            continue
+        if len(data) > _DROP_MAX_BYTES:
+            rejected.append({"file": name, "reason": "too_large"})
+            continue
+        buffered.append((name, data))
+    accepted, more_rejected = await asyncio.to_thread(
+        _import_drop_files, gid, category, spec, buffered
+    )
+    rejected.extend(more_rejected)
     return {
         "ok": True,
         "gallery_id": gid,

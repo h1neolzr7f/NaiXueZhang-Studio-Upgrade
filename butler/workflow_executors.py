@@ -15,6 +15,7 @@ from .workflow_helpers import (
     _format_eta,
     _now,
     _operation_identity,
+    _poll_timed_out,
     _status_poll_delay,
 )
 
@@ -263,6 +264,9 @@ class ButlerWorkflowExecutors:
             task = self.store.get_task(workflow_id, include_events=False) or {}
             if task.get("cancel_requested"):
                 cancel_director_batch(director_task_id)
+            if _poll_timed_out(observed_started):
+                cancel_director_batch(director_task_id)
+                raise RuntimeError("批量导演轮询超过时限，已请求停止")
             if state.get("terminal") or status not in {"running", "cancelling", ""}:
                 break
             await asyncio.sleep(_status_poll_delay(observed_started))
@@ -306,7 +310,7 @@ class ButlerWorkflowExecutors:
         operation_id: str,
     ) -> dict[str, Any]:
         """Start post-processing and keep the Butler progress/report truthful."""
-        from post_pipeline import pipeline_status
+        from post_pipeline import cancel_pipeline, pipeline_status
 
         started = await self._confirmed_executor(action)
         total = int(started.get("total") or 0)
@@ -367,9 +371,17 @@ class ButlerWorkflowExecutors:
                 message=str(state.get("message") or "后处理中…"),
                 progress=progress,
             )
-            if status != "running":
+            task = self.store.get_task(workflow_id, include_events=False) or {}
+            if task.get("cancel_requested"):
+                cancel_pipeline()
+            if _poll_timed_out(observed_started):
+                cancel_pipeline()
+                raise RuntimeError("后处理轮询超过时限，已请求停止")
+            if status not in {"running", "cancelling", ""}:
                 break
             await asyncio.sleep(_status_poll_delay(observed_started))
+        if status == "cancelled":
+            raise WorkflowCancelled("后处理已取消")
         failed = int(state.get("fail") or 0)
         succeeded = int(state.get("ok") or 0)
         return {
@@ -478,6 +490,12 @@ class ButlerWorkflowExecutors:
             task = self.store.get_task(workflow_id, include_events=False) or {}
             if task.get("cancel_requested"):
                 cancel_batch(generation_task_id) if generation_task_id else cancel_batch()
+            if _poll_timed_out(observed_started):
+                if generation_task_id:
+                    cancel_batch(generation_task_id)
+                else:
+                    cancel_batch()
+                raise RuntimeError("批量生成轮询超过时限，已请求停止")
             if status not in {"running", "cancelling", ""}:
                 break
             await asyncio.sleep(_status_poll_delay(observed_started))

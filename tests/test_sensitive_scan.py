@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from paths import relative_to_canonical
 from scripts.scan_sensitive import DEFAULT_PATTERNS, git_candidate_paths, scan
 
 
@@ -128,7 +129,7 @@ class SensitiveScanTests(unittest.TestCase):
             )
 
             candidates = git_candidate_paths(root)
-            relative = {path.relative_to(root).as_posix() for path in candidates}
+            relative = {relative_to_canonical(path, root) for path in candidates}
 
             self.assertIn("source.py", relative)
             self.assertNotIn("data/ai.local.json", relative)

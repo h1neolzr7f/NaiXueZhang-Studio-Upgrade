@@ -226,3 +226,10 @@ def _status_poll_delay(started_monotonic: float) -> float:
     if elapsed < 10:
         return 0.4
     return 0.75
+
+
+POLL_WALL_CLOCK_TIMEOUT_SEC = 6 * 60 * 60
+
+
+def _poll_timed_out(started_monotonic: float) -> bool:
+    return (time.monotonic() - started_monotonic) >= POLL_WALL_CLOCK_TIMEOUT_SEC

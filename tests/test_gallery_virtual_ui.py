@@ -30,6 +30,8 @@ class GalleryVirtualUiTests(unittest.TestCase):
             cwd=ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)

@@ -17,6 +17,7 @@ from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import FileResponse
 
 from db import _invalidate_scope_total_cache
+from paths import canonical_path, path_is_within, relative_to_canonical
 from server_shared import DATA_DIR, DB, ROOT
 
 router = APIRouter(prefix="/api/compliance", tags=["compliance"])
@@ -43,10 +44,14 @@ def _db():
     return DB
 
 
+def _run(fn):
+    return _db()._run(fn)
+
+
 def _asset_roots() -> tuple[Path, ...]:
     """Directories from which compliance cleanup is allowed to move files."""
     return tuple(
-        path.resolve()
+        canonical_path(path)
         for path in (
             DATA_DIR / "images",
             DATA_DIR / "galleries",
@@ -57,11 +62,7 @@ def _asset_roots() -> tuple[Path, ...]:
 
 
 def _is_under(path: Path, root: Path) -> bool:
-    try:
-        path.relative_to(root)
-        return True
-    except ValueError:
-        return False
+    return path_is_within(path, root)
 
 
 def _resolve_local_asset(raw_path: object) -> Path | None:
@@ -73,10 +74,10 @@ def _resolve_local_asset(raw_path: object) -> Path | None:
     roots = _asset_roots()
     candidates: list[Path]
     if source.is_absolute():
-        candidates = [source.resolve()]
+        candidates = [canonical_path(source)]
     else:
-        candidates = [(DATA_DIR / source).resolve()]
-        candidates.extend((root / source).resolve() for root in roots)
+        candidates = [canonical_path(DATA_DIR / source)]
+        candidates.extend(canonical_path(root / source) for root in roots)
 
     safe = [
         candidate
@@ -90,9 +91,9 @@ def _resolve_local_asset(raw_path: object) -> Path | None:
 
 def _move_to_author_trash(path: Path, author_id: int) -> Path:
     """Move an asset to a recoverable local trash area."""
-    data_root = DATA_DIR.resolve()
+    data_root = canonical_path(DATA_DIR)
     try:
-        relative = path.resolve().relative_to(data_root)
+        relative = Path(relative_to_canonical(path, data_root))
     except ValueError:
         relative = Path(path.name)
     destination = DATA_DIR / "_trash" / f"author_{author_id}" / relative
@@ -157,17 +158,22 @@ def add_blacklist(payload: dict = Body(default_factory=dict)) -> dict:
     scope = str(payload.get("scope") or "both")
     if scope not in ("crawl", "delete", "both"):
         raise HTTPException(status_code=400, detail="scope 必须为 crawl/delete/both")
-    _db().conn.execute(
-        "INSERT INTO author_blacklist(author_id, author_name, reason, scope, created_at) "
-        "VALUES (?, ?, ?, ?, ?) "
-        "ON CONFLICT(author_id) DO UPDATE SET "
-        "author_name=excluded.author_name, reason=excluded.reason, scope=excluded.scope",
-        (author_id, author_name, str(payload.get("reason") or ""), scope, _now()),
-    )
-    _db().conn.commit()
-    local_works = _db().conn.execute(
-        "SELECT COUNT(*) AS total FROM works WHERE user_id = ?", (author_id,)
-    ).fetchone()
+
+    def action():
+        db = _db()
+        db.conn.execute(
+            "INSERT INTO author_blacklist(author_id, author_name, reason, scope, created_at) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(author_id) DO UPDATE SET "
+            "author_name=excluded.author_name, reason=excluded.reason, scope=excluded.scope",
+            (author_id, author_name, str(payload.get("reason") or ""), scope, _now()),
+        )
+        db.conn.commit()
+        return db.conn.execute(
+            "SELECT COUNT(*) AS total FROM works WHERE user_id = ?", (author_id,)
+        ).fetchone()
+
+    local_works = _run(action)
     return {
         "ok": True,
         "cleanup_required": scope in ("delete", "both")
@@ -177,8 +183,10 @@ def add_blacklist(payload: dict = Body(default_factory=dict)) -> dict:
 
 @router.delete("/blacklist/{author_id}")
 def remove_blacklist(author_id: int) -> dict:
-    _db().conn.execute("DELETE FROM author_blacklist WHERE author_id = ?", (author_id,))
-    _db().conn.commit()
+    _run(lambda: (
+        _db().conn.execute("DELETE FROM author_blacklist WHERE author_id = ?", (author_id,)),
+        _db().conn.commit(),
+    ))
     return {"ok": True}
 
 
@@ -202,20 +210,24 @@ def add_blocked(payload: dict = Body(default_factory=dict)) -> dict:
     source_url = str(
         payload.get("source_url") or f"https://www.pixiv.net/artworks/{work_id}"
     )
-    _db().conn.execute(
-        "INSERT INTO blocked_collection(work_id, source_url, reason, created_at) "
-        "VALUES (?, ?, ?, ?) ON CONFLICT(work_id) DO UPDATE SET "
-        "source_url=excluded.source_url, reason=excluded.reason",
-        (work_id, source_url, str(payload.get("reason") or ""), _now()),
-    )
-    _db().conn.commit()
+    _run(lambda: (
+        _db().conn.execute(
+            "INSERT INTO blocked_collection(work_id, source_url, reason, created_at) "
+            "VALUES (?, ?, ?, ?) ON CONFLICT(work_id) DO UPDATE SET "
+            "source_url=excluded.source_url, reason=excluded.reason",
+            (work_id, source_url, str(payload.get("reason") or ""), _now()),
+        ),
+        _db().conn.commit(),
+    ))
     return {"ok": True}
 
 
 @router.delete("/blocked/{work_id}")
 def remove_blocked(work_id: int) -> dict:
-    _db().conn.execute("DELETE FROM blocked_collection WHERE work_id = ?", (work_id,))
-    _db().conn.commit()
+    _run(lambda: (
+        _db().conn.execute("DELETE FROM blocked_collection WHERE work_id = ?", (work_id,)),
+        _db().conn.commit(),
+    ))
     return {"ok": True}
 
 
@@ -234,26 +246,31 @@ def sync_removed_works(payload: dict = Body(default_factory=dict)) -> dict:
     ]
     if not raw_items:
         raise HTTPException(status_code=400, detail="work_ids/items 必填")
-    db = _db()
-    updated = 0
-    skipped = 0
-    for item in raw_items:
-        work_id = int(item.get("work_id") or 0)
-        status = str(item.get("status") or default_status)
-        if work_id <= 0 or status not in _ALLOWED_REMOVED_STATUSES:
-            skipped += 1
-            continue
-        db.conn.execute(
-            "INSERT INTO removed_works(work_id, source_url, removed_at, status) "
-            "VALUES (?, ?, ?, ?) ON CONFLICT(work_id) DO UPDATE SET "
-            "status=excluded.status, removed_at=excluded.removed_at",
-            (work_id, f"https://www.pixiv.net/artworks/{work_id}", _now(), status),
-        )
-        db.conn.execute(
-            "UPDATE works SET removed_status = ? WHERE id = ?", (status, work_id)
-        )
-        updated += 1
-    db.conn.commit()
+
+    def action():
+        db = _db()
+        updated = 0
+        skipped = 0
+        for item in raw_items:
+            work_id = int(item.get("work_id") or 0)
+            status = str(item.get("status") or default_status)
+            if work_id <= 0 or status not in _ALLOWED_REMOVED_STATUSES:
+                skipped += 1
+                continue
+            db.conn.execute(
+                "INSERT INTO removed_works(work_id, source_url, removed_at, status) "
+                "VALUES (?, ?, ?, ?) ON CONFLICT(work_id) DO UPDATE SET "
+                "status=excluded.status, removed_at=excluded.removed_at",
+                (work_id, f"https://www.pixiv.net/artworks/{work_id}", _now(), status),
+            )
+            db.conn.execute(
+                "UPDATE works SET removed_status = ? WHERE id = ?", (status, work_id)
+            )
+            updated += 1
+        db.conn.commit()
+        return updated, skipped
+
+    updated, skipped = _run(action)
     return {"ok": True, "updated": updated, "skipped": skipped}
 
 
@@ -296,12 +313,14 @@ def delete_author_material(author_id: int) -> dict:
     if author_id <= 0:
         raise HTTPException(status_code=400, detail="author_id 必须为正整数")
     db = _db()
-    rows = db.conn.execute(
-        "SELECT w.id, w.preview_path, wi.local_path, wi.image_path "
-        "FROM works AS w LEFT JOIN work_images AS wi ON wi.work_id = w.id "
-        "WHERE w.user_id = ?",
-        (author_id,),
-    ).fetchall()
+    rows = _run(
+        lambda: db.conn.execute(
+            "SELECT w.id, w.preview_path, wi.local_path, wi.image_path "
+            "FROM works AS w LEFT JOIN work_images AS wi ON wi.work_id = w.id "
+            "WHERE w.user_id = ?",
+            (author_id,),
+        ).fetchall()
+    )
     work_ids = sorted({int(row["id"]) for row in rows})
 
     moved: list[str] = []
@@ -331,18 +350,23 @@ def delete_author_material(author_id: int) -> dict:
                 failures.append({"path": raw, "error": str(exc)})
 
     if work_ids:
-        for table_name in (
-            "work_images",
-            "works_fts",
-            "prompt_fts",
-            "prompt_work_fts",
-            "pixiv_nai_receipts",
-            "removed_works",
-        ):
-            _delete_work_rows(db, table_name, work_ids)
-        placeholders = ",".join("?" * len(work_ids))
-        db.conn.execute(f"DELETE FROM works WHERE id IN ({placeholders})", work_ids)
-    db.conn.commit()
+        def action():
+            for table_name in (
+                "work_images",
+                "works_fts",
+                "prompt_fts",
+                "prompt_work_fts",
+                "pixiv_nai_receipts",
+                "removed_works",
+            ):
+                _delete_work_rows(db, table_name, work_ids)
+            placeholders = ",".join("?" * len(work_ids))
+            db.conn.execute(f"DELETE FROM works WHERE id IN ({placeholders})", work_ids)
+            db.conn.commit()
+
+        _run(action)
+    else:
+        _run(lambda: db.conn.commit())
     _invalidate_scope_total_cache()
     return {
         "ok": not failures,
@@ -384,10 +408,12 @@ def set_work_notice(payload: dict = Body(default_factory=dict)) -> dict:
     notice = str(payload.get("notice") or "").strip()
     if work_id <= 0:
         raise HTTPException(status_code=400, detail="work_id 必填")
-    _db().conn.execute(
-        "UPDATE works SET no_ai_notice = ? WHERE id = ?", (notice or None, work_id)
-    )
-    _db().conn.commit()
+    _run(lambda: (
+        _db().conn.execute(
+            "UPDATE works SET no_ai_notice = ? WHERE id = ?", (notice or None, work_id)
+        ),
+        _db().conn.commit(),
+    ))
     return {"ok": True}
 
 
@@ -483,10 +509,12 @@ def notice_accept(payload: dict = Body(default_factory=dict)) -> dict:
         "app_version": str(payload.get("app_version") or ""),
         "nonce": uuid.uuid4().hex,
     }
-    _db().conn.execute(
-        "INSERT INTO crawl_state(key, value) VALUES ('responsibility_notice', ?) "
-        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-        (json.dumps(record, ensure_ascii=False),),
-    )
-    _db().conn.commit()
+    _run(lambda: (
+        _db().conn.execute(
+            "INSERT INTO crawl_state(key, value) VALUES ('responsibility_notice', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (json.dumps(record, ensure_ascii=False),),
+        ),
+        _db().conn.commit(),
+    ))
     return {"ok": True, "record": record}

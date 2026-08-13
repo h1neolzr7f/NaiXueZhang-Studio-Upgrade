@@ -98,6 +98,17 @@ def pipeline_status() -> dict[str, Any]:
         return {**dict(_JOB), "active_image_ids": sorted(_ACTIVE_PIPELINE_COUNTS)}
 
 
+def cancel_pipeline() -> dict[str, Any]:
+    """Request a running post-process job to stop after the current image."""
+    with _LOCK:
+        if _JOB.get("status") not in {"running", "cancelling"}:
+            return {"ok": False, "message": "没有运行中的流水线", "job": dict(_JOB)}
+        _JOB["cancel_requested"] = True
+        _JOB["status"] = "cancelling"
+        _JOB["message"] = "正在取消…"
+        return {"ok": True, "job": dict(_JOB)}
+
+
 def active_pipeline_ids() -> set[str]:
     with _LOCK:
         return set(_ACTIVE_PIPELINE_COUNTS)
@@ -1346,6 +1357,7 @@ def start_pipeline(payload: dict[str, Any]) -> dict[str, Any]:
                 "ok": 0,
                 "fail": 0,
                 "items": [],
+                "cancel_requested": False,
                 "started_at": datetime.now().isoformat(timespec="seconds"),
             }
         )
@@ -1356,6 +1368,11 @@ def start_pipeline(payload: dict[str, Any]) -> dict[str, Any]:
 
         def _process_one(image_id: str) -> None:
             with _LOCK:
+                if _JOB.get("cancel_requested"):
+                    item = {"ok": False, "id": image_id, "message": "cancelled", "skipped": True}
+                    _JOB["done"] += 1
+                    _JOB["items"] = (_JOB.get("items") or [])[-19:] + [item]
+                    return
                 _JOB["message"] = f"处理 {image_id}…"
             try:
                 result = process_image(
@@ -1380,9 +1397,12 @@ def start_pipeline(payload: dict[str, Any]) -> dict[str, Any]:
             list(pool.map(_process_one, targets))
 
         with _LOCK:
-            _JOB["status"] = "idle"
+            cancelled = bool(_JOB.get("cancel_requested"))
+            _JOB["status"] = "cancelled" if cancelled else "idle"
             _JOB["message"] = (
-                f"完成：成功 {_JOB.get('ok', 0)}，失败 {_JOB.get('fail', 0)}"
+                "已取消"
+                if cancelled
+                else f"完成：成功 {_JOB.get('ok', 0)}，失败 {_JOB.get('fail', 0)}"
             )
             _JOB["finished_at"] = datetime.now().isoformat(timespec="seconds")
         invalidate_backlog_cache()
@@ -1399,6 +1419,7 @@ def maybe_auto_pipeline(filename: str) -> dict[str, Any] | None:
     try:
         return process_image(stem, only_missing=True)
     except Exception as exc:
+        print(f"[pipeline] auto-after-generate failed for {stem}: {exc}", flush=True)
         return {"ok": False, "message": str(exc)}
 
 
@@ -1410,8 +1431,13 @@ def schedule_auto_pipeline(filename: str) -> None:
 
     def _worker() -> None:
         try:
-            maybe_auto_pipeline(filename)
-        except Exception:
-            pass
+            result = maybe_auto_pipeline(filename)
+            if result and not result.get("ok"):
+                print(
+                    f"[pipeline] auto-after-generate skipped {filename}: {result.get('message')}",
+                    flush=True,
+                )
+        except Exception as exc:
+            print(f"[pipeline] auto-after-generate crashed for {filename}: {exc}", flush=True)
 
     threading.Thread(target=_worker, daemon=True, name=f"auto-pipe-{filename}").start()

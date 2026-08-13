@@ -13,6 +13,22 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Get-Sha256Hex {
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($LiteralPath)
+        try {
+            return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+        } finally {
+            $stream.Dispose()
+        }
+    } finally {
+        $sha.Dispose()
+    }
+}
+
 $package = (Resolve-Path -LiteralPath $PackageRoot).Path
 $requirements = Join-Path $package "requirements.lock.txt"
 $server = Join-Path $package "server.py"
@@ -172,7 +188,7 @@ print('portable-runtime-ok', profile, sys.version.split()[0], len(route_paths))
         python_version = [string]$info.version
         architecture = [string]$info.bits
         requirements_file = "requirements.lock.txt"
-        requirements_sha256 = (Get-FileHash -LiteralPath $requirements -Algorithm SHA256).Hash.ToLowerInvariant()
+        requirements_sha256 = Get-Sha256Hex -LiteralPath $requirements
         startup = "START_GALLERY.bat"
         self_contained = $true
         browser_mode = "system_chrome_or_edge"

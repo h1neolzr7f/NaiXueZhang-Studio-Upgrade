@@ -28,9 +28,27 @@ export function PipelinePage() {
   }
 
   useEffect(() => {
-    refresh();
-    const timer = window.setInterval(refresh, 4000);
-    return () => window.clearInterval(timer);
+    let cancelled = false;
+    function poll() {
+      get<{ config?: PipelineConfig }>("/api/pipeline/config")
+        .then((payload) => {
+          if (!cancelled) setConfig(payload.config || {});
+        })
+        .catch((err: Error) => {
+          if (!cancelled) setError(err.message);
+        });
+      get<PipelineStatus>("/api/pipeline/status")
+        .then((next) => {
+          if (!cancelled) setStatus(next);
+        })
+        .catch(() => undefined);
+    }
+    poll();
+    const timer = window.setInterval(poll, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   async function save() {

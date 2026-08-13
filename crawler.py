@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import atexit
 import json
 import sys
 import time
@@ -14,7 +15,7 @@ from PIL import Image, ImageOps
 
 from atomic_io import atomic_write_bytes, atomic_write_json
 from db import Database
-from paths import normalize_config, project_root
+from paths import canonical_path, normalize_config, path_is_within, project_root, relative_to_canonical
 
 
 class UpstreamRetryableError(RuntimeError):
@@ -43,8 +44,26 @@ def setup_logging(log_path: Path) -> None:
         def isatty(self) -> bool:
             return getattr(self.streams[0], "isatty", lambda: False)()
 
-    sys.stdout = Tee(sys.__stdout__, log_file)
-    sys.stderr = Tee(sys.__stderr__, log_file)
+    stdout_tee = Tee(sys.__stdout__, log_file)
+    stderr_tee = Tee(sys.__stderr__, log_file)
+    sys.stdout = stdout_tee
+    sys.stderr = stderr_tee
+
+    def _close_logs() -> None:
+        try:
+            log_file.flush()
+        except Exception:
+            pass
+        try:
+            log_file.close()
+        except Exception:
+            pass
+        if sys.stdout is stdout_tee:
+            sys.stdout = sys.__stdout__
+        if sys.stderr is stderr_tee:
+            sys.stderr = sys.__stderr__
+
+    atexit.register(_close_logs)
 
 
 def load_config(path: Path) -> dict:
@@ -97,12 +116,10 @@ def preview_local_path(images_dir: Path, image: dict) -> Path:
     name = file_name if Path(file_name).suffix else f"{file_name}.webp"
     if Path(name).suffix.lower() not in {".gif", ".jpeg", ".jpg", ".png", ".webp"}:
         raise ValueError(f"unsupported preview extension: {Path(name).suffix}")
-    images_root = images_dir.resolve()
-    destination = (images_root / image_type / author_id / name).resolve()
-    try:
-        destination.relative_to(images_root)
-    except ValueError as exc:
-        raise ValueError("preview path escapes the image cache") from exc
+    images_root = canonical_path(images_dir)
+    destination = canonical_path(images_root / image_type / author_id / name)
+    if not path_is_within(destination, images_root):
+        raise ValueError("preview path escapes the image cache")
     return destination
 
 
@@ -749,9 +766,7 @@ class Crawler:
 
                 # 规范约定：local_path 相对 images_dir 存储（如 NAI/...），
                 # 与 intake 一致；读取侧经 paths.normalize_image_relative 兼容旧行。
-                rel_path = str(
-                    local_path.relative_to(self.images_dir)
-                ).replace("\\", "/")
+                rel_path = relative_to_canonical(local_path, self.images_dir)
                 self.db.mark_image_downloaded(
                     work_id,
                     page_index,

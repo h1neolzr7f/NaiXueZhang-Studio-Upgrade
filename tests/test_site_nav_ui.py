@@ -78,6 +78,8 @@ class SiteNavUiTests(unittest.TestCase):
             capture_output=True,
             text=True,
             timeout=10,
+            encoding="utf-8",
+            errors="replace",
         )
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         data = json.loads(result.stdout)

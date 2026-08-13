@@ -201,6 +201,12 @@ class FrontendSecurityContractTests(unittest.TestCase):
         self.assertIn("escText(queue.message", html)
         self.assertIn("escText(msg", html)
         self.assertIn("escText(e && e.message", html)
+        self.assertNotIn("${pill.textContent}", html)
+        self.assertIn("caption.textContent = pill.textContent", html)
+        compliance_html = (ROOT / "web" / "compliance.html").read_text(encoding="utf-8")
+        self.assertIn("/assets/shared/escape.js", compliance_html)
+        compliance_js = (ROOT / "web" / "compliance.js").read_text(encoding="utf-8")
+        self.assertIn("safeHttpUrl(item.source_url", compliance_js)
         batch = (ROOT / "web" / "plugins" / "char-swap" / "batch.js").read_text(
             encoding="utf-8"
         )

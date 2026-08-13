@@ -9,6 +9,9 @@ jobs:
   pytest:
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,8 +24,8 @@ jobs:
       - name: Compile
         run: python -m compileall -q -x "runtime|\.venv|node_modules|data" .
       - name: Pytest
-        # Probe needs live Chromium. Selector-pack used to import Playwright at collection;
-        # keep it out of the core job even after the import was deferred.
-        run: python -m pytest -q --tb=short --ignore=tests/test_pixiv_selector_probe.py --ignore=tests/test_pixiv_upload_selector_pack.py
+        # Probe needs live Chromium. Selector-pack is unit-level JSON and no
+        # longer imports Playwright at collection, so it stays in the core job.
+        run: python -m pytest -q --tb=short --ignore=tests/test_pixiv_selector_probe.py
       - name: Scan publication candidates
         run: python scripts/scan_sensitive.py --git-candidates --content-only

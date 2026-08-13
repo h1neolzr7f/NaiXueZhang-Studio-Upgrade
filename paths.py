@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from collections.abc import Callable
 from os import PathLike
@@ -33,6 +34,40 @@ def bundled_web_dir() -> Path | None:
 def resolve_path(root: Path, value: str | Path) -> Path:
     path = Path(value)
     return path if path.is_absolute() else (root / path).resolve()
+
+
+def canonical_path(path: Path | str) -> Path:
+    """Expand 8.3 short names before containment checks.
+
+    ``Path.resolve()`` on Windows can leave ``C:\\Users\\RUNNER~1\\...`` while a
+    child path expands to ``C:\\Users\\runneradmin\\...``. ``relative_to`` then
+    falsely reports an escape. ``os.path.realpath`` makes both sides comparable
+    without changing on-disk casing used for stored relative paths.
+    """
+
+    return Path(os.path.realpath(os.fspath(path)))
+
+
+def path_is_within(child: Path | str, parent: Path | str) -> bool:
+    """True when *child* is *parent* or a descendant after canonicalization."""
+
+    try:
+        child_c = os.path.normcase(os.path.realpath(os.fspath(child)))
+        parent_c = os.path.normcase(os.path.realpath(os.fspath(parent)))
+        Path(child_c).relative_to(Path(parent_c))
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def relative_to_canonical(child: Path | str, parent: Path | str) -> str:
+    """POSIX-relative path from *parent* to *child*, using realpath forms."""
+
+    child_c = canonical_path(child)
+    parent_c = canonical_path(parent)
+    if not path_is_within(child_c, parent_c):
+        raise ValueError(f"{child_c} is not in the subpath of {parent_c}")
+    return child_c.relative_to(parent_c).as_posix()
 
 
 def normalize_config(config: dict, root: Path | None = None) -> dict:

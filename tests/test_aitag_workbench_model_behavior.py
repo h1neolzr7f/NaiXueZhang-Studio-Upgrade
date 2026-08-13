@@ -25,6 +25,8 @@ def _run_model(script_body: str) -> dict:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
     )
     if completed.returncode != 0:

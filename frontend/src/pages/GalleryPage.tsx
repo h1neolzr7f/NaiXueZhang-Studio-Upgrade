@@ -102,10 +102,23 @@ export function GalleryPage({ search }: { search: string }) {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (draft !== q) go({ q: draft, page: 1 });
+      if (draft !== q) {
+        navigate(
+          galleryPath({
+            galleryId,
+            q: draft,
+            page: 1,
+            sort,
+            timeRange,
+            prompt: promptDraft,
+            group,
+            view,
+          }),
+        );
+      }
     }, 280);
     return () => window.clearTimeout(timer);
-  }, [draft, galleryId, q]);
+  }, [draft, galleryId, q, sort, timeRange, promptDraft, group, view]);
 
   useEffect(() => {
     get<{ items?: GalleryOption[] }>("/api/galleries")

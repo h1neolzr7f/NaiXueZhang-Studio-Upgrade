@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import subprocess
 from collections import defaultdict
@@ -158,8 +159,12 @@ def _fingerprint(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()[:12]
 
 
+def _canonical(path: Path) -> Path:
+    return Path(os.path.normcase(os.path.realpath(os.fspath(path))))
+
+
 def _relative(path: Path, root: Path) -> str:
-    return path.relative_to(root).as_posix()
+    return _canonical(path).relative_to(_canonical(root)).as_posix()
 
 
 def _path_policy(relative: str) -> tuple[str, str] | None:
@@ -201,12 +206,12 @@ def should_skip(path: Path) -> bool:
 
 def git_candidate_paths(root: Path) -> list[Path]:
     """Return tracked plus non-ignored untracked files, preserving NUL-safe names."""
-    root = root.resolve()
+    worktree = Path(root)
     result = subprocess.run(
         [
             "git",
             "-C",
-            str(root),
+            str(worktree),
             "ls-files",
             "-z",
             "--cached",
@@ -224,9 +229,9 @@ def git_candidate_paths(root: Path) -> list[Path]:
         if not raw:
             continue
         relative = raw.decode("utf-8", errors="surrogateescape")
-        path = (root / relative).resolve()
+        path = worktree / relative
         try:
-            path.relative_to(root)
+            _canonical(path).relative_to(_canonical(worktree))
         except ValueError as exc:
             raise RuntimeError("Git candidate escaped the worktree") from exc
         if path.is_file():

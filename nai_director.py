@@ -32,7 +32,7 @@ from generation_jobs import (
     partition_retry_targets,
 )
 from nai_api import call_nai_director, novelai_director_status
-from paths import data_dir, seed_data_file
+from paths import canonical_path, data_dir, path_is_within, relative_to_canonical, seed_data_file
 
 
 MAX_SOURCES = 40
@@ -217,11 +217,12 @@ def _path_inside_data(raw: Any, *, gallery_id: str = "site", filename: str = "")
             candidates.extend((data_dir() / candidate, spec.images_dir / candidate))
     if filename:
         candidates.append(spec.images_dir / Path(filename).name)
-    data_root = data_dir().resolve()
+    data_root = canonical_path(data_dir())
     for candidate in candidates:
         try:
-            resolved = candidate.resolve()
-            resolved.relative_to(data_root)
+            resolved = canonical_path(candidate)
+            if not path_is_within(resolved, data_root):
+                continue
         except (OSError, ValueError):
             continue
         if resolved.is_file():
@@ -234,7 +235,7 @@ def _gallery_asset_url(path: Path, gallery_id: str) -> str:
 
     spec = get_spec(gallery_id)
     try:
-        relative = path.resolve().relative_to(spec.images_dir.resolve()).as_posix()
+        relative = relative_to_canonical(path, spec.images_dir)
     except (OSError, ValueError):
         relative = path.name
     return f"{spec.asset_base_url}{quote(relative, safe='/')}"

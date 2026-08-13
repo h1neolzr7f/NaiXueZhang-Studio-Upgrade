@@ -396,14 +396,18 @@ def save_detail(
     crawled_at: str,
 ) -> None:
     def action() -> None:
-        self._save_detail_impl(
-            work_id,
-            detail,
-            preview_path,
-            preview_downloaded,
-            crawled_at,
-            commit=True,
-        )
+        try:
+            self._save_detail_impl(
+                work_id,
+                detail,
+                preview_path,
+                preview_downloaded,
+                crawled_at,
+                commit=True,
+            )
+        except Exception:
+            self.conn.rollback()
+            raise
 
     self._run(action)
 

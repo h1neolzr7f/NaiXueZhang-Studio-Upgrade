@@ -36,16 +36,13 @@ def collect_findings(root: Path) -> dict:
         "README.md",
         "PRODUCT.md",
         "ROADMAP.md",
-        "task_plan.md",
-        "findings.md",
         "product_ops.py",
         "routes/product.py",
         "web/ops.html",
         "web/shared/api-client.js",
     ]
-    # progress.md and cases/ are local agent/work state. The publication
-    # scanner intentionally rejects them, so a public source checkout must not
-    # require either file in order to pass this product gate.
+    # task_plan.md / findings.md are local agent notes (gitignored). A public
+    # clone must pass this gate without those work-state files.
     for rel in required:
         if not (root / rel).exists():
             p0.append(f"缺少必需管理/驾驶舱文件：{rel}")

@@ -18,6 +18,22 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Get-Sha256Hex {
+    param([Parameter(Mandatory = $true)][string]$LiteralPath)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($LiteralPath)
+        try {
+            return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+        } finally {
+            $stream.Dispose()
+        }
+    } finally {
+        $sha.Dispose()
+    }
+}
+
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 # 缓存版本戳是内容哈希（scripts/asset_versions.py 维护）。发布前必须新鲜，
 # 否则打出来的包带着过期戳，用户浏览器会拿到旧缓存资源。
@@ -234,7 +250,7 @@ function Update-SampleDatabaseManifest([string]$StagePath) {
         throw "Sample database or manifest is missing while finalizing its hash."
     }
     $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    $manifest.database_sha256 = (Get-FileHash -LiteralPath $databasePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $manifest.database_sha256 = Get-Sha256Hex -LiteralPath $databasePath
     $manifest.database_bytes = (Get-Item -LiteralPath $databasePath).Length
     $manifestJson = $manifest | ConvertTo-Json -Depth 16
     [System.IO.File]::WriteAllText(
@@ -270,7 +286,7 @@ function Write-SeedManifest([string]$StagePath, [string]$ReleaseProfile) {
             [pscustomobject][ordered]@{
                 path = $relative.Replace('\', '/')
                 bytes = [long](Get-Item -LiteralPath $asset).Length
-                sha256 = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+                sha256 = Get-Sha256Hex -LiteralPath $asset
             }
         }
     )
@@ -728,7 +744,7 @@ $releaseInventory = @(
         [pscustomobject][ordered]@{
             path = $relativePath
             bytes = [long]$file.Length
-            sha256 = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            sha256 = Get-Sha256Hex -LiteralPath $file.FullName
         }
     }
 )

@@ -119,7 +119,7 @@ export function RemixPage({ search }: { search: string }) {
       .catch(() => undefined);
   }, []);
 
-  async function extract(nextWork = workId, nextGallery = galleryId) {
+  async function extract(nextWork = workId, nextGallery = galleryId, signal?: AbortSignal) {
     if (!nextWork.trim()) {
       setError("请填写作品 ID");
       return;
@@ -129,21 +129,27 @@ export function RemixPage({ search }: { search: string }) {
     try {
       const payload = await get<ExtractPayload>(
         `/api/plugin/char-swap/extract?work_id=${encodeURIComponent(nextWork)}&page_index=${pageIndex}&gallery_id=${encodeURIComponent(nextGallery)}`,
+        signal ? { signal } : undefined,
       );
+      if (signal?.aborted) return;
       const data = payload.data || payload;
       setChars(data.chars || []);
       setBaseCaption(String(data.base_caption || ""));
       setComment(null);
       setStatus(`已解析 ${ (data.chars || []).length } 个角色槽`);
     } catch (err) {
+      if (signal?.aborted) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false);
+      if (!signal?.aborted) setBusy(false);
     }
   }
 
   useEffect(() => {
-    if (initialWork) void extract(initialWork, initialGallery);
+    if (!initialWork) return;
+    const ac = new AbortController();
+    void extract(initialWork, initialGallery, ac.signal);
+    return () => ac.abort();
   }, [initialWork, initialGallery, pageIndex]);
 
   function buildRecipe() {

@@ -473,8 +473,9 @@ def test_generated_images_serve_with_short_cache(tmp_path: Path) -> None:
 
 def test_import_drop_writes_via_atomic_primitive() -> None:
     source = (Path(gallery_routes.__file__)).read_text(encoding="utf-8")
-    handler_start = source.index("api_gallery_import_drop")
-    handler_end = source.index("_STORAGE_OPEN_TARGETS", handler_start)
-    handler = source[handler_start:handler_end]
-    assert "atomic_write_bytes(dest, data)" in handler
-    assert "dest.write_bytes" not in handler
+    helper_start = source.index("def _import_drop_files")
+    helper_end = source.index("async def api_gallery_import_drop", helper_start)
+    helper = source[helper_start:helper_end]
+    assert "atomic_write_bytes(dest, data)" in helper
+    assert "dest.write_bytes" not in helper
+    assert "asyncio.to_thread" in source

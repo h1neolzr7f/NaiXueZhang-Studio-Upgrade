@@ -190,6 +190,9 @@ class Database:
         with self._lock:
             return fn()
 
+    def _count(self, sql: str, params: tuple = ()) -> int:
+        return self._run(lambda: int(self.conn.execute(sql, params).fetchone()["c"]))
+
     def _reader(self) -> sqlite3.Connection:
         with self._lock:
             if self._closed:
@@ -200,6 +203,7 @@ class Database:
                     self.db_path, check_same_thread=False, timeout=30.0
                 )
                 conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA busy_timeout=30000")
                 conn.execute("PRAGMA query_only=ON")
                 self._local.reader_conn = conn
                 self._reader_connections.add(conn)
@@ -425,18 +429,24 @@ class Database:
         return True, needs_fts
 
     def has_detail(self, work_id: int) -> bool:
-        row = self.conn.execute(
-            "SELECT 1 FROM works WHERE id = ? AND detail_json IS NOT NULL",
-            (work_id,),
-        ).fetchone()
-        return row is not None
+        return self._run(
+            lambda: self.conn.execute(
+                "SELECT 1 FROM works WHERE id = ? AND detail_json IS NOT NULL",
+                (work_id,),
+            ).fetchone()
+            is not None
+        )
 
     def has_preview(self, work_id: int) -> bool:
-        row = self.conn.execute(
-            "SELECT preview_downloaded FROM works WHERE id = ?",
-            (work_id,),
-        ).fetchone()
-        return bool(row and int(row["preview_downloaded"] or 0) == 1)
+        return self._run(
+            lambda: bool(
+                (row := self.conn.execute(
+                    "SELECT preview_downloaded FROM works WHERE id = ?",
+                    (work_id,),
+                ).fetchone())
+                and int(row["preview_downloaded"] or 0) == 1
+            )
+        )
 
     @staticmethod
     def _resolve_image_count(
@@ -570,21 +580,6 @@ class Database:
             }
 
         return self._run(action)
-
-    def save_detail(
-        self,
-        work_id: int,
-        detail: dict[str, Any],
-        preview_path: str | None,
-        preview_downloaded: bool,
-        crawled_at: str,
-    ) -> None:
-        def action():
-            self._save_detail_impl(
-                work_id, detail, preview_path, preview_downloaded, crawled_at
-            )
-
-        self._run(action)
 
     def _save_detail_impl(
         self,
@@ -801,33 +796,23 @@ class Database:
         self.conn.commit()
 
     def count_works(self) -> int:
-        row = self.conn.execute("SELECT COUNT(*) AS c FROM works").fetchone()
-        return int(row["c"])
+        return self._count("SELECT COUNT(*) AS c FROM works")
 
     def count_details(self) -> int:
-        row = self.conn.execute(
-            "SELECT COUNT(*) AS c FROM works WHERE detail_json IS NOT NULL"
-        ).fetchone()
-        return int(row["c"])
+        return self._count("SELECT COUNT(*) AS c FROM works WHERE detail_json IS NOT NULL")
 
     def count_previews(self) -> int:
-        row = self.conn.execute(
-            "SELECT COUNT(*) AS c FROM works WHERE preview_downloaded = 1"
-        ).fetchone()
-        return int(row["c"])
+        return self._count("SELECT COUNT(*) AS c FROM works WHERE preview_downloaded = 1")
 
     def count_pending_details(self, *, arknights_only: bool = False) -> int:
         ark_sql = f" AND ({ARK_MATCH_SQL})" if arknights_only else ""
-        row = self.conn.execute(
-            f"SELECT COUNT(*) AS c FROM works WHERE detail_json IS NULL{ark_sql}"
-        ).fetchone()
-        return int(row["c"])
+        return self._count(f"SELECT COUNT(*) AS c FROM works WHERE detail_json IS NULL{ark_sql}")
 
     def count_pending_previews(
         self, *, arknights_only: bool = False, max_attempts: int = 6
     ) -> int:
         ark_sql = f" AND ({ARK_MATCH_SQL})" if arknights_only else ""
-        row = self.conn.execute(
+        return self._count(
             f"""
             SELECT COUNT(*) AS c FROM works
             WHERE list_json IS NOT NULL
@@ -836,14 +821,13 @@ class Database:
               AND COALESCE(preview_attempts, 0) < ?{ark_sql}
             """,
             (max_attempts,),
-        ).fetchone()
-        return int(row["c"])
+        )
 
     def count_exhausted_previews(
         self, *, arknights_only: bool = False, max_attempts: int = 6
     ) -> int:
         ark_sql = f" AND ({ARK_MATCH_SQL})" if arknights_only else ""
-        row = self.conn.execute(
+        return self._count(
             f"""
             SELECT COUNT(*) AS c FROM works
             WHERE detail_json IS NOT NULL
@@ -851,14 +835,10 @@ class Database:
               AND COALESCE(preview_attempts, 0) >= ?{ark_sql}
             """,
             (max_attempts,),
-        ).fetchone()
-        return int(row["c"])
+        )
 
     def count_downloaded_images(self) -> int:
-        row = self.conn.execute(
-            "SELECT COUNT(*) AS c FROM work_images WHERE downloaded = 1"
-        ).fetchone()
-        return int(row["c"])
+        return self._count("SELECT COUNT(*) AS c FROM work_images WHERE downloaded = 1")
 
     def pending_detail_ids(
         self, limit: int = 100, *, arknights_only: bool = False

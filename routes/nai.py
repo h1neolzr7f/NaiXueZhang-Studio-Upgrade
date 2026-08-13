@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse
+import asyncio
 from server_shared import DB
 from api_schemas import NaiGenerateRequest
 from nai_api import (
@@ -177,7 +178,8 @@ async def api_nai_generate(payload: NaiGenerateRequest) -> dict:
         copies = int(data.get("copies") or data.get("batch_count") or 1)
     except (TypeError, ValueError):
         copies = 1
-    result = start_studio_generate(
+    result = await asyncio.to_thread(
+        start_studio_generate,
         comment if isinstance(comment, dict) else {},
         work_id=work_id,
         page_index=page_index,

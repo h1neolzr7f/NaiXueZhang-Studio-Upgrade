@@ -945,8 +945,17 @@
 
       const meta = document.createElement("div");
       meta.className = "meta";
+      const caption = document.createElement("div");
+      caption.className = "meta-caption";
+      caption.textContent = pill.textContent;
+      meta.appendChild(caption);
       const when = g.latest_at ? g.latest_at.replace("T", " ").slice(0, 16) : "";
-      meta.innerHTML = `<div class="meta-caption">${pill.textContent}</div>${when ? `<div class="meta-date">${when}</div>` : ""}`;
+      if (when) {
+        const date = document.createElement("div");
+        date.className = "meta-date";
+        date.textContent = when;
+        meta.appendChild(date);
+      }
       card.appendChild(meta);
 
       card.addEventListener("click", () => {

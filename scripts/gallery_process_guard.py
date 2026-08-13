@@ -31,7 +31,7 @@ def _port(value: str) -> int:
 
 
 def _canonical(path: Path) -> str:
-    return os.path.normcase(str(path.resolve(strict=False)))
+    return os.path.normcase(os.path.realpath(os.fspath(path)))
 
 
 def _script_argument(command_line: list[str]) -> str | None:
@@ -164,7 +164,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    project_root = Path(args.project_root).resolve()
+    project_root = Path(os.path.realpath(args.project_root))
     if not project_root.is_dir():
         print(f"Gallery project root does not exist: {project_root}", file=sys.stderr)
         return EXIT_CONFIGURATION_ERROR

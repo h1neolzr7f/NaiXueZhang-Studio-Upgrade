@@ -388,11 +388,14 @@ class PythonProcessGuardUnitTests(unittest.TestCase):
 
         self.assertEqual(0, result)
         list_listeners.assert_called_once_with(54321)
-        inspect_listener.assert_called_once_with(
-            listener.pid,
-            project_root / "server.py",
-            54321,
+        inspect_listener.assert_called_once()
+        called_pid, called_script, called_port = inspect_listener.call_args.args
+        self.assertEqual(called_pid, listener.pid)
+        self.assertEqual(
+            os.path.normcase(os.path.realpath(called_script)),
+            os.path.normcase(os.path.realpath(project_root / "server.py")),
         )
+        self.assertEqual(called_port, 54321)
         stop_listener.assert_called_once_with(listener, 54321)
 
 

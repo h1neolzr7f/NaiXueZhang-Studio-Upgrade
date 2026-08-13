@@ -114,7 +114,9 @@ def test_crawler_selects_browser_source_when_enabled_and_available() -> None:
         "proxy_url": "",
         "browser_mode": True,
     }
-    with mock.patch("pixiv_nai_crawler._active_pixiv_account_id", return_value=""):
+    with mock.patch("pixiv_nai_crawler._active_pixiv_account_id", return_value=""), mock.patch(
+        "pixiv_nai_crawler.PixivBrowserSource.available", return_value=True
+    ):
         source, selected = _build_pixiv_source(task)
     assert selected == "public_browser"
     assert isinstance(source, PixivBrowserSource)

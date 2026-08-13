@@ -92,10 +92,17 @@ def generation_concurrency_for_batch(
     target_count = len(targets or [])
     if target_count:
         legacy_slots = min(legacy_slots, target_count)
-    # nai_api.generation_concurrency_for_batch 是对同一 token 池的重复计算
-    # （min(count, generation_concurrency())），不携带 legacy 之外的可用性
-    # 信息；legacy 计数可被调用方 patch，是兼容权威。模块级导入的
-    # _pool_concurrency 仅为向后兼容保留，此处不再执行其死代码计算。
+    if _pool_concurrency is None:
+        return legacy_slots
+    pool_slots = int(
+        _pool_concurrency(
+            target_count if target_count else legacy_slots or 1,
+            force_free=force_free,
+        )
+        or 0
+    )
+    if pool_slots > 0:
+        return min(legacy_slots, pool_slots) if legacy_slots else pool_slots
     return legacy_slots
 
 
@@ -566,7 +573,12 @@ async def _run_batch(
     except Exception as exc:
         status = _JOB_MANAGER.status(job.task_id)
         if status and status.get("status") == "running":
-            _JOB_MANAGER.finish(job, status="error", message=str(exc))
+            _JOB_MANAGER.finish(
+                job,
+                status="unknown",
+                message=f"这次可能已扣费，任务异常中断：{exc}",
+            )
+            job.state["recovered_after_restart"] = True
     finally:
         resume_batch_queue()
 

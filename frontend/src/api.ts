@@ -32,8 +32,8 @@ function client() {
   return api;
 }
 
-export function get<T>(path: string): Promise<T> {
-  return client().get(path) as Promise<T>;
+export function get<T>(path: string, options?: Record<string, unknown>): Promise<T> {
+  return client().get(path, options) as Promise<T>;
 }
 
 export function post<T>(
@@ -51,6 +51,7 @@ export function del<T>(path: string): Promise<T> {
 export function pollJob(
   taskId: string,
   onProgress?: (job: Record<string, unknown>) => void,
+  options?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  return client().pollJob(taskId, onProgress);
+  return client().pollJob(taskId, onProgress, options);
 }

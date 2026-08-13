@@ -63,6 +63,8 @@ process.stdout.write(JSON.stringify({
                 ["node", "-e", script, str(core_path)],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
             )
         except FileNotFoundError:
@@ -167,6 +169,8 @@ process.stdout.write(JSON.stringify({
                 ["node", "--check", str(nav_path)],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
             )
         except FileNotFoundError:

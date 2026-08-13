@@ -109,7 +109,7 @@
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${esc(item.work_id)}</td>
-        <td><a href="${esc(item.source_url)}" target="_blank" rel="noopener">${esc(item.source_url)}</a></td>
+        <td><a href="${esc(typeof safeHttpUrl === "function" ? safeHttpUrl(item.source_url, "#") : "#")}" target="_blank" rel="noopener">${esc(item.source_url)}</a></td>
         <td>${fmtTime(item.created_at)}</td>
         <td><button class="danger" data-del="${esc(item.work_id)}">移除</button></td>`;
       tr.querySelector("[data-del]").addEventListener("click", async () => {

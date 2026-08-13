@@ -67,12 +67,20 @@ export function PixivPage() {
   useEffect(() => {
     const running = String(status?.job?.status || "") === "running";
     if (!running) return;
+    let cancelled = false;
     const timer = window.setInterval(() => {
       get<PixivStatus>("/api/pixiv/status")
-        .then(setStatus)
-        .catch((err: Error) => setError(err.message));
+        .then((next) => {
+          if (!cancelled) setStatus(next);
+        })
+        .catch((err: Error) => {
+          if (!cancelled) setError(err.message);
+        });
     }, 2000);
-    return () => window.clearInterval(timer);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [status?.job?.status]);
 
   const activeAccount = accounts.find((account) => account.active);

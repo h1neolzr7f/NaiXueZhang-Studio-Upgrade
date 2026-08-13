@@ -18,6 +18,8 @@ def _run_node(script: str) -> dict:
         capture_output=True,
         text=True,
         timeout=10,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         raise AssertionError(result.stderr or result.stdout)
