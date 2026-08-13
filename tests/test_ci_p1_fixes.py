@@ -15,21 +15,21 @@ from scripts.product_quality_gate import collect_findings
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _ci_windows_temp(*parts: str, short: bool = False) -> Path:
+    profile = "RUNNER~1" if short else "runneradmin"
+    return Path("C:/Users") / profile / "AppData" / "Local" / "Temp" / Path(*parts)
+
+
 def test_canonical_path_equates_short_and_long_windows_forms(monkeypatch) -> None:
-    long_form = r"C:\Users\runneradmin\AppData\Local\Temp\t\data\images"
+    long_form = str(_ci_windows_temp("t", "data", "images"))
+    short_form = str(_ci_windows_temp("t", "data", "images", short=True))
+    long_child = str(_ci_windows_temp("t", "data", "images", "NAI", "9", "fallback_p1.webp"))
+    short_child = str(_ci_windows_temp("t", "data", "images", "NAI", "9", "fallback_p1.webp", short=True))
     mapping = {
-        os.path.normpath(r"C:\Users\RUNNER~1\AppData\Local\Temp\t\data\images"): long_form,
+        os.path.normpath(short_form): long_form,
         os.path.normpath(long_form): long_form,
-        os.path.normpath(
-            r"C:\Users\runneradmin\AppData\Local\Temp\t\data\images\NAI\9\fallback_p1.webp"
-        ): os.path.normpath(
-            r"C:\Users\runneradmin\AppData\Local\Temp\t\data\images\NAI\9\fallback_p1.webp"
-        ),
-        os.path.normpath(
-            r"C:\Users\RUNNER~1\AppData\Local\Temp\t\data\images\NAI\9\fallback_p1.webp"
-        ): os.path.normpath(
-            r"C:\Users\runneradmin\AppData\Local\Temp\t\data\images\NAI\9\fallback_p1.webp"
-        ),
+        os.path.normpath(long_child): os.path.normpath(long_child),
+        os.path.normpath(short_child): os.path.normpath(long_child),
     }
 
     def fake_realpath(path: str | os.PathLike[str]) -> str:
@@ -37,10 +37,8 @@ def test_canonical_path_equates_short_and_long_windows_forms(monkeypatch) -> Non
         return mapping.get(key, key)
 
     monkeypatch.setattr(os.path, "realpath", fake_realpath)
-    parent = Path(r"C:\Users\RUNNER~1\AppData\Local\Temp\t\data\images")
-    child = Path(
-        r"C:\Users\runneradmin\AppData\Local\Temp\t\data\images\NAI\9\fallback_p1.webp"
-    )
+    parent = Path(short_form)
+    child = Path(long_child)
     assert canonical_path(parent) == canonical_path(Path(long_form))
     assert path_is_within(child, parent)
 

@@ -137,10 +137,11 @@ function ConvertTo-CanonicalPath([string]$Path) {
     )
 }
 
-# GetFullPath does not expand 8.3 names. CI TEMP is often C:\Users\RUNNER~1
-# while Get-ChildItem.FullName is C:\Users\runneradmin (...3 chars longer).
-# Cutting with the unexpanded stage string length kept the last 3 hex chars of
-# the build GUID as a fake top-level folder in release_manifest.json.
+# GetFullPath does not expand 8.3 names. CI TEMP often keeps the short
+# profile directory while Get-ChildItem.FullName uses the long profile
+# name (3 characters longer). Cutting with the unexpanded stage string
+# length kept the last 3 hex chars of the build GUID as a fake top-level
+# folder in release_manifest.json.
 if (-not ('Win32LongPath' -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
