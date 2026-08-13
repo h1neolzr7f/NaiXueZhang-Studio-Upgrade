@@ -137,6 +137,56 @@ function ConvertTo-CanonicalPath([string]$Path) {
     )
 }
 
+# GetFullPath does not expand 8.3 names. CI TEMP is often C:\Users\RUNNER~1
+# while Get-ChildItem.FullName is C:\Users\runneradmin (...3 chars longer).
+# Cutting with the unexpanded stage string length kept the last 3 hex chars of
+# the build GUID as a fake top-level folder in release_manifest.json.
+if (-not ('Win32LongPath' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class Win32LongPath {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int GetLongPathName(string path, StringBuilder buffer, int bufferLength);
+}
+'@
+}
+
+function ConvertTo-ExistingLongPath([string]$Path) {
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $buffer = New-Object System.Text.StringBuilder 32768
+    $n = [Win32LongPath]::GetLongPathName($fullPath, $buffer, $buffer.Capacity)
+    if ($n -gt $buffer.Capacity) {
+        $buffer = New-Object System.Text.StringBuilder $n
+        $n = [Win32LongPath]::GetLongPathName($fullPath, $buffer, $buffer.Capacity)
+    }
+    if ($n -gt 0) {
+        $fullPath = $buffer.ToString()
+    } else {
+        $resolved = Resolve-Path -LiteralPath $fullPath -ErrorAction SilentlyContinue
+        if ($resolved) {
+            $fullPath = $resolved.Path
+        } elseif (Test-Path -LiteralPath $fullPath) {
+            $fullPath = (Get-Item -LiteralPath $fullPath -Force).FullName
+        }
+    }
+    return $fullPath.TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+}
+
+function Get-InventoryRelativePath([string]$StageLongPath, [string]$FileFullName) {
+    $fileLong = ConvertTo-ExistingLongPath $FileFullName
+    $prefix = ConvertTo-ExistingLongPath $StageLongPath
+    $withSep = $prefix + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $fileLong.StartsWith($withSep, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Inventory file is outside the release stage: $fileLong"
+    }
+    return $fileLong.Substring($prefix.Length).TrimStart([char[]]@([char]92, [char]47)).Replace('\', '/')
+}
+
 function Test-PathIsSameOrDescendant([string]$Candidate, [string]$Container) {
     $canonicalCandidate = ConvertTo-CanonicalPath $Candidate
     $canonicalContainer = ConvertTo-CanonicalPath $Container
@@ -731,16 +781,17 @@ if (-not $SkipSampleData) {
 
 Set-Content -LiteralPath (Join-Path $stage $stageMarkerName) -Value $stageMarkerValue -Encoding ASCII
 
+$stageLong = ConvertTo-ExistingLongPath $stage
 $stageFiles = @(
-    Get-ChildItem -LiteralPath $stage -Recurse -Force -File |
+    Get-ChildItem -LiteralPath $stageLong -Recurse -Force -File |
         Where-Object { $_.Name -ne "release_manifest.json" }
 )
 $releaseInventory = @(
     foreach ($file in $stageFiles) {
-        # Windows PowerShell 5.1 runs on .NET Framework, which does not expose
-        # Path.GetRelativePath. Every inventory file is already enumerated
-        # beneath $stage, so a checked prefix trim is portable and unambiguous.
-        $relativePath = $file.FullName.Substring($stage.Length).TrimStart([char[]]@([char]92, [char]47)).Replace('\', '/')
+        # Windows PowerShell 5.1 has no Path.GetRelativePath. Expand 8.3 on
+        # both sides before trimming, otherwise CI TEMP (RUNNER~1 vs
+        # runneradmin) shifts the cut by 3 chars and poisons inventory paths.
+        $relativePath = Get-InventoryRelativePath -StageLongPath $stageLong -FileFullName $file.FullName
         [pscustomobject][ordered]@{
             path = $relativePath
             bytes = [long]$file.Length
@@ -772,7 +823,7 @@ $releaseManifest = [ordered]@{
 $releaseManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $stage "release_manifest.json") -Encoding UTF8
 
 $stageVerifier = Join-Path $projectRoot "scripts\verify_release_stage.py"
-$verifyArgs = @($stageVerifier, $stage)
+$verifyArgs = @($stageVerifier, $stageLong)
 if ($SkipSampleData) {
     $verifyArgs += "--allow-empty-sample"
 }

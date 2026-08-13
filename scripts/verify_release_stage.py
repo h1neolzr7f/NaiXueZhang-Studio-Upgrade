@@ -318,8 +318,9 @@ def _verify_release_inventory(stage: Path, manifest: dict[str, object]) -> None:
             int(raw_entry.get("bytes") or 0),
             str(raw_entry.get("sha256") or "").casefold(),
         )
+    stage_root = Path(os.path.realpath(stage))
     actual = {
-        path.relative_to(stage).as_posix(): path
+        Path(os.path.realpath(path)).relative_to(stage_root).as_posix(): path
         for path in stage.rglob("*")
         if path.is_file() and path.name != "release_manifest.json"
     }

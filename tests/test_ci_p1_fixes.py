@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 from unittest.mock import patch
@@ -96,6 +97,42 @@ def test_release_script_hashes_without_get_filehash() -> None:
     portable = (ROOT / "scripts" / "build_portable_runtime.ps1").read_text(encoding="utf-8")
     assert "function Get-Sha256Hex" in portable
     assert "Get-FileHash" not in portable
+
+
+def test_release_inventory_expands_83_before_substring() -> None:
+    script = (ROOT / "scripts" / "make_release.ps1").read_text(encoding="utf-8")
+    assert "Substring($stage.Length)" not in script
+    assert "function ConvertTo-ExistingLongPath" in script
+    assert "function Get-InventoryRelativePath" in script
+    verifier = (ROOT / "scripts" / "verify_release_stage.py").read_text(encoding="utf-8")
+    assert "os.path.realpath(stage)" in verifier
+
+
+def test_verify_inventory_matches_when_stage_is_83_short_path(tmp_path: Path) -> None:
+    if os.name != "nt":
+        return
+    from scripts.verify_release_stage import _verify_release_inventory
+
+    stage = tmp_path / "stage"
+    target = stage / "web" / "LICENSE"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"ok\n")
+    digest = hashlib.sha256(b"ok\n").hexdigest()
+    manifest = {
+        "inventory_algorithm": "sha256",
+        "file_count": 1,
+        "bytes": 3,
+        "inventory": [{"path": "web/LICENSE", "bytes": 3, "sha256": digest}],
+    }
+    import ctypes
+
+    get_short = ctypes.windll.kernel32.GetShortPathNameW
+    get_short.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+    get_short.restype = ctypes.c_uint
+    buf = ctypes.create_unicode_buffer(32768)
+    n = get_short(str(stage), buf, 32768)
+    short_stage = Path(buf.value) if n else stage
+    _verify_release_inventory(short_stage, manifest)
 
 
 def test_unexpected_batch_exception_is_unknown_lane() -> None:
