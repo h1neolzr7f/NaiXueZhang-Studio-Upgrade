@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from paths import data_dir
 from work_refs import WorkRef, WorkSelectionStore, public_work_id
 
-QUEUE_PATH = data_dir() / "production_queue.json"
+QUEUE_PATH: Path | None = None
+
+
+def queue_path() -> Path:
+    return Path(QUEUE_PATH) if QUEUE_PATH is not None else data_dir() / "production_queue.json"
 
 
 def _store() -> WorkSelectionStore:
-    return WorkSelectionStore(QUEUE_PATH, kind="production_queue")
+    return WorkSelectionStore(queue_path(), kind="production_queue")
 
 
 def list_refs() -> list[dict[str, Any]]:

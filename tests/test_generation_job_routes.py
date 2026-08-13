@@ -48,6 +48,23 @@ class GenerationJobRouteTests(unittest.TestCase):
         self.assertEqual(response.json(), restored)
         restore.assert_called_once_with("a" * 32)
 
+    def test_generated_trash_list_omits_file_manifest(self) -> None:
+        hidden = {
+            "trash_id": "b" * 32,
+            "kind": "group",
+            "group_id": "11",
+            "image_ids": ["img-1"],
+            "created_at": "2026-08-13T00:00:00",
+            "file_count": 2,
+            "files": [{"name": "secret.png", "sha256": "abc"}],
+        }
+        with patch("routes.nai.list_deleted", return_value=[hidden]):
+            response = self.client.get("/api/generated/trash")
+        self.assertEqual(response.status_code, 200)
+        item = response.json()["items"][0]
+        self.assertEqual(item["trash_id"], "b" * 32)
+        self.assertNotIn("files", item)
+
     def test_failed_generation_items_can_be_retried_by_stable_task_id(self) -> None:
         retried = {"ok": True, "task_id": "job-2", "retry_of": "job-1"}
         with patch("routes.char_swap.retry_batch", return_value=retried) as retry:

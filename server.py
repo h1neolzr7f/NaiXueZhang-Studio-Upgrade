@@ -100,8 +100,8 @@ def _start_char_swap_warmup_once() -> None:
             _ark_library_tags()
             _danbooru_recognition_characters()
             classify_caption_cached("1girl, solo")
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"WARNING: 换角索引预热失败：{exc}", flush=True)
 
     threading.Thread(target=_run, daemon=True).start()
 

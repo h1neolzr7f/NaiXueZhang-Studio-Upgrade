@@ -145,6 +145,7 @@ export function mapQueueToTargets() {
       };
       if (x.patched_comment && x.patched_comment.v4_prompt) {
         t.patched_comment = x.patched_comment;
+        t.frozen_comment = true;
       }
       return t;
     });

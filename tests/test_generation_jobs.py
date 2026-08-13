@@ -767,6 +767,35 @@ class NaiBatchJobApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["error"], "needs_review")
         start.assert_not_called()
 
+    async def test_unknown_job_with_missing_item_cannot_be_retried(self) -> None:
+        manager = GenerationJobManager()
+        job = manager.start_job(total=2, generate=True, preview_only=False)
+        manager.update(
+            job,
+            _request={
+                "targets": [
+                    {"work_id": 901, "page_index": 0, "_target_index": 0},
+                    {"work_id": 902, "page_index": 0, "_target_index": 1},
+                ],
+                "recipe": {},
+                "generate": True,
+                "preview_only": False,
+            },
+        )
+        manager.finish(job, status="unknown", message="crash before append")
+
+        status = manager.status(job.task_id)
+        with patch.object(nai_batch, "_JOB_MANAGER", manager), patch.object(
+            nai_batch, "start_batch"
+        ) as start:
+            result = nai_batch.retry_batch(job.task_id)
+
+        self.assertTrue(status["needs_review"])
+        self.assertGreaterEqual(status["blocked_retry_count"], 2)
+        self.assertFalse(status["can_retry"])
+        self.assertEqual(result["error"], "needs_review")
+        start.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

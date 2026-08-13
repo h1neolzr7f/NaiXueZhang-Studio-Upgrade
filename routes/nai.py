@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import JSONResponse
 from server_shared import DB
+from api_schemas import NaiGenerateRequest
 from nai_api import (
     token_status,
     queue_status,
@@ -20,6 +21,7 @@ from generated_gallery import (
     get_group,
     migrate_legacy_meta,
     restore_deleted,
+    list_deleted,
 )
 from post_pipeline import load_config
 from nai_batch import batch_status, start_studio_generate
@@ -132,13 +134,14 @@ def api_nai_jobs(task_id: str = Query("")) -> dict:
 
 
 @router.post("/nai/generate")
-async def api_nai_generate(payload: dict = Body(default_factory=dict)) -> dict:
-    comment = payload.get("patched_comment")
+async def api_nai_generate(payload: NaiGenerateRequest) -> dict:
+    data = payload.model_dump()
+    comment = data.get("patched_comment")
     if not comment:
         raise HTTPException(status_code=400, detail="patched_comment is required")
     # Accept string work_id (AITag large IDs lose precision if forced through JS Number).
     work_id = None
-    raw_work_id = payload.get("work_id")
+    raw_work_id = data.get("work_id")
     if raw_work_id is not None and str(raw_work_id).strip() != "":
         try:
             work_id = int(str(raw_work_id).strip())
@@ -146,17 +149,17 @@ async def api_nai_generate(payload: dict = Body(default_factory=dict)) -> dict:
                 work_id = None
         except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail="work_id must be an integer string") from exc
-    page_index = int(payload.get("page_index") or 0)
-    source_gallery_id = str(payload.get("source_gallery_id") or "site").strip() or "site"
+    page_index = int(data.get("page_index") or 0)
+    source_gallery_id = str(data.get("source_gallery_id") or "site").strip() or "site"
     comment = clean_plain_ark_workbench_draft(
         comment,
         work_id,
         page_index,
         gallery_id=source_gallery_id,
     )
-    remote_work_id = str(payload.get("remote_work_id") or payload.get("work_id_str") or "").strip()
-    source_title = str(payload.get("source_title") or "").strip()
-    source_thumb = str(payload.get("source_thumb") or "").strip()
+    remote_work_id = str(data.get("remote_work_id") or data.get("work_id_str") or "").strip()
+    source_title = str(data.get("source_title") or "").strip()
+    source_thumb = str(data.get("source_thumb") or "").strip()
     if isinstance(comment, dict):
         comment.setdefault("_aitag_source", {})
         if isinstance(comment["_aitag_source"], dict):
@@ -171,7 +174,7 @@ async def api_nai_generate(payload: dict = Body(default_factory=dict)) -> dict:
             source_thumb = str(comment["_aitag_source"].get("thumb") or source_thumb).strip()
             remote_work_id = str(comment["_aitag_source"].get("work_id") or remote_work_id).strip()
     try:
-        copies = int(payload.get("copies") or payload.get("batch_count") or 1)
+        copies = int(data.get("copies") or data.get("batch_count") or 1)
     except (TypeError, ValueError):
         copies = 1
     result = start_studio_generate(
@@ -180,13 +183,13 @@ async def api_nai_generate(payload: dict = Body(default_factory=dict)) -> dict:
         page_index=page_index,
         copies=copies,
         source_gallery_id=source_gallery_id if source_gallery_id in {"site", "aitag-online", "codex", "qqgroup"} else "site",
-        seed_policy=str(payload.get("seed_policy") or ""),
-        force_free=bool(payload.get("force_free", True)),
-        prompt_profile=str(payload.get("prompt_profile") or "native"),
+        seed_policy=str(data.get("seed_policy") or ""),
+        force_free=bool(data.get("force_free", True)),
+        prompt_profile=str(data.get("prompt_profile") or "native"),
         source_title=source_title,
         source_thumb=source_thumb,
         remote_work_id=remote_work_id,
-        token_id=str(payload.get("token_id") or ""),
+        token_id=str(data.get("token_id") or ""),
     )
     if not result.get("ok"):
         error = str(result.get("error") or "")
@@ -282,6 +285,23 @@ def api_generated_restore(trash_id: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ValueError, FileExistsError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/generated/trash")
+def api_generated_trash() -> dict:
+    items = []
+    for row in list_deleted():
+        items.append(
+            {
+                "trash_id": row.get("trash_id"),
+                "kind": row.get("kind") or "item",
+                "group_id": row.get("group_id") or "",
+                "image_ids": row.get("image_ids") or [],
+                "created_at": row.get("created_at") or "",
+                "file_count": int(row.get("file_count") or 0),
+            }
+        )
+    return {"ok": True, "items": items}
 
 def _is_generated_group_active(group_id: str, batch: dict, queue: dict) -> bool:
     gid = str(group_id or "").strip()

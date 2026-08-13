@@ -108,8 +108,10 @@ def build_router(data_dir: Path) -> APIRouter:
     return router
 
 
+from paths import data_dir as resolve_data_dir
+
 ROOT = Path(__file__).resolve().parents[1]
-router = build_router(ROOT / "data")
+router = build_router(resolve_data_dir())
 page_router = APIRouter()
 
 

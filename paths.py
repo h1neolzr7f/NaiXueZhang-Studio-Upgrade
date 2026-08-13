@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
+from os import PathLike
 from pathlib import Path
+from typing import Any
 
 _DATA_DIR_CACHE: Path | None = None
 
@@ -39,6 +42,49 @@ def normalize_config(config: dict, root: Path | None = None) -> dict:
         if key in out and out[key]:
             out[key] = str(resolve_path(root, out[key]))
     return out
+
+
+class DeferredDataPath(PathLike[str]):
+    """Path that resolves through a factory on each use.
+
+    Import-time ``DATA_DIR = data_dir()`` freezes the location for the process.
+    Tests and portable bundles can relocate the data root after import; this
+    proxy keeps production lookups live while still allowing
+    ``module.TOKEN_PATH = tmp / "file.json"`` to replace the proxy entirely.
+    """
+
+    def __init__(self, factory: Callable[[], Path]) -> None:
+        object.__setattr__(self, "_factory", factory)
+
+    def _path(self) -> Path:
+        return Path(self._factory())
+
+    def __fspath__(self) -> str:
+        return str(self._path())
+
+    def __truediv__(self, other: Any) -> Path:
+        return self._path() / other
+
+    def __rtruediv__(self, other: Any) -> Path:
+        return Path(other) / self._path()
+
+    def __str__(self) -> str:
+        return str(self._path())
+
+    def __repr__(self) -> str:
+        return f"DeferredDataPath({self._path()!r})"
+
+    def __eq__(self, other: object) -> bool:
+        try:
+            return self._path() == Path(other)  # type: ignore[arg-type]
+        except TypeError:
+            return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash(self._path())
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._path(), name)
 
 
 def data_dir(root: Path | None = None) -> Path:

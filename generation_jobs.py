@@ -18,6 +18,53 @@ _STATE_LOCKS_GUARD = threading.Lock()
 _STATE_LOCKS: dict[str, threading.RLock] = {}
 
 
+def partition_retry_targets(
+    targets: list[Any],
+    items: list[Any],
+    *,
+    status: str,
+    recovered_after_restart: bool = False,
+    require_retry_safe: bool = False,
+) -> tuple[list[int], list[int]]:
+    """Split target indexes into retryable vs blocked-for-review.
+
+    Crash-recovered ``unknown`` jobs and in-flight targets with no item row
+    must not be treated as "never attempted". Director jobs also require an
+    explicit ``retry_safe`` flag before a failed item can be retried.
+    """
+
+    retryable: list[int] = []
+    blocked: list[int] = []
+    terminal = str(status or "")
+    recovered = bool(recovered_after_restart) or terminal == "unknown"
+    items_by_index: dict[int, dict[str, Any]] = {}
+    for item in items or []:
+        if not isinstance(item, dict) or item.get("target_index") is None:
+            continue
+        items_by_index[int(item["target_index"])] = item
+    for index, _target in enumerate(targets or []):
+        item = items_by_index.get(index)
+        if item and (item.get("ok") or item.get("skipped")):
+            continue
+        if recovered:
+            blocked.append(index)
+            continue
+        if item is None:
+            if terminal == "cancelled" or (
+                terminal == "done" and not require_retry_safe
+            ):
+                retryable.append(index)
+            else:
+                blocked.append(index)
+            continue
+        uncertain = bool(item.get("billing_uncertain")) and item.get("retry_safe") is not True
+        if uncertain or (require_retry_safe and item.get("retry_safe") is not True):
+            blocked.append(index)
+        else:
+            retryable.append(index)
+    return retryable, blocked
+
+
 def _state_lock(path: Path) -> threading.RLock:
     key = str(path.resolve(strict=False)).casefold()
     with _STATE_LOCKS_GUARD:
@@ -385,7 +432,10 @@ class GenerationJobManager:
             job.state["items"].append(copy.deepcopy(item))
             if count_done:
                 job.state["done"] = int(job.state.get("done") or 0) + 1
-            self._persist_locked()
+            paid = bool(job.state.get("generate")) and not bool(
+                job.state.get("preview_only")
+            )
+            self._persist_locked(required=paid)
             self._notify_locked()
 
     def request_cancel(self, task_id: str | None = None) -> GenerationJob | None:
@@ -458,7 +508,10 @@ class GenerationJobManager:
                 job.state["done"] = int(job.state.get("total") or job.state.get("done") or 0)
             if self._active_task_id == job.task_id:
                 self._active_task_id = None
-            self._persist_locked()
+            paid = bool(job.state.get("generate")) and not bool(
+                job.state.get("preview_only")
+            )
+            self._persist_locked(required=paid)
             self._notify_locked()
 
     def _active_job_locked(self) -> GenerationJob | None:
@@ -497,41 +550,14 @@ class GenerationJobManager:
             int(snapshot.get("fail_count") or 0) - deferred_unattempted_count,
         )
         if isinstance(request, dict) and snapshot.get("status") in TERMINAL_STATUSES:
-            targets = list(request.get("targets") or [])
-            succeeded = {
-                int(item.get("target_index"))
-                for item in (snapshot.get("items") or [])
-                if isinstance(item, dict)
-                and item.get("target_index") is not None
-                and item.get("ok")
-            }
-            skipped = {
-                int(item.get("target_index"))
-                for item in (snapshot.get("items") or [])
-                if isinstance(item, dict)
-                and item.get("target_index") is not None
-                and item.get("skipped")
-            }
-            blocked = {
-                int(item.get("target_index"))
-                for item in (snapshot.get("items") or [])
-                if isinstance(item, dict)
-                and item.get("target_index") is not None
-                and item.get("billing_uncertain")
-                and item.get("retry_safe") is not True
-            }
-            retryable_count = sum(
-                1
-                for index, _target in enumerate(targets)
-                if index not in succeeded
-                and index not in skipped
-                and index not in blocked
+            retryable_indexes, blocked_indexes = partition_retry_targets(
+                list(request.get("targets") or []),
+                list(snapshot.get("items") or []),
+                status=str(snapshot.get("status") or ""),
+                recovered_after_restart=bool(snapshot.get("recovered_after_restart")),
             )
-            blocked_retry_count = sum(
-                1
-                for index, _target in enumerate(targets)
-                if index in blocked and index not in succeeded and index not in skipped
-            )
+            retryable_count = len(retryable_indexes)
+            blocked_retry_count = len(blocked_indexes)
         snapshot.update(
             {
                 "id": job.task_id,

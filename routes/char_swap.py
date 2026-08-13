@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Body, HTTPException, Query
 from server_shared import CONFIG, DB, GALLERY_SCOPE, GALLERY_LOCAL_ONLY
+from api_schemas import CharSwapBatchRunRequest
 from nai_char import (
     extract_chars,
     transform,
@@ -140,14 +141,14 @@ def api_char_swap_batch_preview(payload: dict = Body(default_factory=dict)) -> d
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @router.post("/batch/run")
-async def api_char_swap_batch_run(payload: dict = Body(default_factory=dict)) -> dict:
+async def api_char_swap_batch_run(payload: CharSwapBatchRunRequest) -> dict:
     try:
         return start_batch(
-            list(payload.get("targets") or []),
-            dict(payload.get("recipe") or {}),
-            force_free=bool(payload.get("force_free", True)),
-            generate=bool(payload.get("generate", True)),
-            preview_only=bool(payload.get("preview_only", False)),
+            list(payload.targets or []),
+            dict(payload.recipe or {}),
+            force_free=bool(payload.force_free),
+            generate=bool(payload.generate),
+            preview_only=bool(payload.preview_only),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

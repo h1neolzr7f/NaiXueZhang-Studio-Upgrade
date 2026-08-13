@@ -39,11 +39,12 @@ Pixiv NAI Gallery / Nai学长工作室是一套**本地优先的 AI 插画素材
 
 ## 官方版本与第三方修改版
 
-官方仓库：`h1neolzr7f/NaiXueZhang-Studio`
+- 稳定版仓库与一键包：`h1neolzr7f/NaiXueZhang-Studio`
+- 升级版源码主干：`h1neolzr7f/NaiXueZhang-Studio-Upgrade`
 
-维护者仅对该仓库及其官方 Releases 页面提供的原始版本作出说明。第三方 Fork、重新编译版本、插件、镜像、托管服务和修改后的安装包不代表维护者行为。
+维护者仅对上述仓库及其官方 Releases 页面提供的原始版本作出说明。第三方 Fork、重新编译版本、插件、镜像、托管服务和修改后的安装包不代表维护者行为。
 
-官方 Release 可以通过版本号、Commit SHA 和 SHA-256 识别。运行非官方构建前，请自行审查代码和来源。
+官方 Release 可以通过版本号、Commit SHA 和 SHA-256 识别。运行非官方构建前，请自行审查代码和来源。升级版若尚未发布 zip，请以本仓库源码为准，不要把来路不明的压缩包当成官方升级包。
 
 ## 来源与作者请求
 

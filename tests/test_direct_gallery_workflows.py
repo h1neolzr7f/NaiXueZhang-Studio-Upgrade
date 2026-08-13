@@ -12,8 +12,8 @@ def read(path: str) -> str:
 def test_small_mirror_and_character_swap_stay_in_primary_nav():
     nav = read("web/shared/site-nav.js")
     primary = nav.split("const NAV_SECONDARY", 1)[0]
-    assert '{ href: "/butler", id: "butler", label: "小镜" }' in primary
-    assert '{ href: "/remix", id: "remix", label: "换角" }' in primary
+    assert '{ href: "/app/butler", id: "butler", label: "小镜" }' in primary
+    assert '{ href: "/app/remix", id: "remix", label: "换角" }' in primary
 
 
 def test_gallery_switch_is_visible_and_race_guarded():

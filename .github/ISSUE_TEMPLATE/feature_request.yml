@@ -1,0 +1,35 @@
+name: 改进建议
+description: 工作区、图库或生产流程上的具体改进
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请描述当前流程、痛点和可验收的结果。不要在此讨论如何绕过第三方平台限制。
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 当前流程
+      placeholder: 你现在怎么完成这件事？
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 痛点
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 期望结果与验收标准
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 范围
+      options:
+        - label: 这是本地工作台能力，不依赖绕过第三方访问控制
+          required: true

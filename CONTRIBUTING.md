@@ -1,6 +1,6 @@
-# Contributing to Nai学长工作室
+# Contributing to Nai学长工作室（升级版）
 
-感谢你愿意改进这个项目。项目欢迎工程、性能、可用性、文档与测试方面的贡献，同时坚持本地优先、来源可追踪和不提交私人数据的原则。
+感谢你愿意改进这个项目。本仓库是升级版源码主干；稳定版一键包仍在 [`NaiXueZhang-Studio`](https://github.com/h1neolzr7f/NaiXueZhang-Studio)。项目欢迎工程、性能、可用性、文档与测试方面的贡献，同时坚持本地优先、来源可追踪和不提交私人数据的原则。
 
 ## 适合贡献的内容
 
@@ -23,12 +23,24 @@
 
 ```powershell
 python -m pip install -r requirements.core.lock.txt pytest
-python -m compileall -q .
-python -m pytest -q
+python -m pytest -q --ignore=tests/test_pixiv_selector_probe.py
 python scripts/scan_sensitive.py
 ```
 
-修改 JavaScript 时额外运行：
+不要对整个工作区执行 `python -m compileall .`，它会走进本地 `runtime/`。需要编译检查时排除该目录：
+
+```powershell
+python -m compileall -q -x "runtime|\.venv|node_modules|data" .
+```
+
+修改 `frontend/` 时：
+
+```powershell
+npm run workspace:build
+python scripts/asset_versions.py
+```
+
+修改经典页 JavaScript 时额外运行：
 
 ```powershell
 node --check web/shared/site-nav.js

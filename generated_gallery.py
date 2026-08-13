@@ -17,17 +17,18 @@ from atomic_io import atomic_write_text
 
 logger = logging.getLogger("generated_gallery")
 
-from paths import data_dir
+from paths import DeferredDataPath, data_dir
 
-DATA_DIR = data_dir()
-GENERATED_DIR = DATA_DIR / "generated"
 _SCAN_CACHE: dict[str, Any] = {"sig": None, "items": None, "groups": None}
 _LEGACY_META_MIGRATED = False
 META_SUFFIX = ".meta.json"
 STEM_RE = re.compile(r"^(\d{8})_(\d{6})(?:_(\d+))?$")
 
-_CACHE_DIR = DATA_DIR / "cache"
-_ITEMS_CACHE_FILE = _CACHE_DIR / "generated_gallery.items.json"
+DATA_DIR = DeferredDataPath(lambda: data_dir())
+GENERATED_DIR = DeferredDataPath(lambda: data_dir() / "generated")
+_CACHE_DIR = DeferredDataPath(lambda: data_dir() / "cache")
+_ITEMS_CACHE_FILE = DeferredDataPath(lambda: data_dir() / "cache" / "generated_gallery.items.json")
+_GROUPS_CACHE_FILE = DeferredDataPath(lambda: data_dir() / "cache" / "generated_gallery.groups.json")
 
 
 class GeneratedArtifactBusy(RuntimeError):
@@ -565,9 +566,6 @@ def invalidate_source_cache(
             }
     else:
         _SOURCE_CACHE = {}
-
-
-_GROUPS_CACHE_FILE = _CACHE_DIR / "generated_gallery.groups.json"
 
 
 def _load_persistent_groups_cache() -> list[dict[str, Any]] | None:

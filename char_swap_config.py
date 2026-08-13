@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from nai_prompt_profiles import normalize_prompt_profile
+from paths import data_dir
 
 ROOT = Path(__file__).resolve().parent
-CONFIG_PATH = ROOT / "data" / "char_swap_config.json"
+CONFIG_PATH: Path | None = None
 CONFIG_LOCK = threading.RLock()
 
 DEFAULTS: dict[str, Any] = {
@@ -95,12 +96,17 @@ def _normalize_style_presets_list(presets: Any) -> list[dict[str, Any]]:
     return out or list(DEFAULTS["style_presets"])
 
 
+def _config_path() -> Path:
+    return Path(CONFIG_PATH) if CONFIG_PATH is not None else data_dir() / "char_swap_config.json"
+
+
 def load_config() -> dict[str, Any]:
     with CONFIG_LOCK:
-        if not CONFIG_PATH.exists():
+        path = _config_path()
+        if not path.exists():
             return dict(DEFAULTS)
         try:
-            data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             return dict(DEFAULTS)
         merged = dict(DEFAULTS)
@@ -136,14 +142,15 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
                 cfg["prompt_profile"] = normalize_prompt_profile(value)
             else:
                 cfg[key] = value
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        path = _config_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
         temp_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w",
                 encoding="utf-8",
-                dir=CONFIG_PATH.parent,
-                prefix=f".{CONFIG_PATH.name}.",
+                dir=path.parent,
+                prefix=f".{path.name}.",
                 suffix=".tmp",
                 delete=False,
             ) as handle:
@@ -151,7 +158,7 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
                 handle.write(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n")
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(temp_path, CONFIG_PATH)
+            os.replace(temp_path, path)
             temp_path = None
         finally:
             if temp_path is not None:

@@ -881,6 +881,8 @@ html[lang="en"] .site-header.atlas-gallery-head .hero-title .lang-en {
   box-shadow: 4px 4px 0 var(--atlas-night);
   color: var(--atlas-night);
   transition: transform 150ms ease, box-shadow 150ms ease;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
 }
 
 .gallery-grid .card:nth-child(4n + 2) {

@@ -13,19 +13,31 @@
     img.src = thumbUrl;
   }
 
+  function unloadCard(card) {
+    if (!card) return;
+    const img = card.querySelector && card.querySelector('img');
+    if (!img || !img.src) return;
+    img.removeAttribute('src');
+  }
+
   function getObserver() {
     if (!('IntersectionObserver' in window)) return null;
     if (observer) return observer;
     observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
         const card = entry.target;
-        loadCard(card);
-        observer.unobserve(card);
+        if (entry.isIntersecting) {
+          loadCard(card);
+          return;
+        }
+        const top = entry.boundingClientRect.top;
+        const bottom = entry.boundingClientRect.bottom;
+        const band = window.innerHeight * 3;
+        if (top > band || bottom < -band) unloadCard(card);
       });
     }, {
       root: null,
-      rootMargin: '600px 0px',
+      rootMargin: '800px 0px',
       threshold: 0.01,
     });
     return observer;
@@ -55,5 +67,6 @@
     init,
     observeCard,
     loadCard,
+    unloadCard,
   };
 })();

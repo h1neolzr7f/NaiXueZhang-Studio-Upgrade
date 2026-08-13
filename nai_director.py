@@ -29,6 +29,7 @@ from generation_jobs import (
     GenerationJobManager,
     JobAlreadyRunning,
     JobPersistenceError,
+    partition_retry_targets,
 )
 from nai_api import call_nai_director, novelai_director_status
 from paths import data_dir, seed_data_file
@@ -741,28 +742,16 @@ def _director_retry_partition(
     targets = list(request.get("targets") or []) if isinstance(request, dict) else []
     if not targets:
         return [], []
-    items_by_index = {
-        int(item["target_index"]): item
-        for item in list(job.state.get("items") or [])
-        if isinstance(item, dict) and item.get("target_index") is not None
-    }
-    retryable: list[int] = []
-    blocked: list[int] = []
-    terminal_status = str(status.get("status") or "")
-    for index, _target in enumerate(targets):
-        item = items_by_index.get(index)
-        if item and (item.get("ok") or item.get("skipped")):
-            continue
-        if terminal_status == "unknown":
-            blocked.append(index)
-        elif item is not None:
-            (retryable if item.get("retry_safe") is True else blocked).append(index)
-        elif terminal_status == "cancelled":
-            retryable.append(index)
-        else:
-            # An unfinished error may already have crossed the paid request boundary.
-            blocked.append(index)
-    return retryable, blocked
+    return partition_retry_targets(
+        targets,
+        list(job.state.get("items") or []),
+        status=str(status.get("status") or ""),
+        recovered_after_restart=bool(
+            status.get("recovered_after_restart")
+            or job.state.get("recovered_after_restart")
+        ),
+        require_retry_safe=True,
+    )
 
 
 async def _run_director_job(

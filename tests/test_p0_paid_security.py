@@ -92,7 +92,7 @@ class PaidJobAndButlerSecurityTests(unittest.TestCase):
         self.assertEqual(action["arguments"]["ai_model"], "gpt-4o-mini")
 
     def test_auto_repair_source_cannot_start_crawler_or_clear_user_env(self) -> None:
-        source = (ROOT / "butler_service.py").read_text(encoding="utf-8")
+        source = (ROOT / "butler" / "execute.py").read_text(encoding="utf-8")
         repair = source.split('if tool == "auto_repair":', 1)[1].split(
             'if tool == "add_to_queue":', 1
         )[0]

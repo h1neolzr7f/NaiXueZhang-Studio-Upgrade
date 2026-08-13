@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from generation_jobs import (
+    TERMINAL_STATUSES,
     GenerationJob,
     GenerationJobManager,
     JobPersistenceError,
+    partition_retry_targets,
 )
 from generated_gallery import _group_key
 from nai_api import generate_image, generation_concurrency, queue_status
@@ -345,7 +347,12 @@ def _count_item(job: GenerationJob, item: dict[str, Any]) -> None:
         _JOB_MANAGER.increment_progress(job, "skip_count")
     else:
         _JOB_MANAGER.increment_progress(job, "fail_count")
-    _JOB_MANAGER.append_item(job, item, count_done=True)
+    try:
+        _JOB_MANAGER.append_item(job, item, count_done=True)
+    except JobPersistenceError:
+        item["billing_uncertain"] = True
+        item["retry_safe"] = False
+        raise
 
 
 async def _run_round(
@@ -547,6 +554,15 @@ async def _run_batch(
                     f"skipped {int(status.get('skip_count') or 0)}"
                 ),
             )
+    except JobPersistenceError as exc:
+        status = _JOB_MANAGER.status(job.task_id)
+        if status and status.get("status") == "running":
+            _JOB_MANAGER.finish(
+                job,
+                status="unknown",
+                message=f"这次可能已扣费，状态未能落盘：{exc}",
+            )
+            job.state["recovered_after_restart"] = True
     except Exception as exc:
         status = _JOB_MANAGER.status(job.task_id)
         if status and status.get("status") == "running":
@@ -603,9 +619,14 @@ def start_batch(
         }
 
     normalized: list[dict[str, Any]] = []
+    paid = bool(generate and not preview_only)
     for index, raw in enumerate(targets):
         item = dict(raw)
         item.setdefault("_target_index", index)
+        comment = item.get("patched_comment")
+        if paid and isinstance(comment, dict) and comment:
+            item["patched_comment"] = copy.deepcopy(comment)
+            item["frozen_comment"] = True
         normalized.append(item)
     try:
         job, starts_now = _JOB_MANAGER.enqueue_job(
@@ -718,6 +739,12 @@ def retry_batch(task_id: str) -> dict[str, Any]:
             "error": "not_found",
             "message": "generation task not found",
         }
+    if str(job.state.get("status") or "") not in TERMINAL_STATUSES:
+        return {
+            "ok": False,
+            "error": "not_retryable",
+            "message": "job is still running",
+        }
     request = job.state.get("_request")
     if not isinstance(request, dict):
         return {
@@ -725,25 +752,16 @@ def retry_batch(task_id: str) -> dict[str, Any]:
             "error": "not_retryable",
             "message": "generation request is unavailable",
         }
-    succeeded = {
-        int(item.get("target_index"))
-        for item in (job.state.get("items") or [])
-        if isinstance(item, dict)
-        and item.get("target_index") is not None
-        and (item.get("ok") or item.get("skipped"))
-    }
-    blocked = {
-        int(item.get("target_index"))
-        for item in (job.state.get("items") or [])
-        if isinstance(item, dict)
-        and item.get("target_index") is not None
-        and item.get("billing_uncertain")
-        and item.get("retry_safe") is not True
-    }
+    retryable, blocked = partition_retry_targets(
+        list(request.get("targets") or []),
+        list(job.state.get("items") or []),
+        status=str(job.state.get("status") or ""),
+        recovered_after_restart=bool(job.state.get("recovered_after_restart")),
+    )
     targets = [
         dict(target)
         for index, target in enumerate(request.get("targets") or [])
-        if index not in succeeded and index not in blocked
+        if index in set(retryable)
     ]
     if not targets:
         if blocked:

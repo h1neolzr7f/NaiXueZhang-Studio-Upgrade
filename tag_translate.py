@@ -3,11 +3,46 @@ import re
 import sqlite3
 from pathlib import Path
 
+from paths import data_dir, seed_data_file
+
 ROOT = Path(__file__).resolve().parent
-DB_PATH = ROOT / "data" / "aitag.db"
-DICT_PATH = ROOT / "data" / "tag_dict.json"
-DANBOORU_REC_PATH = ROOT / "data" / "danbooru_recognition.json"
-DANBOORU_ARK_PATH = ROOT / "data" / "danbooru_arknights.json"
+DB_PATH: Path | None = None
+DICT_PATH: Path | None = None
+DANBOORU_REC_PATH: Path | None = None
+DANBOORU_ARK_PATH: Path | None = None
+CHAR_PRESETS_PATH: Path | None = None
+
+
+def _db_path() -> Path:
+    return Path(DB_PATH) if DB_PATH is not None else data_dir() / "aitag.db"
+
+
+def _dict_path() -> Path:
+    return Path(DICT_PATH) if DICT_PATH is not None else seed_data_file("tag_dict.json")
+
+
+def _danbooru_rec_path() -> Path:
+    return (
+        Path(DANBOORU_REC_PATH)
+        if DANBOORU_REC_PATH is not None
+        else seed_data_file("danbooru_recognition.json")
+    )
+
+
+def _danbooru_ark_path() -> Path:
+    return (
+        Path(DANBOORU_ARK_PATH)
+        if DANBOORU_ARK_PATH is not None
+        else seed_data_file("danbooru_arknights.json")
+    )
+
+
+def _char_presets_path() -> Path:
+    return (
+        Path(CHAR_PRESETS_PATH)
+        if CHAR_PRESETS_PATH is not None
+        else seed_data_file("char_presets.json")
+    )
 
 _CJK_RE = re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]")
 _HIRAGANA_KATAKANA = re.compile(r"[\u3040-\u30ff]")
@@ -115,10 +150,11 @@ STATIC_JP_ZH: dict[str, str] = {
 
 
 def _load_dict_file() -> dict[str, str]:
-    if not DICT_PATH.exists():
+    path = _dict_path()
+    if not path.exists():
         return {}
     try:
-        data = json.loads(DICT_PATH.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(data, dict):
             return {str(k): str(v) for k, v in data.items()}
     except Exception:
@@ -144,9 +180,9 @@ def _humanize_danbooru_tag(tag: str) -> str:
 def _load_danbooru_sets() -> tuple[set[str], set[str]]:
     known: set[str] = set()
     appearance: set[str] = set()
-    if DANBOORU_REC_PATH.exists():
+    if _danbooru_rec_path().exists():
         try:
-            rec = json.loads(DANBOORU_REC_PATH.read_text(encoding="utf-8"))
+            rec = json.loads(_danbooru_rec_path().read_text(encoding="utf-8"))
             for key in ("characters", "copyrights", "appearance", "body_extra"):
                 for tag in rec.get(key) or []:
                     low = str(tag).strip().lower()
@@ -158,9 +194,9 @@ def _load_danbooru_sets() -> tuple[set[str], set[str]]:
                     appearance.add(low)
         except Exception:
             pass
-    if DANBOORU_ARK_PATH.exists():
+    if _danbooru_ark_path().exists():
         try:
-            ark = json.loads(DANBOORU_ARK_PATH.read_text(encoding="utf-8"))
+            ark = json.loads(_danbooru_ark_path().read_text(encoding="utf-8"))
             for tag in (ark.get("characters") or {}):
                 low = str(tag).strip().lower()
                 if low:
@@ -206,9 +242,9 @@ def _looks_like_cn_name(text: str) -> bool:
     return text not in blocked and not text.startswith("http")
 
 
-def build_tag_dictionary(db_path: Path = DB_PATH) -> dict[str, str]:
+def build_tag_dictionary(db_path: Path | None = None) -> dict[str, str]:
     mapping: dict[str, str] = dict(STATIC_JP_ZH)
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path or _db_path())
     rows = conn.execute("SELECT tags FROM works WHERE tags IS NOT NULL").fetchall()
     conn.close()
 
@@ -249,23 +285,26 @@ def build_tag_dictionary(db_path: Path = DB_PATH) -> dict[str, str]:
     return mapping
 
 
-def save_tag_dictionary(path: Path = DICT_PATH, db_path: Path = DB_PATH) -> int:
+def save_tag_dictionary(path: Path | None = None, db_path: Path | None = None) -> int:
     mapping = build_tag_dictionary(db_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    dest = path or _dict_path()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(
         json.dumps(mapping, ensure_ascii=False, indent=2, sort_keys=True),
         encoding="utf-8",
     )
     return len(mapping)
 
 
-CHAR_PRESETS_PATH = ROOT / "data" / "char_presets.json"
-
-
 def _dict_source_mtime() -> float:
     """各词典源文件最新修改时间，用于按需 reload。"""
     latest = 0.0
-    for path in (DICT_PATH, DANBOORU_REC_PATH, DANBOORU_ARK_PATH, CHAR_PRESETS_PATH):
+    for path in (
+        _dict_path(),
+        _danbooru_rec_path(),
+        _danbooru_ark_path(),
+        _char_presets_path(),
+    ):
         try:
             if path.exists():
                 latest = max(latest, path.stat().st_mtime)
@@ -276,7 +315,7 @@ def _dict_source_mtime() -> float:
 
 def _load_ark_preset_labels() -> dict[str, str]:
     labels: dict[str, str] = {}
-    preset_path = CHAR_PRESETS_PATH
+    preset_path = _char_presets_path()
     if preset_path.exists():
         try:
             raw = json.loads(preset_path.read_text(encoding="utf-8"))
@@ -295,8 +334,8 @@ def _load_ark_preset_labels() -> dict[str, str]:
 
 
 class TagTranslator:
-    def __init__(self, dict_path: Path = DICT_PATH):
-        self.dict_path = dict_path
+    def __init__(self, dict_path: Path | None = None):
+        self.dict_path = dict_path or _dict_path()
         self._source_mtime = 0.0
         self._mapping = dict(STATIC_JP_ZH)
         self._mapping.update(_load_dict_file())
@@ -448,7 +487,7 @@ def main() -> None:
         "阿米娅",
         "極上の女体",
     ]
-    print(f"saved {count} mappings -> {DICT_PATH}")
+    print(f"saved {count} mappings -> {_dict_path()}")
     for tag in samples:
         print(tag, "->", translator.translate(tag))
 

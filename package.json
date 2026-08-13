@@ -8,7 +8,8 @@
   "scripts": {
     "verify": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1",
     "verify:quick": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify.ps1 -SkipBrowserTests",
-    "probe:char-swap": "node scripts/probe_char_swap_ui.js"
+    "probe:char-swap": "node scripts/probe_char_swap_ui.js",
+    "workspace:build": "npm --prefix frontend run build"
   },
   "devDependencies": {
     "playwright": "1.60.0"

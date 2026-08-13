@@ -45,9 +45,10 @@ def api_studio_preview(
 def api_studio_import(
     work_id: int = Query(..., ge=1),
     page_index: int = Query(0, ge=0),
+    gallery_id: str = Query("site"),
 ) -> dict:
     try:
-        return import_from_work(work_id, page_index)
+        return import_from_work(work_id, page_index, gallery_id=gallery_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

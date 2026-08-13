@@ -4,15 +4,20 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+
+from paths import data_dir
 from work_refs import WorkRef, WorkSelectionStore, public_work_id
 
-ROOT = Path(__file__).resolve().parent
-DATA_DIR = ROOT / "data"
-FAV_PATH = DATA_DIR / "favorites.json"
+# Tests may patch this. Production resolves through data_dir() on each call.
+FAV_PATH: Path | None = None
+
+
+def favorite_path() -> Path:
+    return Path(FAV_PATH) if FAV_PATH is not None else data_dir() / "favorites.json"
 
 
 def _store() -> WorkSelectionStore:
-    return WorkSelectionStore(FAV_PATH, kind="favorites")
+    return WorkSelectionStore(favorite_path(), kind="favorites")
 
 
 def list_refs() -> list[dict[str, Any]]:

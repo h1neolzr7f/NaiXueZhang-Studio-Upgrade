@@ -96,9 +96,9 @@ class SiteNavUiTests(unittest.TestCase):
             ],
         )
         self.assertTrue(data["moreText"].startswith("更多"))
-        self.assertEqual(data["secondaryCount"], 11)  # + codex(法典) + 合规与来源
+        self.assertEqual(data["secondaryCount"], 12)  # + 经典图库 + codex + 合规
         self.assertNotIn("butler", data["secondaryIds"])
-        for nav_id in ("queue", "director", "references", "favorites"):
+        for nav_id in ("queue", "director", "references", "favorites", "classic"):
             with self.subTest(nav_id=nav_id):
                 self.assertIn(nav_id, data["secondaryIds"])
         self.assertFalse(data["moreOpen"], "secondary-page navigation must not cover page content by default")

@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import APIRouter, Body, HTTPException, Query
 from server_shared import CRAWLER_WATCHDOG
 from progress import get_progress_snapshot
+from api_schemas import CrawlerControlRequest
 from crawler_control import (
     multi_crawler_status,
     restart_crawler,
@@ -79,13 +80,13 @@ def api_crawler_status() -> dict:
 
 
 @router.post("/crawler/start")
-def api_crawler_start(payload: dict = Body(default_factory=dict)) -> dict:
-    target = str(payload.get("target") or "pixiv").strip().lower()
+def api_crawler_start(payload: CrawlerControlRequest) -> dict:
+    target = str(payload.target or "pixiv").strip().lower()
     try:
         result = start_crawler_target(
             target,
-            phase=str(payload.get("phase") or "").strip() or None,
-            watch=bool(payload.get("watch", True)),
+            phase=str(payload.phase or "").strip() or None,
+            watch=bool(payload.watch),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -99,8 +100,8 @@ def api_crawler_start(payload: dict = Body(default_factory=dict)) -> dict:
 
 
 @router.post("/crawler/stop")
-def api_crawler_stop(payload: dict = Body(default_factory=dict)) -> dict:
-    target = str(payload.get("target") or "pixiv").strip().lower()
+def api_crawler_stop(payload: CrawlerControlRequest) -> dict:
+    target = str(payload.target or "pixiv").strip().lower()
     try:
         result = stop_crawler_target(target)
     except ValueError as exc:
@@ -117,17 +118,20 @@ def api_crawler_stop(payload: dict = Body(default_factory=dict)) -> dict:
 
 
 @router.post("/crawler/autopilot")
-def api_crawler_autopilot(payload: dict = Body(default_factory=dict)) -> dict:
-    target = str(payload.get("target") or "pixiv").strip().lower()
+def api_crawler_autopilot(payload: CrawlerControlRequest) -> dict:
+    target = str(payload.target or "pixiv").strip().lower()
     if target not in {"pixiv", "all"}:
         raise HTTPException(
             status_code=400,
             detail="甩手采集仅支持 Pixiv direct NAI intake",
         )
-    task = _pixiv_task_payload(dict(payload.get("task") or {}))
+    task = _pixiv_task_payload(dict(payload.task or {}))
     task["enabled"] = True
     saved = save_pixiv_task(task, root=ROOT)
-    started = start_crawler_target("pixiv", watch=True)
+    try:
+        started = start_crawler_target("pixiv", watch=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
         "ok": True,
         "task": saved,

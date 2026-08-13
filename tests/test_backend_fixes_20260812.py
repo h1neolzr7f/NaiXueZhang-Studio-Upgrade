@@ -268,7 +268,7 @@ def test_ai_env_raises_clear_error_on_undecryptable_dpapi_key(
     monkeypatch.setattr(
         pixiv_ai_transport,
         "_read_ai_secret",
-        lambda: {"api_key": "dpapi:v1:corrupted-ciphertext"},
+        lambda: {"api_key": "dpapi:v1:bad"},
     )
     with pytest.raises(ValueError, match="本地密钥解密失败"):
         pixiv_ai_transport._ai_env({"ai": {}})
@@ -279,7 +279,7 @@ def test_read_ai_secret_keeps_dpapi_ciphertext_on_decrypt_failure(
 ) -> None:
     monkeypatch.setattr(pixiv_launch_config, "DATA_DIR", tmp_path)
     (tmp_path / "ai.local.json").write_text(
-        json.dumps({"api_key": "dpapi:v1:AAAA-not-real", "model": "m"}),
+        json.dumps({"api_key": "dpapi:v1:x", "model": "m"}),
         encoding="utf-8",
     )
     secret = pixiv_launch_config._read_ai_secret()
@@ -294,7 +294,7 @@ def test_ai_env_env_var_override_still_wins(
     monkeypatch.setattr(
         pixiv_ai_transport,
         "_read_ai_secret",
-        lambda: {"api_key": "dpapi:v1:corrupted-ciphertext"},
+        lambda: {"api_key": "dpapi:v1:bad"},
     )
     monkeypatch.setenv("DEEPSEEK_API_KEY", "env-key")
     env = pixiv_ai_transport._ai_env({"ai": {"provider": "DeepSeek"}})

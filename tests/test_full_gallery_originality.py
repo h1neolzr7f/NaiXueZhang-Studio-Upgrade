@@ -24,18 +24,19 @@ def test_full_gallery_uses_original_atlas_shell_without_dropping_workflows() -> 
     assert "site-nav.js" in html or "/assets/shared/site-nav.js" in html
 
     for href, label in (
-        ("/", "图库"),
-        ("/nai-tags", "分类"),
-        ("/butler", "小镜"),
-        ("/studio", "工作台"),
-        ("/generated", "生成库"),
-        ("/pixiv", "发布"),
+        ("/app", "图库"),
+        ("/app/tags", "分类"),
+        ("/app/butler", "小镜"),
+        ("/app/studio", "工作台"),
+        ("/app/generated", "生成库"),
+        ("/app/pixiv", "发布"),
         ("/settings", "设置"),
         ("/favorites", "收藏"),
         ("/queue", "待生成"),
         ("/director", "导演台"),
         ("/references", "参考库"),
         ("/pipeline", "后处理"),
+        ("/", "经典图库"),
     ):
         assert f'href: "{href}"' in nav
         assert f'label: "{label}"' in nav

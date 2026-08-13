@@ -13,11 +13,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from paths import data_dir
+from paths import DeferredDataPath, data_dir
 
-DATA_DIR = data_dir()
-GENERATED_DIR = DATA_DIR / "generated"
-CONFIG_PATH = DATA_DIR / "post_pipeline.json"
+DATA_DIR = DeferredDataPath(lambda: data_dir())
+GENERATED_DIR = DeferredDataPath(lambda: data_dir() / "generated")
+CONFIG_PATH = DeferredDataPath(lambda: data_dir() / "post_pipeline.json")
 
 DEFAULTS: dict[str, Any] = {
     "anr_root": "",

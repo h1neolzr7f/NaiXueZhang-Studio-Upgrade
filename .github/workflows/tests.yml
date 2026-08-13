@@ -1,0 +1,26 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install core test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.core.lock.txt pytest langgraph langgraph-checkpoint-sqlite
+      - name: Compile
+        run: python -m compileall -q -x "runtime|\.venv|node_modules|data" .
+      - name: Pytest
+        run: python -m pytest -q --tb=short --ignore=tests/test_pixiv_selector_probe.py
+      - name: Scan publication candidates
+        run: python scripts/scan_sensitive.py --git-candidates --content-only

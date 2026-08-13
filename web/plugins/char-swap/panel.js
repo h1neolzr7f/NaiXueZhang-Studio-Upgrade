@@ -12,7 +12,7 @@ import {
     addToBatch, addAllWorkPagesToBatch, removeWorkFromBatch, 
     isBatchMode, loadBatchQueue, refreshBatchCardChecks, updateQuickAddHint,
     addManyToBatch, buildBatchEntry, refreshGenSidebar
-} from "./batch.js?v=9bacccf8a9";
+} from "./batch.js?v=6449474819";
 import {
     applyGenderSwapTarget,
     countGenderSlots,

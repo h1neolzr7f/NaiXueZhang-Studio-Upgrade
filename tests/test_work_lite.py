@@ -122,6 +122,26 @@ class WorkLiteTests(unittest.TestCase):
         self.assertEqual(first["work_id"], 42)
         self.assertEqual(second["work_id"], 42)
         self.assertEqual(extract.call_count, 1)
+        extract.assert_called_with(42, 0, gallery_id="site")
+
+    def test_import_from_work_cache_is_gallery_scoped(self) -> None:
+        from gallery_cache import clear_all
+
+        clear_all()
+        payload = {
+            "comment": {"prompt": "1girl"},
+            "params": {},
+            "chars": [],
+            "base_caption": "",
+        }
+        with patch("studio_service.extract_chars", return_value=payload) as extract:
+            with patch("studio_service._work_title", return_value="t"):
+                with patch("studio_service._work_thumb", return_value="/thumb"):
+                    import_from_work(42, 0, "site")
+                    import_from_work(42, 0, "codex")
+        self.assertEqual(extract.call_count, 2)
+        extract.assert_any_call(42, 0, gallery_id="site")
+        extract.assert_any_call(42, 0, gallery_id="codex")
 
 
 if __name__ == "__main__":

@@ -6,11 +6,16 @@ from pathlib import Path
 from crawler_control import crawler_running, list_supervisor_pids
 from crawler_task import get_task
 from crawler_watchdog import crawl_work_snapshot, get_watchdog
-from paths import storage_paths
+from paths import data_dir, storage_paths
 
 ROOT = Path(__file__).resolve().parent
-DB_PATH = ROOT / "data" / "aitag.db"
 CONFIG_PATH = ROOT / "config.json"
+
+
+def _db_path() -> Path:
+    return data_dir() / "aitag.db"
+
+
 WATCH_LOG = ROOT / "logs" / "watch.log"
 DONE_FILE = ROOT / "logs" / "COMPLETED.txt"
 HEARTBEAT_FILE = ROOT / "logs" / "crawler-heartbeat.json"
@@ -75,7 +80,7 @@ def get_progress_snapshot() -> dict:
     effective_rate = workers / max(delay, 0.05)
     preview_mode = config.get("preview_mode", "cover_only")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(_db_path())
     states = dict(conn.execute("SELECT key, value FROM crawl_state"))
     works = conn.execute("SELECT COUNT(*) FROM works").fetchone()[0]
     details = conn.execute(

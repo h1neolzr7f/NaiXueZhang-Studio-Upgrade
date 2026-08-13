@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-安全修复优先面向最新的 `main` 和最新官方 Release。较旧版本可能只获得升级建议。
+安全修复优先面向升级版仓库最新的 `main`、稳定版 `h1neolzr7f/NaiXueZhang-Studio` 的 `main`，以及最新官方 Release。较旧版本可能只获得升级建议。
 
 ## 报告安全漏洞
 

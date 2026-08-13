@@ -7,10 +7,16 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from paths import data_dir
+
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
 DONE_FILE = ROOT / "logs" / "COMPLETED.txt"
-DB_PATH = ROOT / "data" / "aitag.db"
+DB_PATH: Path | None = None
+
+
+def _db_path() -> Path:
+    return Path(DB_PATH) if DB_PATH is not None else data_dir() / "aitag.db"
 
 SEARCH_KEYS = (
     "search_query",
@@ -196,7 +202,7 @@ def search_params_changed(old: dict, new: dict) -> bool:
 def reset_search_progress() -> None:
     if DONE_FILE.exists():
         DONE_FILE.unlink()
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(_db_path())
     conn.execute(
         "DELETE FROM crawl_state WHERE key IN "
         "('search_page', 'search_done', 'search_total', 'search_total_pages')"

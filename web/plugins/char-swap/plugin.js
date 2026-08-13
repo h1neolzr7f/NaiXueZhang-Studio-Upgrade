@@ -39,7 +39,7 @@ import {
   mountQuickFab, 
   unmountGenSidebar, 
   mountGenSidebar 
-} from "./batch.js?v=9bacccf8a9";
+} from "./batch.js?v=6449474819";
 
 const PLUGIN_VERSION = "56-mount-gen";
 window.__CHAR_SWAP_PLUGIN_VERSION__ = PLUGIN_VERSION;

@@ -7,13 +7,14 @@ from char_tag_db import split_prompt_tags
 from functools import lru_cache
 from nai_char_modules.slots import _format_char_slot, _sync_slot_contract_after_gender
 from nai_char_modules.tag_constants import GENDER_NOISE as _GENDER_NOISE
-from paths import data_dir
+from paths import DeferredDataPath, data_dir
 from slot_gender import apply_slot_genders
 from typing import Any
+from pathlib import Path
 import json
 import re
 
-DATA_DIR = data_dir()
+DATA_DIR = DeferredDataPath(lambda: data_dir())
 
 
 @lru_cache(maxsize=1)

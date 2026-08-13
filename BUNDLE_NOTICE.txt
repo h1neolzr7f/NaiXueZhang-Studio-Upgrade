@@ -12,5 +12,6 @@ Nai学长工作室 发行包说明
 9. 文件名带 one-click-windows 的便携包额外包含 CPython 和锁定依赖；完整解压后双击“一键启动.bat”即可运行。
 10. 官方 Release 应同时公布版本、Commit SHA 和发布包 SHA-256。任何其他来源或不同哈希的构建均应视为第三方版本。
 
-官方仓库：https://github.com/h1neolzr7f/NaiXueZhang-Studio
+官方仓库（稳定版 Releases）：https://github.com/h1neolzr7f/NaiXueZhang-Studio
+升级版源码仓库：https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade
 完整条款：DISCLAIMER.md / RESPONSIBLE_USE.md / SECURITY.md

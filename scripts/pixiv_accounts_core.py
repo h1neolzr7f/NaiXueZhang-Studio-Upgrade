@@ -14,12 +14,14 @@ from typing import Any
 import httpx
 
 from local_secrets import protect_secret, unprotect_secret
-from paths import data_dir
+from paths import DeferredDataPath, data_dir
 
 
-DATA_DIR = data_dir()
-ACCOUNTS_PATH = DATA_DIR / "pixiv_accounts.local.json"
-ACCOUNTS_BACKUP_PATH = DATA_DIR / "pixiv_accounts.local.backup.json"
+DATA_DIR = DeferredDataPath(lambda: data_dir())
+ACCOUNTS_PATH = DeferredDataPath(lambda: data_dir() / "pixiv_accounts.local.json")
+ACCOUNTS_BACKUP_PATH = DeferredDataPath(lambda: data_dir() / "pixiv_accounts.local.backup.json")
+
+
 PIXIV_CLIENT_ID = "MOBrBDS8blbauoSck0ZfDbtuzpyT"
 PIXIV_CLIENT_SECRET = "lsACyCD94FhDUtGTXi3QzcFE2uU1hqtDaKeqrdwj"
 PIXIV_HASH_SECRET = "28c1fdd170a5204386cb1313c7077b34f83e4aaf4aa829ce78c231e05b0bae2c"

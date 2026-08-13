@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 稳定版 v1.4.0（一键包）
+    url: https://github.com/h1neolzr7f/NaiXueZhang-Studio
+    about: 已发布的 Windows 一键包、SHA-256 与修复版说明请到稳定版仓库。
+  - name: 升级说明
+    url: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/blob/main/docs/UPGRADE.md
+    about: 升级版与稳定版的差异、/app 入口和源码运行方式。
+  - name: 负责任使用
+    url: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/blob/main/RESPONSIBLE_USE.md
+    about: 非官方关系、使用边界，以及维护者不提供支持的用途。

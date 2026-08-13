@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 import crawler_task
 import crawler_watchdog
 from routes import crawler as crawler_routes
+from api_schemas import CrawlerControlRequest
 
 
 class CrawlerAutopilotTests(unittest.TestCase):
@@ -81,10 +82,10 @@ class CrawlerAutopilotTests(unittest.TestCase):
             return_value={"pixiv": {"running": True}},
         ):
             result = crawler_routes.api_crawler_autopilot(
-                {
-                    "task": {"search_query": "-NAI_X NAI"},
-                    "target": "pixiv",
-                }
+                CrawlerControlRequest(
+                    task={"search_query": "-NAI_X NAI"},
+                    target="pixiv",
+                )
             )
 
         self.assertTrue(result["ok"])

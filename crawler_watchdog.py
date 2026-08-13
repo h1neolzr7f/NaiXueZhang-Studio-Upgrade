@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import threading
 import time
 from datetime import datetime
@@ -16,12 +15,19 @@ from crawler_control import (
     start_crawler,
 )
 from db import Database
+from paths import data_dir
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.json"
 DONE_FILE = ROOT / "logs" / "COMPLETED.txt"
 LOG_FILE = ROOT / "logs" / "crawler-watchdog.log"
-DB_PATH = ROOT / "data" / "aitag.db"
+DB_PATH: Path | None = None
+
+
+def _db_path() -> Path:
+    return Path(DB_PATH) if DB_PATH is not None else data_dir() / "aitag.db"
+
+
 _WORK_REMAINING_TTL_SEC = 60.0
 _DEFAULT_WATCHDOG_INTERVAL_SEC = 60.0
 _MIN_WATCHDOG_INTERVAL_SEC = 60.0
@@ -84,7 +90,7 @@ def crawl_work_snapshot() -> dict[str, object]:
         "done_file": DONE_FILE.exists(),
     }
     try:
-        db = Database(DB_PATH)
+        db = Database(_db_path())
         conn = db.conn
         states = dict(conn.execute("SELECT key, value FROM crawl_state"))
         works = conn.execute("SELECT COUNT(*) FROM works").fetchone()[0]
@@ -224,7 +230,15 @@ def ensure_crawler_running(*, reason: str = "watchdog") -> dict[str, object]:
             and heartbeat_age is not None
             and heartbeat_age > _CRAWLER_STALE_SEC
         ):
-            restarted = restart_crawler(wait_sec=1.0)
+            try:
+                restarted = restart_crawler(wait_sec=1.0)
+            except ValueError as exc:
+                _log(f"stale restart blocked reason={reason} error={exc}")
+                return {
+                    "action": "blocked",
+                    "crawler_running": False,
+                    "message": str(exc),
+                }
             return {
                 "action": "restarted",
                 "crawler_running": bool(restarted.get("crawler_running")),
@@ -244,7 +258,15 @@ def ensure_crawler_running(*, reason: str = "watchdog") -> dict[str, object]:
                 "crawler_running": False,
                 "message": "监督进程在跑，等待其拉起爬虫",
             }
-        restarted = restart_crawler(wait_sec=1.0)
+        try:
+            restarted = restart_crawler(wait_sec=1.0)
+        except ValueError as exc:
+            _log(f"force-restart blocked reason={reason} error={exc}")
+            return {
+                "action": "blocked",
+                "crawler_running": False,
+                "message": str(exc),
+            }
         _log(
             f"force-restart reason={reason} stale supervisor "
             f"ok={restarted.get('ok')} heartbeat_age={_heartbeat_age_sec()}"
@@ -256,7 +278,15 @@ def ensure_crawler_running(*, reason: str = "watchdog") -> dict[str, object]:
             "message": "监督进程在但爬虫无心跳，已强制重启",
         }
 
-    started = start_crawler(use_supervisor=True)
+    try:
+        started = start_crawler(use_supervisor=True)
+    except ValueError as exc:
+        _log(f"auto-start blocked reason={reason} error={exc}")
+        return {
+            "action": "blocked",
+            "crawler_running": False,
+            "message": str(exc),
+        }
     _log(f"auto-start reason={reason} mode={started.get('mode')} pid={started.get('pid')}")
     return {
         "action": "started",

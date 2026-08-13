@@ -15,25 +15,37 @@ from urllib.request import getproxies
 import httpx
 from playwright.async_api import Request, Response, async_playwright
 
+from paths import data_dir
+
 ROOT = Path(__file__).resolve().parent
-PROFILE_DIR = ROOT / "data" / "pixiv_chrome_profile"
-PROFILES_ROOT = ROOT / "data" / "pixiv_chrome_profiles"
+PROFILE_DIR: Path | None = None
+PROFILES_ROOT: Path | None = None
+
+
+def _profile_dir() -> Path:
+    return Path(PROFILE_DIR) if PROFILE_DIR is not None else data_dir() / "pixiv_chrome_profile"
+
+
+def _profiles_root() -> Path:
+    return Path(PROFILES_ROOT) if PROFILES_ROOT is not None else data_dir() / "pixiv_chrome_profiles"
 
 
 def profile_dir_for_account(account_id: str = "") -> Path:
     """每个本地账号使用独立 Chrome 配置，避免切号后仍用旧 Pixiv 登录态投稿。"""
     account_id = str(account_id or "").strip()
     if not account_id:
-        PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-        return PROFILE_DIR
+        path = _profile_dir()
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
-    path = PROFILES_ROOT / account_id
+    path = _profiles_root() / account_id
     path.mkdir(parents=True, exist_ok=True)
-    marker = PROFILES_ROOT / f".legacy_migrated_{account_id}"
-    if marker.exists() or not PROFILE_DIR.exists():
+    legacy = _profile_dir()
+    marker = _profiles_root() / f".legacy_migrated_{account_id}"
+    if marker.exists() or not legacy.exists():
         return path
     try:
-        has_legacy = any(PROFILE_DIR.iterdir())
+        has_legacy = any(legacy.iterdir())
     except Exception:
         has_legacy = False
     if not has_legacy:
@@ -42,7 +54,7 @@ def profile_dir_for_account(account_id: str = "") -> Path:
     import shutil
 
     try:
-        for item in PROFILE_DIR.iterdir():
+        for item in legacy.iterdir():
             dest = path / item.name
             if dest.exists():
                 continue

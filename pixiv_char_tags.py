@@ -9,14 +9,30 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from paths import data_dir, seed_data_file
+
 ROOT = Path(__file__).resolve().parent
-DATA_DIR = ROOT / "data"
-TAG_DICT_PATH = DATA_DIR / "tag_dict.json"
-ARK_LIBRARY_PATH = DATA_DIR / "ark_char_library.json"
-CHAR_PRESETS_PATH = DATA_DIR / "char_presets.json"
-CHAR_SWAP_PATH = DATA_DIR / "char_swap_config.json"
-PIXIV_LEXICON_PATH = DATA_DIR / "pixiv_general_jp.json"
-LOCAL_DB_PATH = DATA_DIR / "aitag.db"
+DATA_DIR: Path | None = None
+
+
+def _data() -> Path:
+    return Path(DATA_DIR) if DATA_DIR is not None else data_dir()
+
+
+def _seed(name: str) -> Path:
+    return (_data() / name) if DATA_DIR is not None else seed_data_file(name)
+
+
+def _library_path() -> Path:
+    return _data() / "ark_char_library.json"
+
+
+def _char_swap_path() -> Path:
+    return _data() / "char_swap_config.json"
+
+
+def _local_db_path() -> Path:
+    return _data() / "aitag.db"
 
 ARK_SUFFIX_RE = re.compile(r"^(.+)_\(([^)]+)\)$", re.IGNORECASE)
 _KATAKANA_RE = re.compile(r"[\u30a0-\u30ff]")
@@ -76,10 +92,11 @@ def _pick_best_jp_for_zh(zh: str, zh_to_jp: dict[str, list[str]]) -> str:
 
 @lru_cache(maxsize=1)
 def _load_zh_to_jp() -> dict[str, list[str]]:
-    if not TAG_DICT_PATH.exists():
+    path = _seed("tag_dict.json")
+    if not path.exists():
         return {}
     try:
-        raw = json.loads(TAG_DICT_PATH.read_text(encoding="utf-8"))
+        raw = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
     out: dict[str, list[str]] = {}
@@ -97,10 +114,11 @@ def _load_zh_to_jp() -> dict[str, list[str]]:
 def _load_manual_maps() -> tuple[dict[str, str], dict[str, str]]:
     zh_map: dict[str, str] = {}
     ja_map: dict[str, str] = {}
-    if not PIXIV_LEXICON_PATH.exists():
+    path = _seed("pixiv_general_jp.json")
+    if not path.exists():
         return zh_map, ja_map
     try:
-        lex = json.loads(PIXIV_LEXICON_PATH.read_text(encoding="utf-8"))
+        lex = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return zh_map, ja_map
     for key, value in (lex.get("character_zh") or {}).items():
@@ -131,7 +149,7 @@ def _load_preset_zh_maps() -> dict[str, str]:
                 if low.endswith("_(arknights)"):
                     out.setdefault(low, label)
 
-    for path in (CHAR_PRESETS_PATH, CHAR_SWAP_PATH):
+    for path in (_seed("char_presets.json"), _char_swap_path()):
         if not path.exists():
             continue
         try:
@@ -143,9 +161,9 @@ def _load_preset_zh_maps() -> dict[str, str]:
         _ingest((raw.get("custom") or {}).get("female"))
         _ingest((raw.get("custom") or {}).get("male"))
 
-    if ARK_LIBRARY_PATH.exists():
+    if _library_path().exists():
         try:
-            lib = json.loads(ARK_LIBRARY_PATH.read_text(encoding="utf-8"))
+            lib = json.loads(_library_path().read_text(encoding="utf-8"))
             for bucket in ("female", "male"):
                 for item in lib.get(bucket) or []:
                     if not isinstance(item, dict):
@@ -160,10 +178,11 @@ def _load_preset_zh_maps() -> dict[str, str]:
 
 
 def _mine_en_zh_pairs(*, min_count: int = 3) -> dict[str, str]:
-    if not LOCAL_DB_PATH.exists():
+    db_path = _local_db_path()
+    if not db_path.exists():
         return {}
     pair_counts: dict[str, dict[str, int]] = {}
-    conn = sqlite3.connect(LOCAL_DB_PATH)
+    conn = sqlite3.connect(db_path)
     rows = conn.execute("SELECT tags FROM works WHERE tags IS NOT NULL").fetchall()
     conn.close()
 
@@ -217,9 +236,9 @@ def _load_danbooru_to_zh() -> dict[str, str]:
     zh_to_jp = _load_zh_to_jp()
 
     out: dict[str, str] = {}
-    if ARK_LIBRARY_PATH.exists():
+    if _library_path().exists():
         try:
-            lib = json.loads(ARK_LIBRARY_PATH.read_text(encoding="utf-8"))
+            lib = json.loads(_library_path().read_text(encoding="utf-8"))
             for bucket in ("female", "male"):
                 for item in lib.get(bucket) or []:
                     if not isinstance(item, dict):

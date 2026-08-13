@@ -18,7 +18,7 @@ import httpx
 
 ROOT = Path(__file__).resolve().parent
 from atomic_io import atomic_write_text
-from paths import data_dir as _config_data_dir
+from paths import DeferredDataPath, data_dir as _config_data_dir
 from local_secrets import (
     PREFIX as SECRET_PREFIX,
     SecretProtectionUnavailable,
@@ -26,12 +26,14 @@ from local_secrets import (
     unprotect_secret,
 )
 
-DATA_DIR = _config_data_dir()
-ACCOUNTS_PATH = DATA_DIR / "pixiv_accounts.local.json"
-ACCOUNTS_BACKUP_PATH = DATA_DIR / "pixiv_accounts.local.backup.json"
-STATS_PATH = DATA_DIR / "pixiv_account_stats.json"
-ANALYTICS_PATH = DATA_DIR / "pixiv_analytics_cache.json"
-LEGACY_SECRET_PATH = DATA_DIR / "pixiv.local.json"
+
+DATA_DIR = DeferredDataPath(lambda: _config_data_dir())
+ACCOUNTS_PATH = DeferredDataPath(lambda: _config_data_dir() / "pixiv_accounts.local.json")
+ACCOUNTS_BACKUP_PATH = DeferredDataPath(lambda: _config_data_dir() / "pixiv_accounts.local.backup.json")
+STATS_PATH = DeferredDataPath(lambda: _config_data_dir() / "pixiv_account_stats.json")
+ANALYTICS_PATH = DeferredDataPath(lambda: _config_data_dir() / "pixiv_analytics_cache.json")
+LEGACY_SECRET_PATH = DeferredDataPath(lambda: _config_data_dir() / "pixiv.local.json")
+_CREDENTIAL_LOCK_PATH = DeferredDataPath(lambda: _config_data_dir() / ".pixiv-credentials.lock")
 
 # Pixiv 官方 App OAuth（旧 Android 客户端已失效，须用当前 iOS 凭证）
 PIXIV_CLIENT_ID = "MOBrBDS8blbauoSck0ZfDbtuzpyT"
@@ -50,7 +52,6 @@ _STATS_LOCK = threading.Lock()
 _SCHEDULER_STARTED = False
 _SCHEDULER_STOP = threading.Event()
 _SCHEDULER_THREAD: threading.Thread | None = None
-_CREDENTIAL_LOCK_PATH = DATA_DIR / ".pixiv-credentials.lock"
 _STALE_AI_WARNING_MARKERS = (
     "The supported API model names are deepseek-v4-pro or deepseek-v4-flash",
     "but you passed 明日方舟",
@@ -259,6 +260,10 @@ def _migrate_legacy_secret() -> None:
                 ],
             }
         )
+        try:
+            LEGACY_SECRET_PATH.unlink()
+        except OSError:
+            pass
     except Exception:
         pass
 

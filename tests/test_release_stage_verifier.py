@@ -68,6 +68,7 @@ class ReleaseStageVerifierTests(unittest.TestCase):
             "/favorites",
             "/queue",
             "/studio",
+            "/app",
             "/remix",
             "/generated",
             "/settings",
@@ -108,6 +109,7 @@ class ReleaseStageVerifierTests(unittest.TestCase):
         for page in (
             "web/index.html",
             "web/studio.html",
+            "web/workspace.html",
             "web/remix.html",
             "web/generated.html",
             "web/settings.html",

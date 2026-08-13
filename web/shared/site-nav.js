@@ -1,14 +1,14 @@
 (function () {
   // Product IA: gallery assets first, production surfaces second, ops last.
   const NAV_PRIMARY = [
-    { href: "/", id: "gallery", label: "图库" },
-    { href: "/generated", id: "generated", label: "生成库" },
-    { href: "/studio", id: "studio", label: "工作台" },
-    { href: "/butler", id: "butler", label: "小镜" },
-    { href: "/remix", id: "remix", label: "换角" },
-    { href: "/progress", id: "progress", label: "爬虫" },
-    { href: "/nai-tags", id: "nai-tags", label: "分类" },
-    { href: "/pixiv", id: "pixiv", label: "发布" },
+    { href: "/app", id: "gallery", label: "图库" },
+    { href: "/app/generated", id: "generated", label: "生成库" },
+    { href: "/app/studio", id: "studio", label: "工作台" },
+    { href: "/app/butler", id: "butler", label: "小镜" },
+    { href: "/app/remix", id: "remix", label: "换角" },
+    { href: "/app/progress", id: "progress", label: "爬虫" },
+    { href: "/app/tags", id: "nai-tags", label: "分类" },
+    { href: "/app/pixiv", id: "pixiv", label: "发布" },
   ];
   const NAV_SECONDARY = [
     { href: "/queue", id: "queue", label: "待生成", group: "创作" },
@@ -16,6 +16,7 @@
     { href: "/favorites", id: "favorites", label: "收藏", group: "创作" },
     { href: "/references", id: "references", label: "参考库", group: "创作" },
     { href: "/codex", id: "codex", label: "自选库", group: "创作" },
+    { href: "/", id: "classic", label: "经典图库", group: "创作" },
     { href: "/pipeline", id: "pipeline", label: "后处理", group: "管理" },
     { href: "/tag-assets", id: "tag-assets", label: "本地资产", group: "管理" },
     { href: "/settings", id: "settings", label: "设置", group: "系统" },
@@ -26,16 +27,23 @@
 
   function currentNavId() {
     const p = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
-    if (p === "/" || p.startsWith("/i/")) return "gallery";
-    if (p.startsWith("/studio")) return "studio";
-    if (p.startsWith("/butler")) return "butler";
-    if (p.startsWith("/director")) return "director";
-    if (p.startsWith("/remix")) return "remix";
+    if (p.startsWith("/app/studio") || p.startsWith("/studio")) return "studio";
+    if (p.startsWith("/app/generated") || p.startsWith("/generated")) return "generated";
+    if (p.startsWith("/app/butler") || p.startsWith("/butler")) return "butler";
+    if (p.startsWith("/app/settings") || p.startsWith("/settings")) return "settings";
+    if (p.startsWith("/app/remix") || p.startsWith("/remix")) return "remix";
+    if (p.startsWith("/app/progress") || p.startsWith("/progress")) return "progress";
+    if (p.startsWith("/app/pixiv") || p.startsWith("/pixiv")) return "pixiv";
+    if (p.startsWith("/app/pipeline") || p.startsWith("/pipeline")) return "pipeline";
+    if (p.startsWith("/app/director") || p.startsWith("/director")) return "director";
+    if (p.startsWith("/app/tags") || p.startsWith("/nai-tags")) return "nai-tags";
+    if (p.startsWith("/app/ops") || p.startsWith("/ops")) return "ops";
+    if (p.startsWith("/app/compliance") || p.startsWith("/compliance")) return "compliance";
+    if (p === "/") return "classic";
+    if (p.startsWith("/i/") || p === "/app" || p.startsWith("/app")) return "gallery";
     if (p.startsWith("/references")) return "references";
-    if (p.startsWith("/generated")) return "generated";
     if (p.startsWith("/favorites")) return "favorites";
     if (p.startsWith("/queue")) return "queue";
-    if (p.startsWith("/settings")) return "settings";
     if (p.startsWith("/maintenance")) return "maintenance";
     if (p.startsWith("/tag-assets")) return "tag-assets";
     if (p.startsWith("/codex")) return "codex";

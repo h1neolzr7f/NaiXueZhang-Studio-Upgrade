@@ -788,6 +788,13 @@ def studio_page() -> FileResponse:
     return _serve_web_page("studio.html")
 
 
+@router.get("/app")
+@router.get("/app/{rest:path}")
+def workspace_page(rest: str = "") -> FileResponse:
+    _ = rest
+    return _serve_web_page("workspace.html")
+
+
 @router.get("/settings")
 def settings_page() -> FileResponse:
     return _serve_web_page("settings.html")
@@ -867,6 +874,7 @@ def static_file(filename: str) -> FileResponse:
         "queue",
         "tag-assets",
         "codex",
+        "app",
     }
     if filename in reserved:
         raise HTTPException(status_code=404, detail="not found")

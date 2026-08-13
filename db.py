@@ -13,7 +13,7 @@ from search import build_prompt_fts_query, build_works_fts_query
 
 _SCOPE_TOTAL_CACHE: dict[str, tuple[int, float]] = {}
 _SCOPE_TOTAL_TTL_SEC = 300.0
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _invalidate_scope_total_cache() -> None:
@@ -39,6 +39,11 @@ def _close_sqlite_connections(
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER PRIMARY KEY,
+    applied_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS crawl_state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

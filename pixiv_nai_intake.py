@@ -56,7 +56,7 @@ def _remove_work_from_selections(work_id: int, data_dir: Path) -> None:
     try:
         import favorites
 
-        if Path(favorites.FAV_PATH).resolve().parent == target:
+        if Path(favorites.favorite_path()).resolve().parent == target:
             favorites.remove(work_id, "site")
     except Exception:
         pass

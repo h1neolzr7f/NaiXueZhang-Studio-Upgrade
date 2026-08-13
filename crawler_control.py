@@ -490,6 +490,9 @@ def start_pixiv_crawler(*, watch: bool = True) -> dict[str, object]:
             "watch": bool(watch),
             "already_running": True,
         }
+    from gallery_guard import require_gallery_for_crawler
+
+    require_gallery_for_crawler()
     pid = _spawn_detached_ps(
         file_path=sys.executable,
         arg_list=[
@@ -619,12 +622,21 @@ def restart_crawler(*, wait_sec: float = 2.0) -> dict[str, object]:
     stopped = stop_crawler_processes()
     if wait_sec > 0:
         time.sleep(wait_sec)
-    started = start_crawler(use_supervisor=True)
-    alive = _wait_for_crawler()
-    if not alive:
-        # 监督脚本偶发未拉起子进程时，直接再起一份爬虫
-        started = start_crawler(use_supervisor=False)
-        alive = _wait_for_crawler(attempts=12)
+    try:
+        started = start_crawler(use_supervisor=True)
+        alive = _wait_for_crawler()
+        if not alive:
+            # 监督脚本偶发未拉起子进程时，直接再起一份爬虫
+            started = start_crawler(use_supervisor=False)
+            alive = _wait_for_crawler(attempts=12)
+    except ValueError as exc:
+        return {
+            "ok": False,
+            "stopped": stopped,
+            "started": {"started": False, "error": str(exc)},
+            "crawler_running": False,
+            "message": str(exc),
+        }
     return {
         "ok": alive,
         "stopped": stopped,

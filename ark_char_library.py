@@ -10,12 +10,26 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from paths import data_dir, seed_data_file
+
 ROOT = Path(__file__).resolve().parent
-DATA_DIR = ROOT / "data"
-ARK_DB_PATH = DATA_DIR / "danbooru_arknights.json"
-TAG_DICT_PATH = DATA_DIR / "tag_dict.json"
-LIBRARY_PATH = DATA_DIR / "ark_char_library.json"
-LOCAL_DB_PATH = DATA_DIR / "aitag.db"
+DATA_DIR: Path | None = None
+
+
+def _data() -> Path:
+    return Path(DATA_DIR) if DATA_DIR is not None else data_dir()
+
+
+def _seed(name: str) -> Path:
+    return (_data() / name) if DATA_DIR is not None else seed_data_file(name)
+
+
+def _library_path() -> Path:
+    return _data() / "ark_char_library.json"
+
+
+def _local_db_path() -> Path:
+    return _data() / "aitag.db"
 
 CHAR_TAG_RE = re.compile(r"^[a-z0-9][a-z0-9_'().-]*_\(arknights\)$", re.IGNORECASE)
 SKIP_SUBSTR = (
@@ -83,10 +97,11 @@ EXPLICIT_MALE = frozenset(
 
 
 def _load_tag_dict() -> dict[str, str]:
-    if not TAG_DICT_PATH.exists():
+    path = _seed("tag_dict.json")
+    if not path.exists():
         return {}
     try:
-        data = json.loads(TAG_DICT_PATH.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
@@ -234,7 +249,7 @@ def _to_preset(tag: str, gender: str, label: str, posts: int) -> dict[str, Any]:
 
 def _load_preset_label_map() -> dict[str, str]:
     labels: dict[str, str] = {}
-    preset_path = DATA_DIR / "char_presets.json"
+    preset_path = _seed("char_presets.json")
     if preset_path.exists():
         try:
             raw = json.loads(preset_path.read_text(encoding="utf-8"))
@@ -268,9 +283,10 @@ def _load_preset_label_map() -> dict[str, str]:
 
 
 def build_library(*, force: bool = False) -> dict[str, Any]:
-    if LIBRARY_PATH.exists() and not force:
+    library_path = _library_path()
+    if library_path.exists() and not force:
         try:
-            cached = json.loads(LIBRARY_PATH.read_text(encoding="utf-8"))
+            cached = json.loads(library_path.read_text(encoding="utf-8"))
             if cached.get("female") and cached.get("male"):
                 return cached
         except Exception:
@@ -281,12 +297,13 @@ def build_library(*, force: bool = False) -> dict[str, Any]:
     tag_dict = _load_tag_dict()
     translator = TagTranslator()
     preset_labels = _load_preset_label_map()
-    mined = _mine_gender_counts(LOCAL_DB_PATH)
-    cn_labels = _mine_ark_cn_labels(LOCAL_DB_PATH)
+    mined = _mine_gender_counts(_local_db_path())
+    cn_labels = _mine_ark_cn_labels(_local_db_path())
     chars: dict[str, int] = {}
-    if ARK_DB_PATH.exists():
+    ark_db_path = _seed("danbooru_arknights.json")
+    if ark_db_path.exists():
         try:
-            raw = json.loads(ARK_DB_PATH.read_text(encoding="utf-8"))
+            raw = json.loads(ark_db_path.read_text(encoding="utf-8"))
             chars = raw.get("characters") or {}
         except Exception:
             chars = {}
@@ -313,8 +330,8 @@ def build_library(*, force: bool = False) -> dict[str, Any]:
         "female": female,
         "male": male,
     }
-    LIBRARY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    LIBRARY_PATH.write_text(
+    library_path.parent.mkdir(parents=True, exist_ok=True)
+    library_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )

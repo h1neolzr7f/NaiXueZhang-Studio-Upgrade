@@ -13,9 +13,18 @@ from gallery_cache import cached
 from server_shared import DB, DATA_DIR
 
 
-def _work_thumb(work_id: int) -> str:
+def _gallery_db(gallery_id: str = "site"):
+    gid = str(gallery_id or "site").strip() or "site"
+    if gid == "site":
+        return DB
+    from gallery_catalog import get_db, normalize_gallery_id
+
+    return get_db(normalize_gallery_id(gid))
+
+
+def _work_thumb(work_id: int, gallery_id: str = "site") -> str:
     try:
-        detail = DB.get_work_detail(int(work_id))
+        detail = _gallery_db(gallery_id).get_work_detail(int(work_id))
         images = (detail or {}).get("images") or []
         if images:
             image = images[0]
@@ -39,9 +48,9 @@ def _work_thumb(work_id: int) -> str:
     return ""
 
 
-def _work_title(work_id: int) -> str:
+def _work_title(work_id: int, gallery_id: str = "site") -> str:
     try:
-        detail = DB.get_work_detail(int(work_id))
+        detail = _gallery_db(gallery_id).get_work_detail(int(work_id))
         work = (detail or {}).get("work") or {}
         title = str(work.get("title") or work.get("caption") or "").strip()
         if title:
@@ -71,15 +80,18 @@ def preview_work_prompt(work_id: int, page_index: int = 0) -> dict[str, Any]:
     return cached(cache_key, 600.0, _load)
 
 
-def _import_from_work_uncached(work_id: int, page_index: int = 0) -> dict[str, Any]:
-    data = extract_chars(int(work_id), int(page_index))
+def _import_from_work_uncached(
+    work_id: int, page_index: int = 0, gallery_id: str = "site"
+) -> dict[str, Any]:
+    data = extract_chars(int(work_id), int(page_index), gallery_id=gallery_id)
     comment = copy.deepcopy(data.get("comment") or {})
     return {
         "ok": True,
         "work_id": int(work_id),
         "page_index": int(page_index),
-        "title": _work_title(work_id),
-        "thumb": _work_thumb(work_id),
+        "gallery_id": gallery_id,
+        "title": _work_title(work_id, gallery_id),
+        "thumb": _work_thumb(work_id, gallery_id),
         "comment": comment,
         "params": data.get("params") or {},
         "chars": data.get("chars") or [],
@@ -88,11 +100,14 @@ def _import_from_work_uncached(work_id: int, page_index: int = 0) -> dict[str, A
     }
 
 
-def import_from_work(work_id: int, page_index: int = 0) -> dict[str, Any]:
+def import_from_work(
+    work_id: int, page_index: int = 0, gallery_id: str = "site"
+) -> dict[str, Any]:
     wid = int(work_id)
     page = int(page_index)
-    cache_key = f"studio_import:{wid}:{page}"
-    return cached(cache_key, 300.0, lambda: _import_from_work_uncached(wid, page))
+    gid = str(gallery_id or "site").strip() or "site"
+    cache_key = f"studio_import:{gid}:{wid}:{page}"
+    return cached(cache_key, 300.0, lambda: _import_from_work_uncached(wid, page, gid))
 
 
 def sanitize_comment(comment: dict[str, Any], **flags: Any) -> dict[str, Any]:

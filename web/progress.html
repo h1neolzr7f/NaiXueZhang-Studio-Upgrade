@@ -428,11 +428,13 @@
     </div>
   </div>
 
+  <script src="/assets/shared/escape.js?v=cf491c2912"></script>
   <script src="/assets/shared/api-client.js?v=96524289cc"></script>
-  <script src="/assets/shared/site-nav.js?v=a4360cf0a3"></script>
+  <script src="/assets/shared/site-nav.js?v=dc348bd777"></script>
   <script src="/assets/shared/quick-dock.js?v=bbc9c81e12"></script>
   <script>
     const fmt = (n) => Number(n || 0).toLocaleString("zh-CN");
+    const esc = (s) => (window.escapeHtml ? window.escapeHtml(s) : String(s == null ? "" : s));
     const STORAGE_ROWS = [
       { key: "images_dir", label: "图库图片", open: "images" },
       { key: "generated_dir", label: "生成图库", open: "generated" },
@@ -452,10 +454,10 @@
         const path = paths[row.key] || "-";
         return `
           <div class="storage-row">
-            <span class="storage-label">${row.label}</span>
-            <code class="storage-path" id="storage-${row.key}">${path}</code>
-            <button class="btn-mini js-copy-path" type="button" data-path="${path}">复制</button>
-            ${row.open ? `<button class="btn-mini js-open-path" type="button" data-target="${row.open}">打开</button>` : ""}
+            <span class="storage-label">${esc(row.label)}</span>
+            <code class="storage-path" id="storage-${esc(row.key)}">${esc(path)}</code>
+            <button class="btn-mini js-copy-path" type="button" data-path="${esc(path)}">复制</button>
+            ${row.open ? `<button class="btn-mini js-open-path" type="button" data-target="${esc(row.open)}">打开</button>` : ""}
           </div>`;
       }).join("");
       box.querySelectorAll(".js-copy-path").forEach((btn) => {
@@ -507,11 +509,11 @@
       return `
         <div class="phase">
           <div class="phase-head">
-            <span>${p.label}${extra}</span>
-            <span>${fmt(p.current)} / ${fmt(p.total)} (${p.percent}%)</span>
+            <span>${esc(p.label)}${extra}</span>
+            <span>${fmt(p.current)} / ${fmt(p.total)} (${esc(p.percent)}%)</span>
           </div>
-          <div class="bar ${p.done ? "done" : ""}"><span style="width:${p.percent}%"></span></div>
-          <div class="meta">${eta}</div>
+          <div class="bar ${p.done ? "done" : ""}"><span style="width:${Number(p.percent) || 0}%"></span></div>
+          <div class="meta">${esc(eta)}</div>
         </div>`;
     }
 
@@ -759,7 +761,7 @@
       const box = document.getElementById("taskPresets");
       if (!box) return;
       box.innerHTML = (presets || []).map((preset) =>
-        `<button class="btn-preset" type="button" data-preset-id="${preset.id}">${preset.label}</button>`
+        `<button class="btn-preset" type="button" data-preset-id="${esc(preset.id)}">${esc(preset.label)}</button>`
       ).join("");
       box.querySelectorAll("[data-preset-id]").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -844,16 +846,16 @@
         const hb = data.crawler_heartbeat || {};
         const remainingText = data.crawler_work_remaining ? "仍有可执行工作" : "当前没有可执行工作";
         document.getElementById("meta").innerHTML =
-          `数据集 <b>${data.dataset || "-"}</b> · 查询 <b>${data.search_query || "-"}</b><br>` +
-          `任务 <b>${data.crawler_phase_label || data.crawler_phase || "all"}</b> · 模式 <b>${data.preview_mode || "-"}</b> · 更新 <b>${data.updated_at || "-"}</b>` +
+          `数据集 <b>${esc(data.dataset || "-")}</b> · 查询 <b>${esc(data.search_query || "-")}</b><br>` +
+          `任务 <b>${esc(data.crawler_phase_label || data.crawler_phase || "all")}</b> · 模式 <b>${esc(data.preview_mode || "-")}</b> · 更新 <b>${esc(data.updated_at || "-")}</b>` +
           (data.crawler_running ? "" : ` · <span class="retry">爬虫进程未检测到</span>`) +
           (data.crawler_auto_restart
-            ? ` · 自动守护 <b>开</b>（每 ${data.crawler_watchdog_interval_sec || 300}s 检测，直至任务完成）`
+            ? ` · 自动守护 <b>开</b>（每 ${esc(data.crawler_watchdog_interval_sec || 300)}s 检测，直至任务完成）`
             : " · 自动守护 <b>关</b>（需手动启动爬虫）") +
           (data.crawler_watchdog_last_check
-            ? ` · 上次检测 ${data.crawler_watchdog_last_check}`
+            ? ` · 上次检测 ${esc(data.crawler_watchdog_last_check)}`
             : "") +
-          ` · ${remainingText}`;
+          ` · ${esc(remainingText)}`;
 
         setWatchdogButton(
           data.crawler_auto_restart,

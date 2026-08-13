@@ -12,8 +12,18 @@ _logger = logging.getLogger(__name__)
 def check_schema_version(self) -> None:
     """Record the schema version and warn when the DB is newer than the code."""
 
+    from datetime import datetime, timezone
+
     from db import SCHEMA_VERSION
 
+    self.conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        )
+        """
+    )
     row = self.conn.execute("PRAGMA user_version").fetchone()
     existing = int(row[0]) if row else 0
     if existing > SCHEMA_VERSION:
@@ -25,7 +35,15 @@ def check_schema_version(self) -> None:
             existing,
             SCHEMA_VERSION,
         )
-    elif existing < SCHEMA_VERSION:
+        return
+    if existing < SCHEMA_VERSION:
+        applied_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        for version in range(max(existing, 0) + 1, SCHEMA_VERSION + 1):
+            self.conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations(version, applied_at) "
+                "VALUES (?, ?)",
+                (version, applied_at),
+            )
         self.conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
 

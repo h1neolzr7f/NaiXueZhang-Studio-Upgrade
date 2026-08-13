@@ -82,11 +82,11 @@ from nai_char_modules.bundle_merge import (
 )
 
 ROOT = Path(__file__).resolve().parent
-from paths import data_dir
+from paths import DeferredDataPath, data_dir
 
 _logger = logging.getLogger(__name__)
 
-DATA_DIR = data_dir()
+DATA_DIR = DeferredDataPath(lambda: data_dir())
 
 BATCH_TARGET_MAX = 250
 
@@ -1756,7 +1756,12 @@ _METADATA_SOURCES = _MetadataSourceRegistry(
     gallery_factory=_gallery_metadata_adapter,
     normalize_gallery_id=normalize_gallery_id,
 )
-_PROMPT_SANITIZER = _sanitizer_from_path(DATA_DIR / "sanitize_blocklist.json")
+
+
+def sanitize_comment(comment: dict, **kwargs: Any) -> Any:
+    return _sanitizer_from_path(DATA_DIR / "sanitize_blocklist.json").sanitize_comment(
+        comment, **kwargs
+    )
 
 
 def _load_image_json(
@@ -1778,7 +1783,6 @@ prompt_snapshot_from_png = _module_prompt_snapshot_from_png
 _parse_comment = _module_parse_comment
 _normalize_nested_prompt_objects = _module_normalize_comment
 _get_effective_comment = _module_effective_comment
-sanitize_comment = _PROMPT_SANITIZER.sanitize_comment
 _normalize_style_tag = _module_normalize_style_tag
 _normalize_style_tag_for_match = _module_normalize_style_tag_for_match
 _style_tag_index = _module_style_index

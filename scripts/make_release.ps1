@@ -509,6 +509,7 @@ if ($Profile -eq "core") {
     Copy-DirRel "routes"
     Copy-DirRel "aitag_core"
     Copy-DirRel "nai_char_modules"
+    Copy-DirRel "nai"
     Copy-DirRel "butler"
     Copy-DirRel "third_party"
     Copy-DirRel "web"
