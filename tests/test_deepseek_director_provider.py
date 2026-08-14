@@ -22,6 +22,12 @@ DEEPSEEK_CONFIG = {
 
 
 class DeepSeekDirectorProviderTests(unittest.TestCase):
+    def test_provider_presets_are_reexported_by_the_pixiv_launch_facade(self) -> None:
+        presets = pixiv_launch.provider_presets()["presets"]
+
+        self.assertIn("DeepSeek", presets)
+        self.assertEqual(presets["DeepSeek"]["base"], "https://api.deepseek.com/v1")
+
     def test_model_discovery_prefers_deepseek_environment_key_over_saved_relay_key(self) -> None:
         response = MagicMock(status_code=200)
         response.json.return_value = {
