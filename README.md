@@ -4,6 +4,8 @@
 
 ### 当前维护线 v1.5.0 · 本地优先的 NovelAI 生产工作台
 
+[English](README_EN.md)
+
 **素材发现 · NAI 元数据验证 · 图库拖入 · 侧栏助手 · 角色换角 · 批量生成 · 后处理 · Pixiv 发布**
 
 ![Line](https://img.shields.io/badge/Line-Current_v1.5.0-6f42c1)
