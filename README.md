@@ -7,6 +7,7 @@
 **素材发现 · NAI 元数据验证 · 图库拖入 · 侧栏助手 · 角色换角 · 批量生成 · 后处理 · Pixiv 发布**
 
 ![Line](https://img.shields.io/badge/Line-升级版_v1.5.0-6f42c1)
+[![Tests](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/actions/workflows/tests.yml/badge.svg)](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
