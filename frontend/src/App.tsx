@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { GalleryPage } from "./pages/GalleryPage";
 import { StudioPage } from "./pages/StudioPage";
 import { GeneratedPage } from "./pages/GeneratedPage";
 import { ButlerPage } from "./pages/ButlerPage";
@@ -13,10 +12,7 @@ import { TagsPage } from "./pages/TagsPage";
 import { OpsPage } from "./pages/OpsPage";
 import { CompliancePage } from "./pages/CompliancePage";
 import {
-  EXTRA_ROUTES,
-  ROUTES,
   currentHref,
-  navigate,
   routeFromPath,
   type WorkspaceRoute,
 } from "./routes";
@@ -28,7 +24,7 @@ function titleFor(route: WorkspaceRoute): string {
     case "generated":
       return "生成库";
     case "butler":
-      return "小镜";
+      return "助手";
     case "settings":
       return "设置";
     case "remix":
@@ -65,62 +61,26 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    function onClick(event: MouseEvent) {
-      const target = event.target as HTMLElement | null;
-      const link = target?.closest("a");
-      if (!link || event.defaultPrevented || event.button !== 0) return;
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const raw = link.getAttribute("href") || "";
-      if (!raw.startsWith("/app")) return;
-      event.preventDefault();
-      navigate(raw);
-    }
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
-  }, []);
+    document.title = `${titleFor(route)} | Nai学长工作室`;
+  }, [route]);
 
   useEffect(() => {
-    document.title = `${titleFor(route)} | Nai学长工作室`;
+    if (route !== "gallery") return;
+    window.location.replace("/");
   }, [route]);
 
   return (
     <div className="workspace">
-      <nav className="ws-nav" aria-label="工作区导航">
-        <span className="ws-brand">工作区</span>
-        {ROUTES.map((item) => (
-          <a
-            key={item.id}
-            href={item.path}
-            className={route === item.id ? "active" : ""}
-            aria-current={route === item.id ? "page" : undefined}
-            onClick={(event) => {
-              event.preventDefault();
-              navigate(item.path);
-            }}
-          >
-            {item.label}
+      {route !== "gallery" ? (
+        <div className="ws-pagehead">
+          <a href="/" className="ws-back">
+            ← 返回图库
           </a>
-        ))}
-        {EXTRA_ROUTES.map((item) => (
-          <a
-            key={item.id}
-            href={item.path}
-            className={route === item.id ? "active" : ""}
-            aria-current={route === item.id ? "page" : undefined}
-            onClick={(event) => {
-              event.preventDefault();
-              navigate(item.path);
-            }}
-          >
-            {item.label}
-          </a>
-        ))}
-        <a className="legacy" href="/">
-          经典图库
-        </a>
-      </nav>
-      <main className={route === "gallery" ? "ws-main wide" : "ws-main"}>
-        {route === "gallery" ? <GalleryPage search={search} /> : null}
+          <h1>{titleFor(route)}</h1>
+        </div>
+      ) : null}
+      <main className="ws-main">
+        {route === "gallery" ? <p className="ws-status">正在打开图库…</p> : null}
         {route === "studio" ? <StudioPage search={search} /> : null}
         {route === "generated" ? <GeneratedPage search={search} /> : null}
         {route === "butler" ? <ButlerPage /> : null}

@@ -11,3 +11,8 @@ the Live2D Sample Model Terms.
 - Retrieved: 2026-07-17
 
 The model files are not covered by the MIT license of `l2d-widget`.
+
+`sakiko/` and `tomori/` are Cubism 2 character costumes bundled for the
+companion dock (客服小祥 / 助手凑企鹅). They are not Live2D official sample
+materials and are not covered by this project's MIT license. The code
+license does not grant any right to the characters, costumes, or motions.

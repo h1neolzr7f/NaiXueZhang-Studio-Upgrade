@@ -1,10 +1,26 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const ASSISTANT_NAME_KEY = "aitag.assistant.name.v1";
+  const AGENT_KEY = "aitag.assistant.agent.v1";
   const STUDIO_DRAFT_KEY = "aitag.studio.draft.v1";
   const HISTORY_API = "/api/butler/history";
   const COMPARISON_KEY = window.ComparisonWorkspace?.STORAGE_KEY || "aitag.butler.comparison.v1";
-  const DEFAULT_MODEL = "/assets/vendor/live2d-models/hiyori/Hiyori.model3.json";
+  const FALLBACK_MODEL = "/assets/vendor/live2d-models/hiyori/Hiyori.model3.json";
+  const CATALOG_URL = "/assets/vendor/live2d-models/companions.json";
+  const TOMORI_HINTS = /生成|出图|换角|换画风|导演|投稿|pixiv|remix|studio|选材|线稿|去背景|上色|草图/i;
+  const SAKIKO_HINTS = /采集|爬虫|后处理|设置|排障|日志|体检|缺图|配置|故障|诊断|修复|维护|怎么用|入门|小白/i;
+  const MOTION_BY_SITUATION = {
+    ready: "ready",
+    idle: "idle",
+    thinking: "thinking",
+    working: "working",
+    happy: "happy",
+    sorry: "sorry",
+    surprised: "surprised",
+    generate: "generate",
+    publish: "publish",
+    remix: "happy",
+  };
   const POLL_DELAYS = { realtime: 900, balanced: 2500, eco: 8000 };
   const state = {
     history: [],
@@ -13,9 +29,17 @@
     status: null,
     tasks: [],
     selectedTaskId: "",
-    assistantName: "小镜",
+    assistantName: "客服小祥",
+    agent: "sakiko",
+    catalog: {},
+    costumeOrder: [],
+    costumeId: "",
+    costumeIndex: 0,
+    situation: "ready",
+    lastPlayedSituation: "",
+    companionSync: Promise.resolve(),
     live2dEnabled: true,
-    live2dModel: DEFAULT_MODEL,
+    live2dModel: FALLBACK_MODEL,
     pollMode: "balanced",
     pollTimer: null,
     polling: false,
@@ -72,23 +96,221 @@
   function rememberAssistantName() {
     try {
       localStorage.setItem(ASSISTANT_NAME_KEY, state.assistantName);
+      localStorage.setItem(AGENT_KEY, state.agent);
     } catch (_) { /* private browsing can disable local storage */ }
   }
 
+  function currentProfile() {
+    return state.catalog[state.agent] || null;
+  }
+
+  function agentMeta(agentId) {
+    const id = agentId === "tomori" ? "tomori" : "sakiko";
+    const profile = state.catalog[id] || {};
+    if (id === "tomori") {
+      return {
+        id: "tomori",
+        name: profile.name || "助手凑企鹅",
+        short: "凑企鹅",
+        duty: "选材与生成",
+        fallback: "灯",
+      };
+    }
+    return {
+      id: "sakiko",
+      name: profile.name || "客服小祥",
+      short: "小祥",
+      duty: "处理和维护",
+      fallback: "祥",
+    };
+  }
+
   function applyAssistantName() {
+    const meta = agentMeta(state.agent);
+    state.assistantName = meta.name;
     document.querySelectorAll("[data-assistant-name]").forEach((element) => {
       element.textContent = state.assistantName;
     });
     document.title = `${state.assistantName} · 图库智能管家`;
     const portrait = $("assistantPortrait");
     if (portrait) portrait.setAttribute("aria-label", `${state.assistantName}的 Live2D 伙伴形象`);
+    const fallbackMark = document.querySelector("#live2dFallback span");
+    if (fallbackMark) fallbackMark.textContent = meta.fallback;
+    const fallbackHint = document.querySelector("#live2dFallback small");
+    if (fallbackHint) fallbackHint.textContent = meta.duty;
+    renderAgentSwitch();
+    updateCostumeLabel();
+  }
+
+  function renderAgentSwitch() {
+    const host = $("agentSwitch");
+    if (!host) return;
+    host.replaceChildren();
+    ["sakiko", "tomori"].forEach((id) => {
+      const meta = agentMeta(id);
+      const button = node("button", state.agent === id ? "is-active" : "");
+      button.type = "button";
+      button.dataset.agent = id;
+      button.appendChild(node("strong", "", meta.name));
+      button.appendChild(node("span", "", meta.duty));
+      button.addEventListener("click", () => setAgent(id, { reason: "ready" }));
+      host.appendChild(button);
+    });
+  }
+
+  function updateCostumeLabel() {
+    const label = $("costumeLabel");
+    if (!label) return;
+    const profile = currentProfile();
+    const costume = profile && profile.costumes && profile.costumes[state.costumeId];
+    label.textContent = costume && costume.label ? costume.label : "情景服饰";
+  }
+
+  function isSummerSeason() {
+    const month = new Date().getMonth() + 1;
+    return month >= 5 && month <= 9;
+  }
+
+  function pickCostumeId(situation) {
+    const profile = currentProfile();
+    if (!profile) return "";
+    const key = situation || "ready";
+    let spec = (profile.situations && profile.situations[key]) || profile.default_costume;
+    if (Array.isArray(spec) && spec.length) {
+      const stamp = `${key}:${new Date().toISOString().slice(0, 10)}`;
+      let hash = 0;
+      for (let i = 0; i < stamp.length; i += 1) hash = (hash * 33 + stamp.charCodeAt(i)) % 2147483647;
+      spec = spec[Math.abs(hash) % spec.length];
+    }
+    if (spec === "school" && profile.school) {
+      spec = isSummerSeason() ? profile.school.summer : profile.school.winter;
+    }
+    if (profile.costumes && profile.costumes[spec]) return spec;
+    return profile.default_costume || Object.keys(profile.costumes || {})[0] || "";
+  }
+
+  function inferAgent(message, intent) {
+    if (intent === "gallery_audit") return "sakiko";
+    const text = String(message || "");
+    const wantsTomori = TOMORI_HINTS.test(text);
+    const wantsSakiko = SAKIKO_HINTS.test(text);
+    if (wantsTomori && !wantsSakiko) return "tomori";
+    if (wantsSakiko && !wantsTomori) return "sakiko";
+    return state.agent;
+  }
+
+  function situationFromTask(task) {
+    if (!task) return state.situation || "ready";
+    if (task.terminal) return task.status === "succeeded" ? "happy" : "sorry";
+    const blob = `${task.title || ""} ${task.kind || ""} ${task.message || ""} ${task.phase || ""}`;
+    if (/投稿|pixiv|发布/i.test(blob)) return "publish";
+    if (/换角|换画风|remix/i.test(blob)) return "remix";
+    if (/生成|出图|导演|线稿|去背景/i.test(blob)) return "generate";
+    if (/采集|爬虫|后处理|体检|检修|日志/i.test(blob)) return "working";
+    if (task.status === "awaiting_confirmation") return "ready";
+    return "thinking";
   }
 
   function setMood(kind, message) {
     const host = $("assistantPortrait");
     const mood = $("assistantMood");
-    if (host) host.dataset.mood = kind || "ready";
+    const situation = kind || "ready";
+    state.situation = situation;
+    if (host) host.dataset.mood = situation;
     if (mood) mood.textContent = message || `${state.assistantName}在这里陪你`;
+    queueCompanionSync(situation);
+  }
+
+  function queueCompanionSync(situation) {
+    state.companionSync = state.companionSync
+      .then(() => syncCompanion(situation))
+      .catch(() => {});
+  }
+
+  async function syncCompanion(situation) {
+    if (!state.widget) return;
+    const portrait = $("assistantPortrait");
+    if (!portrait || !portrait.classList.contains("live2d-ready")) return;
+    const costumeId = pickCostumeId(situation);
+    const changed = costumeId !== state.costumeId || situation !== state.lastPlayedSituation;
+    if (costumeId && costumeId !== state.costumeId) {
+      await switchCostume(costumeId);
+    }
+    if (changed) {
+      state.lastPlayedSituation = situation;
+      playCompanionMotion(situation);
+    }
+  }
+
+  function playCompanionMotion(situation) {
+    const l2d = state.widget && state.widget.l2d;
+    if (!l2d || typeof l2d.playMotion !== "function") return;
+    const group = MOTION_BY_SITUATION[situation] || "idle";
+    try { l2d.playMotion(group); } catch (_) { /* motion pack may omit a group */ }
+    if (typeof l2d.setExpression === "function") {
+      const expr = {
+        happy: "smile01",
+        thinking: "thinking01",
+        sorry: "sad01",
+        surprised: "surprised01",
+        working: "serious01",
+        generate: "kime01",
+        publish: "smile02",
+      }[situation];
+      if (expr) {
+        try { l2d.setExpression(expr); } catch (_) { /* expression names vary by pack */ }
+      }
+    }
+  }
+
+  function waitForLive2dLoaded(widget) {
+    return new Promise((resolve) => {
+      const l2d = widget && widget.l2d;
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      if (l2d && typeof l2d.on === "function") l2d.on("loaded", done);
+      window.setTimeout(done, 2200);
+    });
+  }
+
+  function costumeQueue(profile, startId) {
+    const ids = Object.keys((profile && profile.costumes) || {});
+    const first = ids.includes(startId) ? startId : ((profile && profile.default_costume) || ids[0] || "");
+    return first ? [first, ...ids.filter((id) => id !== first)] : ids;
+  }
+
+  async function switchCostume(costumeId) {
+    const index = state.costumeOrder.indexOf(costumeId);
+    if (!state.widget || typeof state.widget.switchModel !== "function" || index < 0) return;
+    if (index === state.costumeIndex && state.costumeId === costumeId) {
+      playCompanionMotion(state.situation);
+      return;
+    }
+    await state.widget.switchModel(index);
+    await waitForLive2dLoaded(state.widget);
+    state.costumeIndex = index;
+    state.costumeId = costumeId;
+    state.lastPlayedSituation = "";
+    updateCostumeLabel();
+  }
+
+  async function setAgent(agentId, options) {
+    const next = agentId === "tomori" ? "tomori" : "sakiko";
+    const reason = (options && options.reason) || "ready";
+    if (next === state.agent && state.widget) {
+      setMood(reason, `${agentMeta(next).name}在这里陪你`);
+      return;
+    }
+    state.agent = next;
+    rememberAssistantName();
+    applyAssistantName();
+    if (state.status) renderSkills(state.status.skills || []);
+    if (state.live2dEnabled) await initLive2d();
+    setMood(reason, `${state.assistantName}接过这一摊啦`);
   }
 
   function mountLive2dCanvas(previousCanvases) {
@@ -98,7 +320,14 @@
       (item) => !previousCanvases.has(item) && !stage.contains(item),
     );
     if (!canvas) throw new Error("Live2D 画布没有创建");
+    const shell = canvas.parentElement;
+    ["position", "left", "top", "right", "bottom", "width", "height", "transform"].forEach((key) => {
+      canvas.style.removeProperty(key);
+    });
     stage.appendChild(canvas);
+    if (shell && shell !== stage && shell !== document.body && !shell.closest(".butler-live2d-stage")) {
+      shell.style.setProperty("display", "none", "important");
+    }
     state.live2dCanvas = canvas;
     return canvas;
   }
@@ -108,28 +337,39 @@
     const canvas = state.live2dCanvas;
     state.widget = null;
     state.live2dCanvas = null;
+    state.costumeOrder = [];
+    state.costumeIndex = 0;
     if (widget && typeof widget.destroy === "function") {
       try { await widget.destroy(); } catch (_) { /* canvas is removed separately */ }
     }
     if (canvas && canvas.isConnected) canvas.remove();
-    $("assistantPortrait").classList.remove("live2d-ready");
+    $("assistantPortrait").classList.remove("live2d-ready", "live2d-cubism2");
+  }
+
+  async function loadCompanionCatalog() {
+    try {
+      const data = await window.ApiClient.get(CATALOG_URL, { timeoutMs: 15000 });
+      const payload = typeof data === "string" ? JSON.parse(data) : data;
+      if (payload && typeof payload === "object") state.catalog = payload;
+    } catch (_) {
+      state.catalog = {};
+    }
   }
 
   async function loadPreferences() {
     try {
       const data = await window.ApiClient.get("/api/settings/prefs", { timeoutMs: 15000 });
       const prefs = data.prefs || data || {};
-      state.assistantName = String(prefs.assistant_name || "小镜").trim().slice(0, 12) || "小镜";
       state.live2dEnabled = prefs.assistant_live2d_enabled !== false;
-      state.live2dModel = String(prefs.assistant_live2d_model || DEFAULT_MODEL);
+      state.live2dModel = String(prefs.assistant_live2d_model || FALLBACK_MODEL);
       state.pollMode = Object.prototype.hasOwnProperty.call(POLL_DELAYS, prefs.assistant_poll_mode)
         ? prefs.assistant_poll_mode
         : "balanced";
-    } catch (_) {
-      try {
-        state.assistantName = String(localStorage.getItem(ASSISTANT_NAME_KEY) || "小镜").slice(0, 12) || "小镜";
-      } catch (_) { /* use defaults */ }
-    }
+    } catch (_) { /* use defaults */ }
+    try {
+      const stored = String(localStorage.getItem(AGENT_KEY) || "").trim();
+      if (stored === "tomori" || stored === "sakiko") state.agent = stored;
+    } catch (_) { /* private browsing */ }
     rememberAssistantName();
     applyAssistantName();
   }
@@ -150,6 +390,23 @@
     });
   }
 
+  function companionModels(profile, startId) {
+    const order = costumeQueue(profile, startId);
+    const scale = Number(profile.scale || 1.05);
+    const offset = Array.isArray(profile.offset) ? profile.offset : [0, 0.18];
+    return order.map((id) => {
+      const costume = profile.costumes[id];
+      return {
+        path: costume.path,
+        scale,
+        offset,
+        volume: 0,
+        logLevel: "error",
+        tips: false,
+      };
+    });
+  }
+
   async function initLive2d() {
     if (!state.live2dEnabled || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setMood("ready", `${state.assistantName}已就绪（动态形象已关闭）`);
@@ -160,16 +417,26 @@
       if (!window.L2D_WIDGET || typeof window.L2D_WIDGET.createWidget !== "function") throw new Error("Live2D 接口不可用");
       if (state.widget) await destroyLive2d();
       const previousCanvases = new Set(document.querySelectorAll("canvas"));
-      const stageSize = Math.max(240, Math.min(420, Math.round($("live2dStage").clientWidth || 300)));
-      state.widget = window.L2D_WIDGET.createWidget({
-        model: {
-          path: state.live2dModel,
+      const stageSize = Math.max(360, Math.min(640, Math.round($("live2dStage").clientWidth || 360)));
+      const profile = currentProfile();
+      if (!state.situation || state.situation === "ready") state.situation = "happy";
+      const startId = pickCostumeId(state.situation || "happy");
+      const models = profile && profile.costumes
+        ? companionModels(profile, startId)
+        : [{
+          path: state.live2dModel || FALLBACK_MODEL,
           scale: window.innerWidth < 720 ? 1.72 : 2.05,
           offset: [0, -0.55],
           volume: 0,
           logLevel: "error",
           tips: false,
-        },
+        }];
+      state.costumeOrder = profile && profile.costumes ? costumeQueue(profile, startId) : [];
+      state.costumeId = state.costumeOrder[0] || startId || "";
+      state.costumeIndex = 0;
+      $("assistantPortrait").classList.toggle("live2d-cubism2", Boolean(profile && profile.costumes));
+      state.widget = window.L2D_WIDGET.createWidget({
+        model: models.length === 1 ? models[0] : models,
         position: "bottom-right",
         size: stageSize,
         primaryColor: "rgba(156, 113, 255, 0.92)",
@@ -179,8 +446,10 @@
         statusBar: { style: { display: "none" } },
       });
       mountLive2dCanvas(previousCanvases);
+      updateCostumeLabel();
       const markReady = () => {
         $("assistantPortrait").classList.add("live2d-ready");
+        playCompanionMotion(state.situation || "ready");
         setMood("happy", `${state.assistantName}已就绪，很高兴见到你`);
       };
       if (state.widget.l2d && typeof state.widget.l2d.on === "function") {
@@ -190,7 +459,6 @@
       }
       $("toggleLive2d").hidden = false;
       $("toggleLive2d").textContent = "隐藏形象";
-      setMood("thinking", `${state.assistantName}正在来到直播间…`);
     } catch (error) {
       await destroyLive2d();
       setMood("ready", `${state.assistantName}已就绪 · 动态形象暂未加载`);
@@ -283,7 +551,7 @@
 
   function messageElement(role, content, options) {
     const article = node("article", `butler-message ${role}`);
-    article.appendChild(node("div", "butler-avatar", role === "user" ? "我" : state.assistantName.slice(0, 1)));
+    article.appendChild(node("div", "butler-avatar", role === "user" ? "我" : agentMeta(state.agent).fallback));
     const bubble = node("div", "butler-bubble");
     if (options && options.preview) {
       const image = node("img", "butler-message-image");
@@ -638,7 +906,7 @@
       return;
     }
     if (tool === "inspect_capabilities") {
-      const card = resultShell("小镜可以完成的操作", `${Number(result.supported || 0)} 项`, "", target);
+      const card = resultShell("助手可以完成的操作", `${Number(result.supported || 0)} 项`, "", target);
       Object.entries(result.categories || {}).forEach(([category, labels]) => {
         card.appendChild(node("p", "", `${category}：${(labels || []).join("、")}`));
       });
@@ -824,6 +1092,10 @@
       imageName: attachment.name,
     } : undefined);
     $("butlerInput").value = "";
+    const inferred = inferAgent(message, sendOptions.intent || "");
+    if (inferred !== state.agent) {
+      await setAgent(inferred, { reason: "thinking" });
+    }
     setBusy(true);
     setMood("thinking", sendOptions.intent === "gallery_audit"
       ? `${state.assistantName}正在分批体检图库…`
@@ -831,7 +1103,7 @@
     try {
       const data = await window.ApiClient.post(
         "/api/butler/chat",
-        { message, history, image: attachment, intent: sendOptions.intent || "", comparison: comparisonCandidates },
+        { message, history, image: attachment, intent: sendOptions.intent || "", comparison: comparisonCandidates, agent: state.agent },
         { timeoutMs: 150000 },
       );
       appendMessage("assistant", data.reply || "任务计划已生成。");
@@ -876,13 +1148,17 @@
   function renderSkills(skills) {
     const host = $("skillList");
     host.replaceChildren();
-    (skills || []).forEach((skill) => {
+    const visible = (skills || []).filter((skill) => {
+      const desk = skill && skill.desk;
+      return !desk || desk === "shared" || desk === state.agent;
+    });
+    visible.forEach((skill) => {
       const card = node("div", "butler-skill");
       card.appendChild(node("strong", "", skill.label));
       card.appendChild(node("span", "", (skill.capabilities || []).join(" · ")));
       host.appendChild(card);
     });
-    $("skillCount").textContent = `${(skills || []).length} 组`;
+    $("skillCount").textContent = `${visible.length} 组`;
   }
 
   function taskForecast(task) {
@@ -1318,8 +1594,9 @@
       return;
     }
     const forecast = taskForecast(task);
+    const situation = situationFromTask(task);
     setMood(
-      task.status === "awaiting_confirmation" ? "ready" : "thinking",
+      situation === "ready" ? "ready" : situation,
       task.status === "awaiting_confirmation"
         ? `计划走到「${forecast.current}」，等你确认后我就继续`
         : `正在替你做「${forecast.current}」· ${forecast.eta}`,
@@ -1533,7 +1810,26 @@
     }
   }
 
+  function tapLine(kind) {
+    if (state.agent === "tomori") {
+      return kind === "head" ? "那个、头发……" : "我在听。咕。";
+    }
+    return kind === "head" ? "等一下……" : "有事就说。";
+  }
+
+  function bindLive2dTouch() {
+    if (!window.Live2dTouch || !$("live2dStage")) return;
+    window.Live2dTouch.bind($("live2dStage"), {
+      getWidget: () => state.widget,
+      tone: () => (state.agent === "tomori" ? "pink" : "gold"),
+      onTap(kind) {
+        setMood(kind === "head" ? "surprised" : "happy", tapLine(kind));
+      },
+    });
+  }
+
   function bind() {
+    bindLive2dTouch();
     $("butlerForm").addEventListener("submit", (event) => {
       event.preventDefault();
       sendMessage($("butlerInput").value);
@@ -1601,7 +1897,7 @@
         .finally(() => { $("loadOlderHistory").disabled = false; });
     });
     $("clearChat").addEventListener("click", async () => {
-      if (!window.confirm("确定清空与小镜的全部本机聊天记录吗？此操作无法撤销。")) return;
+      if (!window.confirm("确定清空与助手的全部本机聊天记录吗？此操作无法撤销。")) return;
       try {
         await window.ApiClient.request(HISTORY_API, { method: "DELETE", timeoutMs: 30000 });
         state.history = [];
@@ -1662,7 +1958,13 @@
     bind();
     renderComparisonWorkspace();
     const statusPromise = loadStatus();
+    await loadCompanionCatalog();
     await loadPreferences();
+    const linkedAgent = new URLSearchParams(window.location.search).get("agent") || "";
+    if (linkedAgent === "tomori" || linkedAgent === "sakiko") {
+      state.agent = linkedAgent;
+      applyAssistantName();
+    }
     initLive2d();
     try {
       await Promise.all([loadHistory(), loadTemplates(), statusPromise]);

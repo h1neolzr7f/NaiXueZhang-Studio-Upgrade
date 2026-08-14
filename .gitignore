@@ -101,3 +101,6 @@ __pycache__/
 _check_mosaic*.py
 _eta*.py
 _prof_swap*.py
+
+# Local Live2D import helper (machine path / pack password).
+scripts/import_bangdream_live2d.py

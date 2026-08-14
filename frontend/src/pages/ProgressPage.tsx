@@ -94,7 +94,7 @@ export function ProgressPage() {
     <section className="ws-panel">
       <h2>爬虫</h2>
       <p className="ws-status">
-        空库会拒绝新采集。完整任务表和断点仍在 <a href="/progress">经典爬虫页</a>。
+        空库会拒绝新采集。需要看完整任务表和断点时，打开 <a href="/progress">任务详情</a>。
       </p>
       <div className="ws-toolbar">
         <select value={target} onChange={(event) => setTarget(event.target.value)} aria-label="采集目标">

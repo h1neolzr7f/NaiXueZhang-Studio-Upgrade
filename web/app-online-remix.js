@@ -84,6 +84,10 @@ function ensureCharSwapStylesLoaded() {
   document.head.appendChild(link);
 }
 
+function onlineImageArrayIndexes(images) {
+  return (Array.isArray(images) ? images : []).map((_, index) => index);
+}
+
 function uniqueTagList(values = []) {
   const seen = new Set();
   const out = [];
@@ -147,9 +151,7 @@ function renderOnlineCharacterCandidates(data, workId) {
   const candidates = onlineCharacterCandidates(data);
   const usableCount = candidates.filter((item) => item.usable).length;
   const images = Array.isArray(data.images) ? data.images : [];
-  const imageIndexes = [...new Set(images.map((image, index) => (
-    Number.isInteger(Number(image.page_index)) ? Number(image.page_index) : index
-  )))];
+  const imageIndexes = onlineImageArrayIndexes(images);
   const firstUsable = candidates.find((item) => item.usable);
   const firstIndex = firstUsable?.imageIndex ?? candidates[0]?.imageIndex ?? imageIndexes[0] ?? 0;
   const pageTabs = imageIndexes.map((index) => {
@@ -188,7 +190,7 @@ function renderOnlineCharacterCandidates(data, workId) {
         <button id="onlineTargetMyOcFilter" type="button" class="char-swap-btn char-swap-my-oc-filter" aria-pressed="false">我的 OC</button>
       </div>
       <div id="onlineTargetResults" class="preset-list online-target-results"></div>
-      <div id="onlineTargetStatus" class="char-swap-msg online-target-status" role="status">选目标后：应用换角 / 换·全部图片；画风可单独替换。</div>
+      <div id="onlineTargetStatus" class="char-swap-msg online-target-status" role="status">点角色卡会立刻换到当前槽；弱识别角色仍可点，会说明原因。画风可单独替换。</div>
       <div class="char-swap-style-row online-style-row">
         <span class="char-swap-style-label">画风</span>
         <input id="onlineStyleFind" type="text" placeholder="当前画风（可留空=只追加）" autocomplete="off" />
@@ -204,7 +206,7 @@ function renderOnlineCharacterCandidates(data, workId) {
         <button id="onlineReplaceMaleAllBtn" type="button" class="char-swap-btn char-swap-btn-all-pages" disabled>换男角·全部</button>
         <button id="onlineReplaceFemaleAllBtn" type="button" class="char-swap-btn char-swap-btn-all-pages" disabled>换女角·全部</button>
         <button id="onlineGenerateBtn" type="button" class="char-swap-btn primary" disabled>单张试生成 ▶</button>
-        <button id="onlineGenerateAllBtn" type="button" class="char-swap-btn char-swap-btn-all-pages" disabled>已换全部生图</button>
+        <button id="onlineGenerateAllBtn" type="button" class="char-swap-btn char-swap-btn-all-pages" disabled>生成已换页</button>
         <a id="onlineGenGalleryLink" class="char-swap-btn" href="/generated" target="_blank" rel="noopener">生成库 ↗</a>
       </div>
       <div id="onlineRemixResult" class="online-remix-result hidden"></div>
@@ -280,11 +282,13 @@ function renderOnlineSourceCandidateButtons() {
       const status = document.getElementById('onlineTargetStatus');
       if (status) status.textContent = `已复制槽位 #${candidate.slotIndex + 1} 的角色 tag。`;
     } catch (error) {
+      const status = document.getElementById('onlineTargetStatus');
+      if (status) status.textContent = '复制失败：浏览器拦截了剪贴板，请手动全选复制。';
       console.warn('copy online candidate tags failed', error);
     }
   };
 
-  // 一键换角：设为源 → 按性别取第一个可用目标 → 直接建草稿进 Studio（与本地一键替换对齐）
+  // 一键换角：当前槽 + 已选同性别目标（否则在该性别前 6 个可用目标里随机）
   const quickGenderSwap = async (candidate, gender) => {
     selectOnlineSourceCandidate(candidate);
     onlineRemixState.genderFilter = gender;
@@ -296,25 +300,32 @@ function renderOnlineSourceCandidateButtons() {
       await searchOnlineRemixTargets();
     }
     renderOnlineTargetResults(onlineRemixState.targetCache);
-    // 在该性别的前 6 个可用目标里随机，避免每次换出来都是同一个角色
-    const usableButtons = Array.from(
-      document.querySelectorAll('#onlineTargetResults .online-target-item:not([disabled])')
-    ).slice(0, 6);
-    if (!usableButtons.length) {
+    const matching = (onlineRemixState.targetCache || []).filter(
+      (item) => item.usable && onlineItemGender(item) === gender
+    );
+    if (!matching.length) {
       if (status) status.textContent = `角色库里没有可用的${gender === 'male' ? '男' : '女'}角色目标，请手动搜索。`;
       document.getElementById('onlineTargetResults')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       return;
     }
-    const picked = usableButtons[Math.floor(Math.random() * usableButtons.length)];
-    picked.click();
-    await createOnlineStudioDraft({ replaceCharacter: true });
+    const selected = matching.find(
+      (item) => String(item.reference_id || '') === String(onlineRemixState.targetReferenceId || '')
+    );
+    const pool = matching.slice(0, 6);
+    const item = selected || pool[Math.floor(Math.random() * pool.length)];
+    await applyOnlineTargetItem(item);
   };
 
-  const focusTargets = (candidate) => {
+  const applyOnlineSelectedTargetToSlot = async (candidate) => {
     selectOnlineSourceCandidate(candidate);
-    onlineRemixState.genderFilter = '';
-    document.getElementById('onlineTargetResults')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    document.getElementById('onlineTargetQuery')?.focus({ preventScroll: true });
+    const status = document.getElementById('onlineTargetStatus');
+    if (!onlineRemixState.targetReferenceId) {
+      if (status) status.textContent = '先在下方点一个角色，再点这一行的「替换」。';
+      document.getElementById('onlineTargetResults')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      document.getElementById('onlineTargetQuery')?.focus({ preventScroll: true });
+      return;
+    }
+    await createOnlineStudioDraft({ replaceCharacter: true });
   };
 
   candidates.forEach((candidate) => {
@@ -365,7 +376,7 @@ function renderOnlineSourceCandidateButtons() {
     // Compact actions — same density as local char-swap slot rows.
     mk('♂', () => quickGenderSwap(candidate, 'male')).title = '换男角';
     mk('♀', () => quickGenderSwap(candidate, 'female')).title = '换女角';
-    mk('替换', () => focusTargets(candidate), true);
+    mk('替换', () => applyOnlineSelectedTargetToSlot(candidate), true);
     mk('复制', () => copyCandidateTags(candidate));
     row.addEventListener('click', () => selectOnlineSourceCandidate(candidate));
     host.appendChild(row);
@@ -376,19 +387,47 @@ function renderOnlineSourceCandidateButtons() {
   selectOnlineSourceCandidate(keep);
 }
 
+function onlineTargetCaption(item = {}) {
+  const raw = item.raw && typeof item.raw === 'object' ? item.raw : {};
+  return String(
+    item.char_caption
+    || item.character_caption
+    || raw.char_caption
+    || raw.character_caption
+    || ''
+  ).trim();
+}
+
+function onlineItemGender(item = {}) {
+  const raw = item.raw && typeof item.raw === 'object' ? item.raw : {};
+  const identity = [
+    ...(Array.isArray(item.identity) ? item.identity : []),
+    ...(Array.isArray(raw.identity) ? raw.identity : []),
+    ...(Array.isArray(item.core_tags) ? item.core_tags : []),
+  ].map((tag) => String(tag).toLowerCase());
+  const itemGender = String(item.gender || raw.gender || '').toLowerCase();
+  if (itemGender === 'male' || identity.includes('1boy') || identity.includes('male_focus')) return 'male';
+  if (itemGender === 'female' || identity.includes('1girl') || identity.includes('female_focus')) return 'female';
+  return '';
+}
+
 function onlineReferenceLabel(item = {}) {
   const raw = item.raw && typeof item.raw === 'object' ? item.raw : {};
   const mine = item.is_custom || item.source === 'custom' || String(item.source || '').includes('我的')
     ? '我的 OC · '
     : '';
   const label = String(item.label || item.name || raw.name || raw.character || raw.trigger || item.reference_id || '未命名角色');
-  const caption = String(item.char_caption || '').trim();
+  const caption = onlineTargetCaption(item);
   const identity = uniqueTagList([
     ...(Array.isArray(item.identity) ? item.identity : []),
     ...(Array.isArray(raw.identity) ? raw.identity : []),
     ...(Array.isArray(item.core_tags) ? item.core_tags : []),
   ]);
-  if (String(item.kind || '').toLowerCase() === 'oc' || caption) {
+  const isOc = String(item.kind || '').toLowerCase() === 'oc'
+    || item.is_custom
+    || item.source === 'custom'
+    || String(item.source || '').includes('我的');
+  if (isOc) {
     const hint = caption
       ? `${caption.slice(0, 48)}${caption.length > 48 ? '…' : ''}`
       : identity.join(', ');
@@ -405,10 +444,31 @@ function onlineTargetUsable(item = {}) {
     ...(Array.isArray(raw.identity) ? raw.identity : []),
     ...(Array.isArray(item.core_tags) ? item.core_tags : []),
   ]);
-  const caption = String(item.char_caption || raw.char_caption || '').trim();
+  const caption = onlineTargetCaption(item);
   const trigger = String(item.trigger || raw.trigger || '').trim();
   const namedIdentity = identity.some((tag) => !/^(1girl|1boy|female_focus|male_focus|original_character)$/i.test(tag));
   return namedIdentity || caption.length >= 8 || !!trigger;
+}
+
+function selectOnlineTarget(item) {
+  if (!item) return;
+  onlineRemixState.targetReferenceId = String(item.reference_id || '');
+  onlineRemixState.targetLabel = onlineReferenceLabel(item);
+  document.querySelectorAll('#onlineTargetResults [data-online-target-reference]').forEach((element) => {
+    element.classList.toggle('active', element.dataset.onlineTargetReference === onlineRemixState.targetReferenceId);
+  });
+  syncOnlineAllSwapButtons();
+}
+
+async function applyOnlineTargetItem(item) {
+  const status = document.getElementById('onlineTargetStatus');
+  if (!item || !onlineTargetUsable(item)) {
+    if (status) status.textContent = '该角色缺少可用身份 tag / OC 特征，请换一个可用角色。';
+    return;
+  }
+  selectOnlineTarget(item);
+  if (status) status.textContent = `正在换上：${onlineRemixState.targetLabel}…`;
+  await createOnlineStudioDraft({ replaceCharacter: true });
 }
 
 function renderOnlineTargetResults(items) {
@@ -423,17 +483,9 @@ function renderOnlineTargetResults(items) {
       return false;
     }
     if (genderFilter) {
-      const raw = item.raw && typeof item.raw === 'object' ? item.raw : {};
-      const identity = [
-        ...(Array.isArray(item.identity) ? item.identity : []),
-        ...(Array.isArray(raw.identity) ? raw.identity : []),
-        ...(Array.isArray(item.core_tags) ? item.core_tags : []),
-      ].map((tag) => String(tag).toLowerCase());
-      const itemGender = String(item.gender || raw.gender || '').toLowerCase();
-      const isMale = itemGender === 'male' || identity.includes('1boy') || identity.includes('male_focus');
-      const isFemale = itemGender === 'female' || identity.includes('1girl') || identity.includes('female_focus');
-      if (genderFilter === 'male' && !isMale) return false;
-      if (genderFilter === 'female' && !isFemale) return false;
+      const itemGender = onlineItemGender(item);
+      if (genderFilter === 'male' && itemGender !== 'male') return false;
+      if (genderFilter === 'female' && itemGender !== 'female') return false;
     }
     if (!query) return true;
     return [
@@ -457,30 +509,26 @@ function renderOnlineTargetResults(items) {
   results.innerHTML = filtered.map((item) => {
     const id = String(item.reference_id || '');
     const source = String(item.source || item.raw?.source || '本地角色');
-    const disabled = item.usable ? '' : ' disabled';
     const weakClass = item.usable ? '' : ' is-weak';
-    return `<button type="button" class="char-swap-btn char-swap-preset online-target-item${weakClass}" data-online-target-reference="${escapeHtml(id)}" data-usable="${item.usable ? '1' : '0'}"${disabled}>
+    const hint = item.usable ? '' : ' · 缺少身份 tag，点此查看原因';
+    return `<button type="button" class="char-swap-btn char-swap-preset online-target-item${weakClass}" data-online-target-reference="${escapeHtml(id)}" data-usable="${item.usable ? '1' : '0'}" aria-disabled="${item.usable ? 'false' : 'true'}" title="${item.usable ? '点此换到当前槽' : '缺少身份 tag / OC 特征'}">
       <span class="online-target-item-top">
         <b>${escapeHtml(onlineReferenceLabel(item))}</b>
         ${onlineUsableBadge(item.usable)}
       </span>
-      <span class="online-target-item-meta">${escapeHtml(source)}${item.usable ? '' : ' · 缺少身份 tag，不可直接换角'}</span>
+      <span class="online-target-item-meta">${escapeHtml(source)}${hint}</span>
     </button>`;
   }).join('');
   results.querySelectorAll('[data-online-target-reference]').forEach((button) => button.addEventListener('click', () => {
-    if (button.disabled || button.dataset.usable !== '1') {
+    const item = filtered.find((candidate) => String(candidate.reference_id || '') === button.dataset.onlineTargetReference);
+    if (!item) return;
+    if (!item.usable) {
       status.textContent = '该角色缺少可用身份 tag / OC 特征，请换一个可用角色。';
       return;
     }
-    const item = filtered.find((candidate) => String(candidate.reference_id || '') === button.dataset.onlineTargetReference);
-    if (!item) return;
-    onlineRemixState.targetReferenceId = String(item.reference_id || '');
-    onlineRemixState.targetLabel = onlineReferenceLabel(item);
-    results.querySelectorAll('[data-online-target-reference]').forEach((element) => element.classList.toggle('active', element === button));
-    status.textContent = `已选：${onlineRemixState.targetLabel} · 可「应用换角」或「换·全部」`;
-    syncOnlineAllSwapButtons();
+    Promise.resolve(applyOnlineTargetItem(item)).catch((err) => reportAsyncError('换角失败', err));
   }));
-  status.textContent = `找到 ${filtered.length} 个角色（可用 ${usableCount}）。选目标后可单槽 / 全部图片换角。`;
+  status.textContent = `找到 ${filtered.length} 个角色（可用 ${usableCount}）。点角色卡即换到当前槽。`;
 }
 
 // 常用角色一键替换芯片（与本地换角 quick-presets 同一行样式）
@@ -513,8 +561,7 @@ function renderOnlineQuickChips() {
     chip.textContent = `${icon} ${String(item.label || item.name || item.id || '角色')}`;
     chip.title = '一键替换为 ' + onlineReferenceLabel(item);
     chip.addEventListener('click', async () => {
-      onlineRemixState.targetReferenceId = String(item.reference_id || '');
-      onlineRemixState.targetLabel = onlineReferenceLabel(item);
+      selectOnlineTarget(item);
       const status = document.getElementById('onlineTargetStatus');
       if (status) status.textContent = `一键：${onlineRemixState.targetLabel}`;
       await createOnlineStudioDraft({ replaceCharacter: true });
@@ -605,8 +652,8 @@ function syncOnlineGenerateButtons() {
   if (allBtn) {
     allBtn.disabled = keys.length === 0 || onlineRemixState.generating;
     allBtn.textContent = keys.length > 1
-      ? `已换全部生图 (${keys.length})`
-      : (keys.length === 1 ? '已换角生图' : '已换全部生图');
+      ? `生成已换页 (${keys.length})`
+      : (keys.length === 1 ? '生成已换页' : '生成已换页');
   }
   const countEl = document.getElementById('onlineCandidateCount');
   if (countEl && onlineRemixState.data) {
@@ -650,9 +697,7 @@ async function generateOnlineDraftEntry(entry, { quiet = false } = {}) {
   const workMeta = (onlineRemixState.data && onlineRemixState.data.work) || {};
   const images = Array.isArray(onlineRemixState.data?.images) ? onlineRemixState.data.images : [];
   const pageIdx = Number(entry.imageIndex || 0);
-  const pageImg = images.find((img, i) => (
-    Number.isInteger(Number(img.page_index)) ? Number(img.page_index) === pageIdx : i === pageIdx
-  )) || images[pageIdx] || images[0] || {};
+  const pageImg = images[pageIdx] || images[0] || {};
   const sourceTitle = String(workMeta.title || workMeta.Title || '').trim();
   const sourceThumb = String(
     pageImg.thumbnail_url || pageImg.thumb_url || pageImg.url || workMeta.thumbnail_url || ''
@@ -874,6 +919,8 @@ async function searchOnlineRemixTargets() {
       ...item,
       source: item.source || item.raw?.source || '本地角色',
       is_custom: !!(item.is_custom || item.source === 'custom'),
+      char_caption: String(item.char_caption || item.character_caption || item.raw?.char_caption || '').trim(),
+      kind: item.kind || ((item.is_custom || item.source === 'custom') && (item.char_caption || item.character_caption) ? 'oc' : item.kind),
     }));
     const seen = new Set();
     const items = [...presetItems, ...localItems, ...libraryItems].filter((item) => {
@@ -992,7 +1039,7 @@ function showOnlineRemixResult(result, replaceCharacter, studioUrl, extra = {}) 
     ${charLines.length ? `<pre class="online-result-prompt">${escapeHtml(charLines.slice(0, 4).join('\n'))}</pre>` : ''}
     <div class="online-result-actions">
       <button type="button" class="char-swap-btn primary" data-online-result-generate>单张试生成 ▶</button>
-      <button type="button" class="char-swap-btn" data-online-result-generate-all ${pageN < 1 ? 'disabled' : ''}>已换全部生图${pageN > 1 ? ` (${pageN})` : ''}</button>
+      <button type="button" class="char-swap-btn" data-online-result-generate-all ${pageN < 1 ? 'disabled' : ''}>生成已换页${pageN > 1 ? ` (${pageN})` : ''}</button>
       <button type="button" class="char-swap-btn" data-online-result-studio>Studio 微调</button>
       <button type="button" class="char-swap-btn" data-online-result-close>继续编辑</button>
     </div>`;
@@ -1091,9 +1138,7 @@ async function createOnlineStudioDraft(options = {}) {
   if (!resetOriginal) {
     if (allPages) {
       const images = Array.isArray(onlineRemixState.data?.images) ? onlineRemixState.data.images : [];
-      const indexes = images.map((img, i) => (
-        Number.isInteger(Number(img.page_index)) ? Number(img.page_index) : i
-      ));
+      const indexes = onlineImageArrayIndexes(images);
       const bases = onlineCollectBaseComments(indexes);
       if (Object.keys(bases).length) payload.base_comments = bases;
     } else {
@@ -1299,7 +1344,11 @@ function wireOnlineRemixPanel(data, workId) {
   }));
   document.getElementById('onlineCharacterDraftBtn')?.addEventListener('click', () => createOnlineStudioDraft({ replaceCharacter: true }));
   document.getElementById('onlineReplaceMaleAllBtn')?.addEventListener('click', async () => {
-    if (!onlineRemixState.targetReferenceId) return;
+    if (!onlineRemixState.targetReferenceId) {
+      const status = document.getElementById('onlineRemixStatus');
+      if (status) status.textContent = '请先点一个角色，再换全部男槽。';
+      return;
+    }
     const n = (onlineRemixState.data?.images || []).length || 1;
     if (n > 1 && !window.confirm(`把「${onlineRemixState.targetLabel}」应用到全部 ${n} 张图的男槽？\n与本地「换男角·全部图片」相同，仅改草稿。`)) return;
     await createOnlineStudioDraft({
@@ -1309,7 +1358,11 @@ function wireOnlineRemixPanel(data, workId) {
     });
   });
   document.getElementById('onlineReplaceFemaleAllBtn')?.addEventListener('click', async () => {
-    if (!onlineRemixState.targetReferenceId) return;
+    if (!onlineRemixState.targetReferenceId) {
+      const status = document.getElementById('onlineRemixStatus');
+      if (status) status.textContent = '请先点一个角色，再换全部女槽。';
+      return;
+    }
     const n = (onlineRemixState.data?.images || []).length || 1;
     if (n > 1 && !window.confirm(`把「${onlineRemixState.targetLabel}」应用到全部 ${n} 张图的女槽？\n与本地「换女角·全部图片」相同，仅改草稿。`)) return;
     await createOnlineStudioDraft({

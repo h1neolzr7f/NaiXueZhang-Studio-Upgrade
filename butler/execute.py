@@ -51,6 +51,11 @@ from butler.service_api import api
 async def _execute_confirmed(action: dict[str, Any]) -> dict[str, Any]:
     tool = action["tool"]
     args = action["arguments"]
+    from butler.agents import reject_foreign_tool
+
+    foreign = reject_foreign_tool(tool)
+    if foreign:
+        raise ValueError(foreign)
     if tool == "rebuild_knowledge_catalog":
         return api._execute_auto(action)
     if tool == "start_crawler":

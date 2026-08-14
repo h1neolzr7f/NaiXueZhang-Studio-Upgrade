@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -126,14 +127,50 @@ class ButlerUiTests(unittest.TestCase):
             'href="/settings#ai-service"',
         ):
             self.assertIn(marker, html)
-        self.assertIn("aspect-ratio: 1", css)
-        self.assertIn("mountLive2dCanvas", js)
+        self.assertIn("aspect-ratio: 3 / 4", css)
+        self.assertIn("transform: scale(1.85)", css)
+        self.assertIn("bindLive2dTouch", js)
+        self.assertIn("/assets/shared/live2d-touch.js", html)
+        self.assertIn("playCompanionMotion", js)
         self.assertIn("compressImage", js)
         self.assertIn("pendingImage", js)
         self.assertIn("image: attachment", js)
         self.assertIn('intent: "gallery_audit"', js)
         self.assertIn('tool === "audit_gallery"', js)
         self.assertIn("butler-audit-persisted", js)
+        self.assertIn("agent: state.agent", js)
+        self.assertIn('get("agent")', js)
+        self.assertIn("switchModel", js)
+        self.assertIn("playMotion", js)
+        self.assertIn("pickCostumeId", js)
+        self.assertIn("companions.json", js)
+        self.assertIn('id="agentSwitch"', html)
+        self.assertIn("助手凑企鹅", html)
+
+    def test_live2d_catalog_keeps_all_sakiko_and_tomori_costumes(self) -> None:
+        catalog = json.loads((ROOT / "web" / "vendor" / "live2d-models" / "companions.json").read_text(encoding="utf-8"))
+        self.assertEqual(catalog["tomori"]["name"], "助手凑企鹅")
+        sakiko = catalog["sakiko"]["costumes"]
+        tomori = catalog["tomori"]["costumes"]
+        self.assertGreaterEqual(len(sakiko), 4)
+        self.assertGreaterEqual(len(tomori), 8)
+        self.assertIn("causal", sakiko)
+        self.assertIn("school_summer", sakiko)
+        self.assertIn("jh_school_winter", sakiko)
+        self.assertIn("casual", tomori)
+        self.assertIn("live_default", tomori)
+        self.assertIn("furisode", tomori)
+        self.assertGreaterEqual(catalog["sakiko"]["scale"], 1.0)
+        self.assertGreaterEqual(catalog["tomori"]["scale"], 1.0)
+        self.assertNotEqual(catalog["sakiko"]["situations"]["ready"], "school_winter")
+        self.assertNotEqual(catalog["tomori"]["situations"]["generate"], "school_winter")
+        for costume in list(sakiko.values()) + list(tomori.values()):
+            model = ROOT / costume["path"].replace("/assets/", "web/", 1).lstrip("/")
+            self.assertTrue(model.is_file(), model)
+            payload = json.loads(model.read_text(encoding="utf-8"))
+            for group in ("idle", "tap_body", "happy", "thinking", "sorry"):
+                self.assertIn(group, payload["motions"])
+            self.assertGreaterEqual(len(payload["motions"]), 40)
 
     def test_fixed_candidate_compare_workspace_is_explicit_and_persistent(self) -> None:
         html = (ROOT / "web" / "butler.html").read_text(encoding="utf-8")
@@ -168,7 +205,7 @@ class ButlerUiTests(unittest.TestCase):
         self.assertIn("min-width: 1180px", css)
         self.assertIn("overflow-x: auto", css)
         self.assertIn("scrollbar-width: thin", css)
-        self.assertIn("transform-origin: 50% 0", css)
+        self.assertIn("transform-origin: 50% 8%", css)
         self.assertIn("@media (max-width: 900px)", css)
         self.assertIn(".butler-body {\n    min-width: 0;", css)
         self.assertIn(".butler-layout {\n    grid-template-columns: minmax(0, 1fr);", css)

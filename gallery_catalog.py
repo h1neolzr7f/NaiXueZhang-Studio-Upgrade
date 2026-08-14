@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import json
 import threading
 from typing import Any
 
@@ -217,32 +218,34 @@ def public_gallery_list() -> list[dict[str, Any]]:
     return out
 
 
-def list_group_keys(gallery_id: str) -> list[dict[str, Any]]:
-    """Q群按账号、自选库按分类统计。"""
-    gid = normalize_gallery_id(gallery_id)
-    spec = get_spec(gid)
-    if not spec.group_by:
-        return []
-    db = get_db(gid)
-    field = "user_id" if spec.group_by == "account" else "tags"
-    # account: user_id stores synthetic int; account label in list_json.
-    # For grouping we read crawl_state index written by importers when available.
-    raw = db.get_state(f"group_index:{gid}", "")
-    if raw:
-        try:
-            import json
+def _cached_group_index(raw: str, spec) -> list[dict[str, Any]] | None:
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(data, list) or not data:
+        return None
+    if spec.group_by == "category" and not any(
+        isinstance(item, dict) and item.get("kind") == "folder" for item in data
+    ):
+        return None
+    if spec.group_by == "account":
+        has_local_drop = any(
+            isinstance(item, dict) and item.get("account_key") == "local-drop"
+            for item in data
+        )
+        has_folder = any(
+            isinstance(item, dict) and item.get("kind") == "folder"
+            for item in data
+        )
+        if has_local_drop and not has_folder:
+            return None
+    return data
 
-            data = json.loads(raw)
-            if isinstance(data, list) and data:
-                return data
-        except Exception:
-            pass
-    # fallback scan
-    import json
 
-    rows = db.conn.execute(
-        "SELECT id, user_id, tags, list_json FROM works ORDER BY id DESC LIMIT 20000"
-    ).fetchall()
+def _build_group_index(rows, spec) -> list[dict[str, Any]]:
     counts: dict[str, int] = {}
     labels: dict[str, str] = {}
     group_counts: dict[str, int] = {}
@@ -250,8 +253,6 @@ def list_group_keys(gallery_id: str) -> list[dict[str, Any]]:
     account_counts: dict[tuple[str, str], int] = {}
     account_labels: dict[tuple[str, str], str] = {}
     for row in rows:
-        key = ""
-        label = ""
         try:
             item = json.loads(row["list_json"] or "{}")
         except Exception:
@@ -272,9 +273,13 @@ def list_group_keys(gallery_id: str) -> list[dict[str, Any]]:
             account_counts[pair] = account_counts.get(pair, 0) + 1
             account_labels[pair] = label or key
             continue
-        else:
-            key = str(item.get("category") or (row["tags"] or "").split(",")[0] or "未分类")
-            label = key
+        key = str(
+            item.get("category")
+            or item.get("group_key")
+            or (row["tags"] or "").split(",")[0]
+            or "未分类"
+        )
+        label = str(item.get("group_label") or key)
         if not key:
             continue
         counts[key] = counts.get(key, 0) + 1
@@ -296,6 +301,10 @@ def list_group_keys(gallery_id: str) -> list[dict[str, Any]]:
                 }
             )
             members = [pair for pair in account_counts if pair[0] == group_key]
+            drop_only = bool(members) and all(pair[1] == "local-drop" for pair in members)
+            hierarchy[-1]["kind"] = "folder" if drop_only else "group"
+            if drop_only:
+                continue
             for pair in sorted(
                 members,
                 key=lambda value: (-account_counts[value], account_labels[value]),
@@ -313,8 +322,47 @@ def list_group_keys(gallery_id: str) -> list[dict[str, Any]]:
                     }
                 )
         return hierarchy
-
     return [
-        {"key": k, "label": labels.get(k, k), "count": counts[k]}
+        {
+            "key": f"group:{k}",
+            "label": labels.get(k, k),
+            "count": counts[k],
+            "kind": "folder",
+            "group_key": k,
+        }
         for k in sorted(counts.keys(), key=lambda x: (-counts[x], x))
     ]
+
+
+def list_group_keys(gallery_id: str) -> list[dict[str, Any]]:
+    """Q群按账号、自选库按分类统计。"""
+    gid = normalize_gallery_id(gallery_id)
+    spec = get_spec(gid)
+    if not spec.group_by:
+        return []
+    db = get_db(gid)
+    cached = _cached_group_index(db.get_state(f"group_index:{gid}", ""), spec)
+    if cached is not None:
+        return cached
+
+    def scan() -> list[dict[str, Any]]:
+        row = db.conn.execute(
+            "SELECT value FROM crawl_state WHERE key = ?",
+            (f"group_index:{gid}",),
+        ).fetchone()
+        again = _cached_group_index(row["value"] if row else "", spec)
+        if again is not None:
+            return again
+        rows = db.conn.execute(
+            "SELECT id, user_id, tags, list_json FROM works"
+        ).fetchall()
+        items = _build_group_index(rows, spec)
+        db.conn.execute(
+            "INSERT INTO crawl_state(key, value) VALUES(?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (f"group_index:{gid}", json.dumps(items, ensure_ascii=False)),
+        )
+        db.conn.commit()
+        return items
+
+    return db._run(scan)

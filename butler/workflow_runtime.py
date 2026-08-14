@@ -374,9 +374,16 @@ class ButlerWorkflowRuntime(ButlerWorkflowExecutors):
             raise ValueError("AI 计划中的 actions 不是数组")
         actions: list[dict[str, Any]] = []
         rejected: list[dict[str, str]] = []
+        from butler.agents import reject_foreign_tool
+
         for raw in raw_actions[: legacy.MAX_ACTIONS]:
             try:
-                actions.append(legacy.normalize_action(raw))
+                action = legacy.normalize_action(raw)
+                foreign = reject_foreign_tool(action["tool"])
+                if foreign:
+                    rejected.append({"tool": action["tool"], "reason": foreign})
+                    continue
+                actions.append(action)
             except Exception as exc:
                 rejected.append(
                     {

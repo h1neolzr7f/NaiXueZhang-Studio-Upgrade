@@ -114,7 +114,7 @@ export function updateQuickAddHint() {
     }
     if (!hint) return;
     if (!onList) {
-      hint.textContent = "打开作品页 /i/xxx 可批量本作品全部图片";
+      hint.textContent = "先在图库点开一张作品，再把全部图片加入批量";
       return;
     }
     const ctx = gal.getListContext();
@@ -328,7 +328,7 @@ export function renderBatchQueueList() {
     if (!listEl) return;
     const queue = loadBatchQueue();
     if (!queue.length) {
-      listEl.innerHTML = '<div class="char-swap-batch-empty">队列为空。<br>· 在 <b>/i/作品号</b> 页点「全部图片加入批量」<br>· 或在图库列表点「加入列表本页」</div>';
+      listEl.innerHTML = '<div class="char-swap-batch-empty">队列还是空的。<br>· 先在图库点开一张作品，再点「全部图片加入批量」<br>· 或在图库列表点「加入列表本页」</div>';
       return;
     }
     listEl.innerHTML = queue.map((item) => `
@@ -663,12 +663,12 @@ export function mountBatchDrawer() {
       <div class="char-swap-batch-body">
         <div class="char-swap-quick-add" id="charSwapQuickAddList">
           <div class="char-swap-section-title">图库列表 · 加入本页作品</div>
-          <div id="charSwapQuickHint" class="char-swap-quick-hint">每个作品对应 /i/xxx 作品页；只加列表当前分页，不含其它页</div>
+          <div id="charSwapQuickHint" class="char-swap-quick-hint">只加图库当前这一页，不含其它页</div>
           <button type="button" class="char-swap-btn primary char-swap-quick-main" id="charSwapQuickPage">加入列表本页</button>
           <div id="charSwapQuickStatus" class="char-swap-quick-status"></div>
         </div>
         <div class="char-swap-quick-add char-swap-quick-add-detail hidden" id="charSwapQuickAddDetail">
-          <div class="char-swap-section-title">当前作品页 · /i/<span id="charSwapQuickWorkId">—</span></div>
+          <div class="char-swap-section-title">当前作品 · #<span id="charSwapQuickWorkId">—</span></div>
           <div class="char-swap-quick-hint" id="charSwapQuickDetailHint">把本作品全部图片（p0、p1…）加入批量队列</div>
           <button type="button" class="char-swap-btn primary char-swap-quick-main" id="charSwapQuickWorkAll">全部图片加入批量</button>
         </div>
@@ -767,7 +767,7 @@ export function mountBatchDrawer() {
 
     document.getElementById("charSwapQuickWorkAll").addEventListener("click", () => {
       if (!state.workId) {
-        setQuickAddStatus("请先打开一个作品页 /i/xxx", false);
+        setQuickAddStatus("请先在图库点开一张作品", false);
         return;
       }
       runQuick(async () => {

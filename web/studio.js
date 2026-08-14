@@ -1015,7 +1015,7 @@
     const params = new URLSearchParams(window.location.search);
     const draftId = String(params.get("draft") || "").trim();
     const wantAitag = params.get("aitag") === "1" || params.get("source") === "aitag-online";
-    let workId = window.WorkBridge?.normalizeWorkId?.(params.get("from")) || String(params.get("from") || "").trim();
+    let workId = window.WorkBridge?.normalizeWorkId?.(params.get("from") || params.get("work")) || String(params.get("from") || params.get("work") || "").trim();
     let pageIndex = parseInt(params.get("page") || "0", 10);
     if (!workId && window.WorkBridge) {
       const bridged = window.WorkBridge.load();

@@ -106,6 +106,46 @@ class SettingsRouteTests(unittest.TestCase):
         self.assertIn('"/api/settings/knowledge"', script)
         self.assertIn('"/api/settings/knowledge/rebuild"', script)
 
+    def test_generation_pool_lists_masked_slots_with_check_and_delete(self) -> None:
+        html = (ROOT / "web" / "settings.html").read_text(encoding="utf-8")
+        script = (ROOT / "web" / "settings.js").read_text(encoding="utf-8")
+        css = (ROOT / "web" / "settings.css").read_text(encoding="utf-8")
+        self.assertIn('id="tokenSlotList"', html)
+        self.assertIn("全部检测是否可用", html)
+        self.assertIn("token.token_count", script)
+        self.assertIn('"/api/nai/token/add"', script)
+        self.assertIn('"/api/nai/token/check"', script)
+        self.assertIn("token_id: slot.id", script)
+        self.assertIn("remove_bad: false", script)
+        self.assertIn('method: "DELETE"', script)
+        self.assertIn(".token-slot-actions", css)
+        self.assertNotIn("token.count || 0", script)
+
+    def test_settings_status_exposes_masked_token_slots_without_plaintext(self) -> None:
+        tok = {
+            "has_token": True,
+            "token_count": 1,
+            "enabled_count": 1,
+            "tokens": [
+                {
+                    "id": "nai_abc123",
+                    "label": "NAI #1",
+                    "provider": "novelai",
+                    "masked": "pst-********",
+                    "enabled": True,
+                }
+            ],
+        }
+        with patch("routes.settings.token_status", return_value=tok), patch(
+            "routes.settings.ai_status", return_value={"has_api_key": False}
+        ), patch("routes.settings.load_prefs", return_value={}):
+            response = self.client.get("/api/settings/status")
+        payload = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["token"]["token_count"], 1)
+        self.assertEqual(payload["token"]["tokens"][0]["masked"], "pst-********")
+        self.assertNotIn("pst-real-secret", json.dumps(payload))
+
     def test_model_list_is_proxied_without_exposing_the_saved_key(self) -> None:
         with patch(
             "routes.settings.list_ai_models",

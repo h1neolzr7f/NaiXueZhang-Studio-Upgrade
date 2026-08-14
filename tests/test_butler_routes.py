@@ -70,6 +70,19 @@ class ButlerRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         run.assert_awaited_once_with("体检图库", [], None, "gallery_audit")
 
+    def test_chat_route_forwards_selected_agent(self) -> None:
+        payload = {"ok": True, "reply": "ok", "tool_results": [], "pending_actions": []}
+        with patch(
+            "routes.butler.submit_butler_chat",
+            new=AsyncMock(return_value=payload),
+        ) as run:
+            response = self.client.post(
+                "/api/butler/chat",
+                json={"message": "找图", "history": [], "agent": "tomori"},
+            )
+        self.assertEqual(response.status_code, 200)
+        run.assert_awaited_once_with("找图", [], None, "", agent="tomori")
+
     def test_butler_templates_can_be_listed_and_saved_without_execution(self) -> None:
         templates = [{"id": "builtin-local-audit", "label": "零 Token 图库体检"}]
         saved = {"id": "user-1", "label": "我的任务", "prompt": "检查队列"}
@@ -97,7 +110,7 @@ class ButlerRouteTests(unittest.TestCase):
         payload = response.json()
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["topic"], "remix")
-        self.assertEqual(payload["page"], "/studio")
+        self.assertEqual(payload["page"], "/remix")
         self.assertIn("不会调用识图", payload["answer"])
         self.assertIn("确认生成后才会消耗 NAI", payload["answer"])
 

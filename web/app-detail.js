@@ -630,7 +630,16 @@ async function openDetail(workId, options = {}) {
         }
       });
     } catch { }
-    try { wireOnlineRemixPanel(data, workId); } catch { }
+    try {
+      wireOnlineRemixPanel(data, workId);
+      if (window.location.hash === '#onlineRemixPanel') {
+        document.getElementById('onlineRemixPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } catch (error) {
+      console.error(error);
+      const status = document.getElementById('onlineRemixStatus');
+      if (status) status.textContent = `换角面板初始化失败：${error.message || error}`;
+    }
     try {
       const downloadRow = detailMeta.querySelector('.download-row');
       const detailAd = createAdElement('detail');
@@ -1021,6 +1030,14 @@ async function openDetail(workId, options = {}) {
     if (!stillThisDetail()) return;
     try {
       window.__AITAG_CURRENT_DETAIL__ = { workId, data };
+      if (window.WorkBridge && typeof window.WorkBridge.save === 'function') {
+        window.WorkBridge.save({
+          workId,
+          pageIndex: 0,
+          galleryId: isAitagGallery() ? 'aitag-online' : currentGalleryId(),
+          from: 'detail',
+        });
+      }
       window.dispatchEvent(new CustomEvent('aitag:detail-ready', {
         detail: {
           workId,

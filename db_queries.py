@@ -429,6 +429,15 @@ def _search_works_impl(
             filters.append("json_extract(works.list_json, '$.group_key') = ?")
             filters.append("json_extract(works.list_json, '$.account_key') = ?")
             params.extend(parts[1:3])
+    elif group_filter:
+        # Codex / drop folders store the name on category and group_key.
+        filters.append(
+            "("
+            "json_extract(works.list_json, '$.group_key') = ? OR "
+            "json_extract(works.list_json, '$.category') = ?"
+            ")"
+        )
+        params.extend((group_filter, group_filter))
 
     # Support direct numeric search for work id (pid) or author id (user_id) by adding explicit id/user_id clause.
     # FTS only indexes text fields; numbers aren't there so pure ID entry wouldn't match otherwise.

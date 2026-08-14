@@ -8,8 +8,8 @@
   <link rel="stylesheet" href="/assets/local.css?v=2e0bfcbad7" />
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
   <link rel="stylesheet" href="/assets/shared/motion.css?v=8cc6bd1e71" />
-  <link rel="stylesheet" href="/assets/settings.css?v=76318dc9e9" />
-  <link rel="stylesheet" href="/assets/studio-theme.css?v=726f16a66a" />
+  <link rel="stylesheet" href="/assets/settings.css?v=1b2e12e3e8" />
+  <link rel="stylesheet" href="/assets/studio-theme.css?v=51de05869a" />
 <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
 </head>
 <body class="settings-body">
@@ -53,12 +53,12 @@
     <section class="settings-section" id="assistant-service">
       <div class="section-heading">
         <div><span class="step">1</span><h2>管家与伙伴</h2></div>
-        <p>名称、动态形象与轮询节奏</p>
+        <p>两位助手共用同一套 API，但职责分开：客服小祥管维护和教学，助手凑企鹅管出图；Live2D 会按情景更换服饰和动作</p>
       </div>
       <div class="settings-grid two">
         <label class="field-card">
-          <span>助手名称</span>
-          <input id="assistantName" maxlength="12" value="小镜" />
+          <span>页面统称（可选）</span>
+          <input id="assistantName" maxlength="12" value="助手" />
         </label>
         <label class="field-card">
           <span>后台轮询</span>
@@ -72,8 +72,8 @@
           <span class="switch-line"><input id="assistantLive2d" type="checkbox" /> 启用 Live2D 动态伙伴</span>
         </label>
         <label class="field-card">
-          <span>Live2D 模型路径</span>
-          <input id="assistantLive2dModel" value="/assets/vendor/live2d-models/hiyori/Hiyori.model3.json" />
+          <span>Live2D 回退模型（可选）</span>
+          <input id="assistantLive2dModel" placeholder="默认按助手情景自动换装，无需填写" value="" />
         </label>
       </div>
     </section>
@@ -131,7 +131,7 @@
         <label class="field-card wide">
           <span>Token 列表</span>
           <textarea id="settingsToken" rows="5" placeholder="pst-...&#10;xianyun:..." autocomplete="new-password" data-lpignore="true" data-1p-ignore></textarea>
-          <small>只用于粘贴保存，接口不会回显已存 Token。支持 <code>nai:pst-...</code>、<code>pst-...</code>、<code>xianyun:KEY</code>。</small>
+          <small>粘贴后点保存会<strong>追加</strong>到账号池，不会覆盖已有槽位。接口不回显明文。支持 <code>nai:pst-...</code>、<code>pst-...</code>、<code>xianyun:KEY</code>。</small>
         </label>
         <label class="field-card">
           <span>无前缀时默认提供商</span>
@@ -141,15 +141,16 @@
             <option value="xianyun">闲云</option>
           </select>
         </label>
-        <div class="field-card">
-          <span>账号池状态</span>
+        <div class="field-card wide">
+          <span>账号池槽位</span>
           <strong id="tokenStatusText">正在读取…</strong>
-          <p class="settings-empty-state" id="tokenEmptyState" hidden>还没有生图账号。粘贴 Token 并保存后，工作台和管家才能提交生图任务。</p>
+          <p class="settings-empty-state" id="tokenEmptyState" hidden>还没有生图账号。粘贴 Token 并保存后，这里会出现每个槽位，可单独检测或删除。</p>
+          <div id="tokenSlotList" class="token-slot-list" hidden></div>
         </div>
       </div>
       <div class="ai-setup-actions">
         <button class="settings-button secondary" type="button" id="saveTokenBtn">保存 Token</button>
-        <button class="settings-button secondary" type="button" id="checkTokenBtn">检查并移除失效槽位</button>
+        <button class="settings-button secondary" type="button" id="checkTokenBtn">全部检测是否可用</button>
       </div>
     </section>
 
@@ -223,9 +224,9 @@
     <button class="settings-button primary" type="button" id="saveAllBtn">保存全部配置</button>
   </div>
 
-  <script src="/assets/shared/site-nav.js?v=dc348bd777"></script>
-  <script src="/assets/shared/quick-dock.js?v=bbc9c81e12"></script>
-  <script src="/assets/shared/api-client.js?v=96524289cc"></script>
-  <script src="/assets/settings.js?v=2159898420"></script>
+  <script src="/assets/shared/site-nav.js?v=fe86cea773"></script>
+  <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
+  <script src="/assets/shared/api-client.js?v=2a8a70c746"></script>
+  <script src="/assets/settings.js?v=687d54d0b3"></script>
 </body>
 </html>

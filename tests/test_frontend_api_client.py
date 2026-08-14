@@ -57,9 +57,57 @@ context.window.ApiClient.raw('/api/example', { method: 'POST', body: '{"x":1}' }
             errors="replace",
         )
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertEqual(result.stdout, '{"sameResponse":true,"path":"/api/example","method":"POST","body":"{\\"x\\":1}"}')
+
+    def test_request_sends_form_data_without_json_content_type(self) -> None:
+        client_path = ROOT / "web" / "shared" / "api-client.js"
+        script = r"""
+const fs = require('fs');
+const vm = require('vm');
+const FormData = globalThis.FormData;
+const source = fs.readFileSync(process.argv[1], 'utf8');
+const calls = [];
+const context = {
+  window: {},
+  FormData,
+  AbortController,
+  setTimeout,
+  clearTimeout,
+  fetch: async (path, init) => {
+    if (path === "/api/session-token") return { ok: true, json: async () => ({ token: "t" }) };
+    calls.push({
+      path,
+      isForm: init.body instanceof FormData,
+      contentType: (init.headers || {})["Content-Type"] || (init.headers || {})["content-type"] || "",
+    });
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => "application/json" },
+      json: async () => ({ ok: true }),
+      text: async () => "{}",
+    };
+  },
+};
+vm.runInNewContext(source, context);
+const form = new FormData();
+form.append("category", "");
+context.window.ApiClient.request("/api/gallery/codex/import-drop", { method: "POST", body: form })
+  .then(() => process.stdout.write(JSON.stringify(calls[0])))
+  .catch((error) => { console.error(error); process.exit(1); });
+"""
+        result = subprocess.run(
+            ["node", "-e", script, str(client_path)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            encoding="utf-8",
+            errors="replace",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertEqual(
             result.stdout,
-            '{"sameResponse":true,"path":"/api/example","method":"POST","body":"{\\"x\\":1}"}',
+            '{"path":"/api/gallery/codex/import-drop","isForm":true,"contentType":""}',
         )
 
     def test_session_token_failure_is_not_cached_and_retry_succeeds(self) -> None:

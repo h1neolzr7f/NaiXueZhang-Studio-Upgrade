@@ -27,6 +27,10 @@ DEFAULT_SOURCE_PATHS = (
     "PRODUCT.md",
     "ROADMAP.md",
     "CONTEXT.md",
+    "DISCLAIMER.md",
+    "RESPONSIBLE_USE.md",
+    "SECURITY.md",
+    "docs/user-guide.md",
 )
 DEFAULT_SOURCE_GLOBS = ("docs/**/*.md",)
 MAX_CHUNK_CHARS = 1_200

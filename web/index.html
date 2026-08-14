@@ -23,27 +23,27 @@
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
   <link rel="stylesheet" href="/assets/shared/motion.css?v=8cc6bd1e71" />
   <link rel="stylesheet" href="/assets/core-theme.css?v=0158aeb657" />
-  <link rel="stylesheet" href="/assets/gallery-atlas.css?v=a4977b50f0" />
-  <link rel="stylesheet" href="/assets/studio-theme.css?v=726f16a66a" />
+  <link rel="stylesheet" href="/assets/gallery-atlas.css?v=4233544a88" />
+  <link rel="stylesheet" href="/assets/studio-theme.css?v=51de05869a" />
 <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
 </head>
 <body data-ui="nai-atlas-full" data-page="gallery">
-  <div id="siteNav" aria-hidden="true"></div>
+  <div id="siteNav"></div>
 
   <div class="atlas-shell atlas-full-shell">
 
     <div id="localBanner" class="atlas-notice">
       <span><strong>PIXIV → NAI VERIFIED</strong> Pixiv 只负责发现候选；原图通过 NovelAI 元数据验证后才会保存，浏览不依赖外部图库站点。</span>
       <div>
-        <a href="/progress?v=4" target="_blank" rel="noopener">查看采集</a>
+        <a href="/progress?v=4">查看采集</a>
         <a href="/nai-tags">浏览分类</a>
       </div>
     </div>
     <div id="setupBanner" class="atlas-notice atlas-notice-alert hidden">
       <span id="setupBannerText">欢迎使用 Nai学长工作室：先建初始图库。</span>
       <div class="onboarding-actions">
-        <a href="/progress" target="_blank" rel="noopener">开始采集 →</a>
-        <a href="/codex" target="_blank" rel="noopener">导入自选库</a>
+        <a href="/progress">开始采集 →</a>
+        <a href="/codex">导入自选库</a>
         <button type="button" id="setupBannerDismiss">知道了</button>
       </div>
     </div>
@@ -60,7 +60,7 @@
           <span class="lang-en">A map for every idea</span>
           <span id="galleryHeroAccent" class="atlas-title-accent">可检索的图谱</span>
         </h1>
-        <p id="galleryHeroLead" class="atlas-hero-lead">搜索作品、画师、Pixiv 标签和原图里的 NAI Prompt；从浏览直接进入小镜、生成、换角与队列。</p>
+        <p id="galleryHeroLead" class="atlas-hero-lead">搜索作品、画师、Pixiv 标签和原图里的 NAI Prompt；左右边缘可以划过客服小祥或助手凑企鹅交代任务。</p>
         <div id="galleryHeroSignals" class="atlas-signal-row" aria-label="图库特性">
           <span><b>01</b> Pixiv 直连发现</span>
           <span><b>02</b> NAI 元数据准入</span>
@@ -192,6 +192,18 @@
             <span class="lang-en">Shuffle</span>
           </button>
         </div>
+        <section id="galleryDropDock" class="gallery-drop-dock hidden" hidden>
+          <div id="galleryDropzone" class="gallery-dropzone">
+            <strong>把图片拖到这里解析入库</strong>
+            <span>每次拖入的一批会收成一个文件夹。可以直接拖整个文件夹。可折叠、合并，并一键加入批量换角。只收带 NovelAI 元数据的 PNG/JPG/WebP。</span>
+            <div class="gallery-drop-picks">
+              <button type="button" id="galleryDropPick">选择文件</button>
+              <button type="button" id="galleryDropPickFolder">选择文件夹</button>
+            </div>
+          </div>
+          <div id="galleryFolderRail" class="gallery-folder-rail" aria-label="拖入文件夹"></div>
+          <div id="galleryDropStatus" class="gallery-drop-status" role="status"></div>
+        </section>
         <div id="searchStatus" class="search-status" role="status">
           <div class="spinner" aria-hidden="true"></div>
           <span>正在读取本地图谱…</span>
@@ -300,21 +312,22 @@
     </footer>
   </div>
 
-  <script src="/assets/shared/api-client.js?v=96524289cc"></script>
+  <script src="/assets/shared/api-client.js?v=2a8a70c746"></script>
   <script src="/assets/shared/ui-toast.js?v=7f77b751fa"></script>
   <script src="/assets/shared/escape.js?v=cf491c2912"></script>
   <script src="/assets/shared/work-bridge.js?v=e03f149e05"></script>
-  <script src="/assets/shared/site-nav.js?v=dc348bd777"></script>
-  <script src="/assets/shared/quick-dock.js?v=bbc9c81e12"></script>
+  <script src="/assets/shared/site-nav.js?v=fe86cea773"></script>
+  <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
   <script src="/assets/shared/prompt-preview.js?v=5e010cf412"></script>
   <script src="/assets/shared/gallery-virtual.js?v=123bd338d9"></script>
   <script src="/assets/shared/deferred-scripts.js?v=75850c92b7"></script>
   <script src="/assets/shared/gallery-bootstrap.js?v=7ec19b8597"></script>
   <script src="/assets/shared/gallery-detail-hooks.js?v=9b054092fe"></script>
-  <script src="/assets/app-core.js?v=debb151e90"></script>
+  <script src="/assets/app-core.js?v=a31ade4bf2"></script>
   <script src="/assets/gallery-list-runtime.js?v=03774f9d4c"></script>
-  <script src="/assets/app-online-remix.js?v=7d52b59669"></script>
-  <script src="/assets/app-detail.js?v=0c27aee90e"></script>
-  <script src="/assets/app.js?v=d24f18b2e3"></script>
+  <script src="/assets/app-online-remix.js?v=8fbb14063a"></script>
+  <script src="/assets/app-detail.js?v=bcd485899b"></script>
+  <script src="/assets/shared/gallery-drop-folders.js?v=7d8c91bf0a"></script>
+  <script src="/assets/app.js?v=b895c5c3a8"></script>
 </body>
 </html>

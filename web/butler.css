@@ -19,14 +19,21 @@
 }
 
 .butler-page { max-width: 1600px; margin: 0 auto; padding: 24px 26px 54px; }
-.butler-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 22px; padding: 22px 24px; border: 1px solid rgba(168, 130, 255, 0.19); border-radius: 22px; background: linear-gradient(120deg, rgba(31, 23, 52, 0.82), rgba(12, 21, 30, 0.7)); box-shadow: 0 20px 55px rgba(0, 0, 0, 0.22); }
-.butler-hero h1 { margin: 3px 0 8px; font-size: clamp(2rem, 3vw, 3.4rem); letter-spacing: -0.05em; }
+.butler-hero { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; padding: 14px 18px; border: 1px solid rgba(168, 130, 255, 0.19); border-radius: 22px; background: linear-gradient(120deg, rgba(31, 23, 52, 0.82), rgba(12, 21, 30, 0.7)); box-shadow: 0 20px 55px rgba(0, 0, 0, 0.22); }
+.butler-hero h1 { margin: 3px 0 6px; font-size: clamp(1.45rem, 2.2vw, 2.2rem); letter-spacing: -0.05em; }
 .butler-hero p { margin: 0; max-width: 760px; color: #9eafc6; line-height: 1.65; }
 .butler-kicker { color: #c7b4ff !important; font-size: 0.72rem; letter-spacing: 0.15em; font-weight: 800; }
 .butler-title-soft { color: #aab7cb; font-weight: 580; }
 .butler-hero-side { min-width: 290px; display: grid; gap: 9px; }
 .butler-settings-link { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border: 1px solid rgba(132, 169, 255, 0.25); border-radius: 11px; background: rgba(14, 21, 32, 0.8); color: #b8cdf0; text-decoration: none; font-size: 0.78rem; }
 .butler-settings-link:hover { border-color: #6f91c8; color: #fff; }
+.butler-agent-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 10px; }
+.butler-agent-switch button { display: grid; gap: 2px; padding: 8px 9px; border: 1px solid #2c3950; border-radius: 10px; background: rgba(10, 16, 26, 0.72); color: #d5e0f0; text-align: left; cursor: pointer; }
+.butler-agent-switch button:hover, .butler-agent-switch button:focus-visible { border-color: #778fd3; outline: none; }
+.butler-agent-switch button.is-active { border-color: rgba(168, 130, 255, 0.72); background: rgba(57, 46, 113, 0.38); }
+.butler-agent-switch strong { color: #f2ecff; font-size: 0.72rem; }
+.butler-agent-switch span { color: #8ea0b8; font-size: 0.58rem; }
+.butler-avatar-panel.live2d-cubism2 .butler-live2d-stage canvas { transform: scale(1.85); transform-origin: 50% 12%; }
 .butler-companion-toggle { border: 0; background: rgba(10, 13, 21, 0.55); color: #c9baff; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 0.67rem; white-space: nowrap; }
 .butler-companion-toggle:hover { color: #e8e0ff; }
 .butler-companion-toggle:disabled { opacity: 0.55; cursor: wait; }
@@ -34,7 +41,7 @@
 .butler-readiness { min-width: 260px; padding: 12px 15px; border: 1px solid var(--butler-border); border-radius: 12px; background: rgba(12, 17, 24, 0.82); color: #b9c7d9; font-size: 0.82rem; }
 .butler-readiness.ready { border-color: rgba(53, 211, 153, 0.4); color: #a9f1d4; }
 .butler-readiness.warn { border-color: rgba(243, 185, 95, 0.45); color: #ffd89a; }
-.butler-start-guide { display: grid; grid-template-columns: minmax(320px, .8fr) minmax(620px, 1.2fr); gap: 18px; align-items: center; margin: -8px 0 16px; padding: 14px 16px; border: 1px solid rgba(132, 169, 255, .23); border-radius: 16px; background: linear-gradient(110deg, rgba(24, 34, 50, .88), rgba(25, 22, 43, .82)); }
+.butler-start-guide { display: grid; grid-template-columns: minmax(320px, .8fr) minmax(620px, 1.2fr); gap: 18px; align-items: center; margin: 0 0 12px; padding: 10px 12px; border: 1px solid rgba(132, 169, 255, .23); border-radius: 16px; background: linear-gradient(110deg, rgba(24, 34, 50, .88), rgba(25, 22, 43, .82)); }
 .butler-start-copy { display: grid; gap: 3px; }
 .butler-start-copy > span { color: #8fafeb; font-size: .65rem; font-weight: 900; letter-spacing: .12em; }
 .butler-start-copy strong { color: #e7efff; font-size: .92rem; }
@@ -45,18 +52,29 @@
 .butler-start-actions b { grid-row: span 2; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: #e7deff; background: rgba(168, 130, 255, .17); font-size: .7rem; }
 .butler-start-actions span { color: #92a4bd; font-size: .69rem; }
 
-.butler-layout { display: grid; grid-template-columns: minmax(260px, 305px) minmax(520px, 1fr) minmax(290px, 330px); gap: 16px; align-items: start; }
+.butler-layout { display: grid; grid-template-columns: minmax(300px, 360px) minmax(520px, 1fr) minmax(280px, 320px); gap: 16px; align-items: start; }
 .butler-avatar-panel, .butler-chat-panel, .butler-rail-card { border: 1px solid var(--butler-border); background: var(--butler-panel); box-shadow: 0 18px 48px rgba(0, 0, 0, 0.26); }
 .butler-avatar-panel { position: sticky; top: 64px; padding: 12px; border-radius: 18px; overflow: hidden; background: linear-gradient(155deg, rgba(34, 25, 55, 0.96), rgba(12, 19, 29, 0.97)); }
 .butler-stage-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; padding: 0 3px 10px; }
 .butler-stage-head > div { display: flex; align-items: center; gap: 7px; }
 .butler-stage-head strong { color: #eee7ff; font-size: 0.76rem; letter-spacing: 0.06em; }
 .butler-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #65e5c1; box-shadow: 0 0 0 4px rgba(101, 229, 193, 0.1), 0 0 15px rgba(101, 229, 193, 0.8); }
-.butler-stage-shell { position: relative; aspect-ratio: 1; overflow: hidden; border: 1px solid rgba(203, 177, 255, 0.34); border-radius: 18px; background: radial-gradient(circle at 50% 35%, rgba(255, 197, 229, 0.28), transparent 38%), linear-gradient(155deg, #30294d 0%, #191b31 55%, #101727 100%); isolation: isolate; }
+.butler-stage-shell { position: relative; aspect-ratio: 3 / 4; overflow: hidden; border: 1px solid rgba(203, 177, 255, 0.34); border-radius: 18px; background: radial-gradient(circle at 50% 35%, rgba(255, 197, 229, 0.28), transparent 38%), linear-gradient(155deg, #30294d 0%, #191b31 55%, #101727 100%); isolation: isolate; }
+.butler-stage-shell::before,
+.butler-stage-shell::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+.butler-stage-shell::before { top: 10px; left: 10px; border-top: 2px solid rgba(232, 210, 255, 0.7); border-left: 2px solid rgba(232, 210, 255, 0.7); }
+.butler-stage-shell::after { bottom: 10px; right: 10px; border-bottom: 2px solid rgba(232, 210, 255, 0.7); border-right: 2px solid rgba(232, 210, 255, 0.7); }
 .butler-stage-grid { position: absolute; inset: 0; z-index: -1; opacity: 0.22; background-image: linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px); background-size: 28px 28px; mask-image: linear-gradient(to bottom, #000, transparent 80%); }
 .butler-stage-aura { position: absolute; left: 50%; bottom: 6%; width: 78%; height: 70%; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse, rgba(224, 167, 255, 0.25), transparent 67%); filter: blur(9px); }
 .butler-live2d-stage { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; }
-.butler-live2d-stage canvas { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; z-index: 2; cursor: pointer; transform: scale(1.2); transform-origin: 50% 0; }
+.butler-live2d-stage canvas { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; z-index: 2; cursor: pointer; transform: scale(1.45); transform-origin: 50% 8%; }
 .butler-companion-fallback { display: grid; place-items: center; gap: 5px; width: 112px; height: 112px; border-radius: 38px; background: linear-gradient(145deg, rgba(255, 181, 223, 0.92), rgba(117, 104, 226, 0.92)); box-shadow: 0 20px 52px rgba(117, 87, 201, 0.42); color: white; transition: opacity 0.3s ease; }
 .butler-companion-fallback span { font-size: 2rem; font-weight: 900; }
 .butler-companion-fallback small { font-size: 0.62rem; opacity: 0.72; }

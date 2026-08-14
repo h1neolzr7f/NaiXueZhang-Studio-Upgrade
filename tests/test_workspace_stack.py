@@ -65,16 +65,57 @@ def test_workspace_typescript_does_not_call_fetch() -> None:
 
 def test_workspace_is_primary_nav() -> None:
     nav = (WEB / "shared" / "site-nav.js").read_text(encoding="utf-8")
-    assert '{ href: "/app", id: "gallery", label: "图库" }' in nav
-    assert '{ href: "/app/studio", id: "studio", label: "工作台" }' in nav
-    assert '{ href: "/app/generated", id: "generated", label: "生成库" }' in nav
-    assert '{ href: "/app/butler", id: "butler", label: "小镜" }' in nav
-    assert '{ href: "/app/remix", id: "remix", label: "换角" }' in nav
-    assert '{ href: "/app/progress", id: "progress", label: "爬虫" }' in nav
-    assert '{ href: "/app/pixiv", id: "pixiv", label: "发布" }' in nav
-    assert '{ href: "/app/tags", id: "nai-tags", label: "分类" }' in nav
-    assert 'p === "/app" || p.startsWith("/app")' in nav
-    assert 'id: "classic"' in nav
+    primary = nav.split("const NAV_SECONDARY", 1)[0]
+    assert '{ href: "/", id: "gallery", label: "图库" }' in nav
+    assert '{ href: "/studio", id: "studio", label: "工作台" }' in nav
+    assert '{ href: "/generated", id: "generated", label: "生成库" }' in nav
+    assert '{ href: "/queue", id: "queue", label: "待生成" }' in primary
+    assert '{ href: "/remix", id: "remix", label: "换角" }' in nav
+    assert "remixHref" in nav
+    assert "#onlineRemixPanel" in nav
+    assert '{ href: "/progress", id: "progress", label: "爬虫" }' in nav
+    assert '{ href: "/pixiv", id: "pixiv", label: "发布" }' in nav
+    assert '{ href: "/nai-tags", id: "nai-tags", label: "分类" }' in nav
+    assert 'href: "/app/' not in primary
+    assert 'p === "/" || p.startsWith("/i/") || p === "/app"' in nav
+    assert 'id: "classic"' not in nav
+    assert "addEventListener(\"popstate\"" in nav
+    routes = (ROOT / "frontend" / "src" / "routes.ts").read_text(encoding="utf-8")
+    assert 'return "/studio"' in routes
+    assert 'return "/remix"' in routes
+    assert 'return "/generated"' in routes
+    assert 'query.set("from", workId)' in routes
+    assert 'path: "/app/studio"' not in routes
+    assert 'return "/app/studio"' not in routes
+
+
+def test_workspace_does_not_render_a_second_nav() -> None:
+    app = (ROOT / "frontend" / "src" / "App.tsx").read_text(encoding="utf-8")
+    assert "工作区导航" not in app
+    assert 'className="ws-nav"' not in app
+    assert "返回图库" in app
+    assert 'href="/"' in app
+    assert "location.replace" in app
+    nav = (WEB / "shared" / "site-nav.js").read_text(encoding="utf-8")
+    assert nav.count('label: "客服小祥"') == 1
+    assert nav.count('label: "助手凑企鹅"') == 1
+    assert nav.count('label: "图库"') == 1
+    bundle = (WEB / "app" / "workspace.js").read_text(encoding="utf-8")
+    assert "工作区导航" not in bundle
+    assert "返回图库" in bundle
+    assert "正在打开图库" in bundle
+    assert "点一张图" not in bundle
+    assert "按 prompt 过滤" not in bundle
+
+
+def test_bare_workspace_root_redirects_to_gallery() -> None:
+    source = (ROOT / "routes" / "gallery.py").read_text(encoding="utf-8")
+    assert "RedirectResponse" in source
+    assert "_APP_CLASSIC_PAGES" in source
+    assert '"studio": "/studio"' in source
+    assert '"butler": "/butler"' in source
+    assert '"tags": "/nai-tags"' in source
+    assert '@router.get("/app")' in source
 
 
 def test_gallery_serves_workspace_shell() -> None:

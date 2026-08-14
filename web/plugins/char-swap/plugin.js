@@ -29,7 +29,8 @@ import {
 import { 
   isBatchMode, 
   loadBatchQueue, 
-  addToBatch, 
+  addToBatch,
+  addManyToBatch,
   removeWorkFromBatch, 
   batchKey,
   currentBatchGalleryId,
@@ -39,7 +40,7 @@ import {
   mountQuickFab, 
   unmountGenSidebar, 
   mountGenSidebar 
-} from "./batch.js?v=6449474819";
+} from "./batch.js?v=b2f9991491";
 
 const PLUGIN_VERSION = "56-mount-gen";
 window.__CHAR_SWAP_PLUGIN_VERSION__ = PLUGIN_VERSION;
@@ -233,6 +234,8 @@ window.CharSwapPlugin = {
   mountGenSidebar,
   unmountGenSidebar,
 
+  addToBatch,
+  addManyToBatch,
   decorateGalleryCard(card, work) {
     if (!card || card.querySelector(".char-swap-batch-check")) return;
     const chk = document.createElement("button");

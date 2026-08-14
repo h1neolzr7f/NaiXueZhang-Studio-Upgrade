@@ -145,9 +145,15 @@ async def api_butler_chat(payload: dict = Body(default_factory=dict)) -> dict:
             str(payload.get("intent") or ""),
         )
         comparison = payload.get("comparison")
-        if comparison is None:
-            return await submit_butler_chat(*args)
-        return await submit_butler_chat(*args, comparison)
+        agent = str(payload.get("agent") or "").strip()
+        kwargs: dict[str, Any] = {}
+        if comparison is not None:
+            kwargs["comparison"] = comparison
+        if agent:
+            kwargs["agent"] = agent
+        if kwargs:
+            return await submit_butler_chat(*args, **kwargs)
+        return await submit_butler_chat(*args)
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:

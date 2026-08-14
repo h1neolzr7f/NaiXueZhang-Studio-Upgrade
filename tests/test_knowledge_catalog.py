@@ -88,6 +88,35 @@ def test_generic_question_word_does_not_turn_an_unrelated_document_into_an_answe
     assert result["model_calls"] == 0
 
 
+def test_default_sources_include_user_guide_and_disclaimer(tmp_path: Path) -> None:
+    from knowledge_catalog import DEFAULT_SOURCE_PATHS
+
+    root = Path(__file__).resolve().parents[1]
+    catalog = KnowledgeCatalog(db_path=tmp_path / "knowledge.db", source_root=root)
+    files = {path.relative_to(root).as_posix() for path in catalog._source_files()}
+
+    assert "docs/user-guide.md" in DEFAULT_SOURCE_PATHS
+    assert "docs/user-guide.md" in files
+    assert "DISCLAIMER.md" in files
+    assert "RESPONSIBLE_USE.md" in files
+    receipt = catalog.refresh_builtin_sources()
+    found = catalog.search("凑企鹅是互联网上高松灯的二创称呼")
+    assert receipt["documents"] >= 4
+    assert found["items"]
+    assert any("user-guide" in str(item["source"]) for item in found["items"])
+
+
+def test_software_help_teaches_assistant_desks_and_beginner_steps() -> None:
+    assistants = answer_software_question("客服小祥和助手凑企鹅有什么区别")
+    beginner = answer_software_question("新手小白怎么开始用")
+
+    assert assistants["topic"] == "assistants"
+    assert "工具白名单" in assistants["answer"]
+    assert beginner["topic"] == "beginner"
+    assert "设置" in beginner["answer"]
+    assert beginner["page"].startswith("/butler")
+
+
 def test_knowledge_status_tracks_version_sources_and_last_refresh(tmp_path: Path) -> None:
     root = tmp_path / "project"
     docs = root / "docs"

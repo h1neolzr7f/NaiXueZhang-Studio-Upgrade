@@ -127,7 +127,7 @@ export function PipelinePage() {
         </button>
       </div>
       <p className="ws-status">
-        ANR 路径和逐张复核仍在 <a href="/pipeline">经典后处理页</a>。
+        ANR 路径和逐张复核请打开 <a href="/pipeline">后处理详情</a>。
       </p>
       {notice ? <p className="ws-status ok">{notice}</p> : null}
       {error ? <p className="ws-status err">{error}</p> : null}

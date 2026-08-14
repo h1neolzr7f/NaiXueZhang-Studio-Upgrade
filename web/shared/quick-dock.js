@@ -4,7 +4,13 @@
   const ACTIONS = [
     { id: "act-search", label: "检索图库", hint: "/", group: "动作", run: () => go("/", "#q") },
     { id: "act-generate", label: "去工作台生成", hint: "/studio", group: "动作", run: () => go("/studio") },
-    { id: "act-butler", label: "问小镜", hint: "/butler", group: "动作", run: () => go("/butler") },
+    { id: "act-tomori", label: "问助手凑企鹅", hint: "/butler?agent=tomori", group: "动作", run: () => {
+      if (window.CompanionDock && typeof window.CompanionDock.open === "function") {
+        window.CompanionDock.open("tomori");
+        return;
+      }
+      go("/butler?agent=tomori");
+    } },
     { id: "act-crawl", label: "开始采集", hint: "/progress", group: "动作", run: () => go("/progress") },
     { id: "act-queue", label: "看待生成队列", hint: "/queue", group: "动作", run: () => go("/queue") },
     { id: "act-publish", label: "发布到 Pixiv", hint: "/pixiv", group: "动作", run: () => go("/pixiv") },

@@ -1170,3 +1170,37 @@ body.mode-queue .atlas-gallery-head {
   grid-template-columns: 1fr !important;
   gap: 8px !important;
 }
+
+/* 浅色内联块被深色主题接管后的对比度修复 */
+.terms,
+.notice-banner,
+#aboutInfo,
+#manifestOutput {
+  background: rgba(10, 16, 26, 0.92) !important;
+  border-color: var(--line) !important;
+  color: var(--text) !important;
+}
+.notice-banner {
+  background: rgba(255, 209, 102, 0.1) !important;
+  border-color: rgba(255, 209, 102, 0.35) !important;
+  color: #e8cf9a !important;
+}
+.receipt-console {
+  background: linear-gradient(165deg, rgba(24, 35, 52, 0.72), rgba(13, 19, 29, 0.92)) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--text) !important;
+}
+.receipt-console h2,
+.receipt-console .micro-label {
+  color: var(--cyan) !important;
+}
+.receipt-list li {
+  border-bottom-color: var(--line) !important;
+  color: var(--text) !important;
+}
+.receipt-list strong {
+  color: var(--cyan) !important;
+}
+.receipt-console .action-message {
+  color: var(--muted) !important;
+}

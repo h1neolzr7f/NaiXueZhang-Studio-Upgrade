@@ -1,0 +1,1064 @@
+{
+  "version": "Sample 1.0.0",
+  "layout": {
+    "center_x": 0,
+    "center_y": -0.08,
+    "width": 2.2
+  },
+  "hit_areas_custom": {
+    "head_x": [
+      -0.25,
+      1
+    ],
+    "head_y": [
+      0.25,
+      0.2
+    ],
+    "body_x": [
+      -0.3,
+      0.2
+    ],
+    "body_y": [
+      0.3,
+      -1.9
+    ]
+  },
+  "model": "live2d/model.moc",
+  "physics": "live2d/physics.json",
+  "textures": [
+    "live2d/texture_00.png",
+    "live2d/texture_01.png"
+  ],
+  "motions": {
+    "sakiko_nnf01": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf01": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nf03": [
+      {
+        "file": "../_mtn_emp/sakiko/nf03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf03": [
+      {
+        "file": "../_mtn_emp/sakiko/nf03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nnf04": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf04": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nnf_left01": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf_left01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf_left01": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf_left01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_bye02": [
+      {
+        "file": "../_mtn_emp/sakiko/bye02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "bye02": [
+      {
+        "file": "../_mtn_emp/sakiko/bye02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_bye01": [
+      {
+        "file": "../_mtn_emp/sakiko/bye01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "bye01": [
+      {
+        "file": "../_mtn_emp/sakiko/bye01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nf02": [
+      {
+        "file": "../_mtn_emp/sakiko/nf02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf02": [
+      {
+        "file": "../_mtn_emp/sakiko/nf02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_angry05": [
+      {
+        "file": "../_mtn_emp/sakiko/angry05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "angry05": [
+      {
+        "file": "../_mtn_emp/sakiko/angry05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_surprised02": [
+      {
+        "file": "../_mtn_emp/sakiko/surprised02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "surprised02": [
+      {
+        "file": "../_mtn_emp/sakiko/surprised02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_odoodo01": [
+      {
+        "file": "../_mtn_emp/sakiko/odoodo01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "odoodo01": [
+      {
+        "file": "../_mtn_emp/sakiko/odoodo01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_surprised01": [
+      {
+        "file": "../_mtn_emp/sakiko/surprised01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "surprised01": [
+      {
+        "file": "../_mtn_emp/sakiko/surprised01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nf_left01": [
+      {
+        "file": "../_mtn_emp/sakiko/nf_left01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf_left01": [
+      {
+        "file": "../_mtn_emp/sakiko/nf_left01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nf04": [
+      {
+        "file": "../_mtn_emp/sakiko/nf04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf04": [
+      {
+        "file": "../_mtn_emp/sakiko/nf04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nnf02": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf02": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_angry02": [
+      {
+        "file": "../_mtn_emp/sakiko/angry02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "angry02": [
+      {
+        "file": "../_mtn_emp/sakiko/angry02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_cry01": [
+      {
+        "file": "../_mtn_emp/sakiko/cry01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "cry01": [
+      {
+        "file": "../_mtn_emp/sakiko/cry01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_angry04": [
+      {
+        "file": "../_mtn_emp/sakiko/angry04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "angry04": [
+      {
+        "file": "../_mtn_emp/sakiko/angry04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_angry07": [
+      {
+        "file": "../_mtn_emp/sakiko/angry07.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "angry07": [
+      {
+        "file": "../_mtn_emp/sakiko/angry07.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nnf05": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf05": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nf_right01": [
+      {
+        "file": "../_mtn_emp/sakiko/nf_right01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf_right01": [
+      {
+        "file": "../_mtn_emp/sakiko/nf_right01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_angry03": [
+      {
+        "file": "../_mtn_emp/sakiko/angry03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "angry03": [
+      {
+        "file": "../_mtn_emp/sakiko/angry03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_sigh02": [
+      {
+        "file": "../_mtn_emp/sakiko/sigh02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sigh02": [
+      {
+        "file": "../_mtn_emp/sakiko/sigh02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_angry06": [
+      {
+        "file": "../_mtn_emp/sakiko/angry06.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "angry06": [
+      {
+        "file": "../_mtn_emp/sakiko/angry06.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_cry04": [
+      {
+        "file": "../_mtn_emp/sakiko/cry04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "cry04": [
+      {
+        "file": "../_mtn_emp/sakiko/cry04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nf01": [
+      {
+        "file": "../_mtn_emp/sakiko/nf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf01": [
+      {
+        "file": "../_mtn_emp/sakiko/nf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_smile06": [
+      {
+        "file": "../_mtn_emp/sakiko/smile06.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "smile06": [
+      {
+        "file": "../_mtn_emp/sakiko/smile06.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nnf03": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf03": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nnf_right01": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf_right01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf_right01": [
+      {
+        "file": "../_mtn_emp/sakiko/nnf_right01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_kime01": [
+      {
+        "file": "../_mtn_emp/sakiko/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "kime01": [
+      {
+        "file": "../_mtn_emp/sakiko/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_smile03": [
+      {
+        "file": "../_mtn_emp/sakiko/smile03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "smile03": [
+      {
+        "file": "../_mtn_emp/sakiko/smile03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_sad01": [
+      {
+        "file": "../_mtn_emp/sakiko/sad01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sad01": [
+      {
+        "file": "../_mtn_emp/sakiko/sad01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_thinking02": [
+      {
+        "file": "../_mtn_emp/sakiko/thinking02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "thinking02": [
+      {
+        "file": "../_mtn_emp/sakiko/thinking02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_serious01": [
+      {
+        "file": "../_mtn_emp/sakiko/serious01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "serious01": [
+      {
+        "file": "../_mtn_emp/sakiko/serious01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nod01": [
+      {
+        "file": "../_mtn_emp/sakiko/nod01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nod01": [
+      {
+        "file": "../_mtn_emp/sakiko/nod01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_smile01": [
+      {
+        "file": "../_mtn_emp/sakiko/smile01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "smile01": [
+      {
+        "file": "../_mtn_emp/sakiko/smile01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_nf05": [
+      {
+        "file": "../_mtn_emp/sakiko/nf05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf05": [
+      {
+        "file": "../_mtn_emp/sakiko/nf05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_cry03": [
+      {
+        "file": "../_mtn_emp/sakiko/cry03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "cry03": [
+      {
+        "file": "../_mtn_emp/sakiko/cry03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_cry05": [
+      {
+        "file": "../_mtn_emp/sakiko/cry05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "cry05": [
+      {
+        "file": "../_mtn_emp/sakiko/cry05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_serious02": [
+      {
+        "file": "../_mtn_emp/sakiko/serious02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "serious02": [
+      {
+        "file": "../_mtn_emp/sakiko/serious02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_cry02": [
+      {
+        "file": "../_mtn_emp/sakiko/cry02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "cry02": [
+      {
+        "file": "../_mtn_emp/sakiko/cry02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_angry01": [
+      {
+        "file": "../_mtn_emp/sakiko/angry01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "angry01": [
+      {
+        "file": "../_mtn_emp/sakiko/angry01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_idle01": [
+      {
+        "file": "../_mtn_emp/sakiko/idle01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "idle01": [
+      {
+        "file": "../_mtn_emp/sakiko/idle01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_smile05": [
+      {
+        "file": "../_mtn_emp/sakiko/smile05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "smile05": [
+      {
+        "file": "../_mtn_emp/sakiko/smile05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_sigh01": [
+      {
+        "file": "../_mtn_emp/sakiko/sigh01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sigh01": [
+      {
+        "file": "../_mtn_emp/sakiko/sigh01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_smile02": [
+      {
+        "file": "../_mtn_emp/sakiko/smile02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "smile02": [
+      {
+        "file": "../_mtn_emp/sakiko/smile02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_smile04": [
+      {
+        "file": "../_mtn_emp/sakiko/smile04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "smile04": [
+      {
+        "file": "../_mtn_emp/sakiko/smile04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_thinking01": [
+      {
+        "file": "../_mtn_emp/sakiko/thinking01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "thinking01": [
+      {
+        "file": "../_mtn_emp/sakiko/thinking01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_shame01": [
+      {
+        "file": "../_mtn_emp/sakiko/shame01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "shame01": [
+      {
+        "file": "../_mtn_emp/sakiko/shame01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_sad02": [
+      {
+        "file": "../_mtn_emp/sakiko/sad02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sad02": [
+      {
+        "file": "../_mtn_emp/sakiko/sad02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sakiko_shame02": [
+      {
+        "file": "../_mtn_emp/sakiko/shame02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "shame02": [
+      {
+        "file": "../_mtn_emp/sakiko/shame02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "idle": [
+      {
+        "file": "../_mtn_emp/sakiko/idle01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/nf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/nnf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/nf02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tap_body": [
+      {
+        "file": "../_mtn_emp/sakiko/smile01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/smile02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "flick_head": [
+      {
+        "file": "../_mtn_emp/sakiko/surprised01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/surprised02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "ready": [
+      {
+        "file": "../_mtn_emp/sakiko/idle01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/nod01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/bye01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/smile01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "happy": [
+      {
+        "file": "../_mtn_emp/sakiko/smile01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/smile02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/smile03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "thinking": [
+      {
+        "file": "../_mtn_emp/sakiko/thinking01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/thinking02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/serious01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/nf03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sorry": [
+      {
+        "file": "../_mtn_emp/sakiko/sad01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/sad02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/cry01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/shame01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/sigh01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "surprised": [
+      {
+        "file": "../_mtn_emp/sakiko/surprised01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/surprised02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "working": [
+      {
+        "file": "../_mtn_emp/sakiko/thinking01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/serious01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/serious02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/nf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/nnf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "generate": [
+      {
+        "file": "../_mtn_emp/sakiko/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/smile03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "publish": [
+      {
+        "file": "../_mtn_emp/sakiko/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/smile04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/sakiko/bye01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ]
+  },
+  "expressions": [
+    {
+      "name": "angry02",
+      "file": "../_mtn_emp/sakiko/angry02.exp.json"
+    },
+    {
+      "name": "default",
+      "file": "../_mtn_emp/sakiko/default.exp.json"
+    },
+    {
+      "name": "kime01",
+      "file": "../_mtn_emp/sakiko/kime01.exp.json"
+    },
+    {
+      "name": "cry04",
+      "file": "../_mtn_emp/sakiko/cry04.exp.json"
+    },
+    {
+      "name": "angry07",
+      "file": "../_mtn_emp/sakiko/angry07.exp.json"
+    },
+    {
+      "name": "idle01",
+      "file": "../_mtn_emp/sakiko/idle01.exp.json"
+    },
+    {
+      "name": "sad01",
+      "file": "../_mtn_emp/sakiko/sad01.exp.json"
+    },
+    {
+      "name": "smile04",
+      "file": "../_mtn_emp/sakiko/smile04.exp.json"
+    },
+    {
+      "name": "surprised02",
+      "file": "../_mtn_emp/sakiko/surprised02.exp.json"
+    },
+    {
+      "name": "sigh01",
+      "file": "../_mtn_emp/sakiko/sigh01.exp.json"
+    },
+    {
+      "name": "shame02",
+      "file": "../_mtn_emp/sakiko/shame02.exp.json"
+    },
+    {
+      "name": "cry03",
+      "file": "../_mtn_emp/sakiko/cry03.exp.json"
+    },
+    {
+      "name": "cry02",
+      "file": "../_mtn_emp/sakiko/cry02.exp.json"
+    },
+    {
+      "name": "odoodo01",
+      "file": "../_mtn_emp/sakiko/odoodo01.exp.json"
+    },
+    {
+      "name": "cry01",
+      "file": "../_mtn_emp/sakiko/cry01.exp.json"
+    },
+    {
+      "name": "smile02",
+      "file": "../_mtn_emp/sakiko/smile02.exp.json"
+    },
+    {
+      "name": "angry01",
+      "file": "../_mtn_emp/sakiko/angry01.exp.json"
+    },
+    {
+      "name": "smile03",
+      "file": "../_mtn_emp/sakiko/smile03.exp.json"
+    },
+    {
+      "name": "thinking02",
+      "file": "../_mtn_emp/sakiko/thinking02.exp.json"
+    },
+    {
+      "name": "shame01",
+      "file": "../_mtn_emp/sakiko/shame01.exp.json"
+    },
+    {
+      "name": "smile01",
+      "file": "../_mtn_emp/sakiko/smile01.exp.json"
+    },
+    {
+      "name": "serious02",
+      "file": "../_mtn_emp/sakiko/serious02.exp.json"
+    },
+    {
+      "name": "sigh02",
+      "file": "../_mtn_emp/sakiko/sigh02.exp.json"
+    },
+    {
+      "name": "smile05",
+      "file": "../_mtn_emp/sakiko/smile05.exp.json"
+    },
+    {
+      "name": "sad02",
+      "file": "../_mtn_emp/sakiko/sad02.exp.json"
+    },
+    {
+      "name": "smile06",
+      "file": "../_mtn_emp/sakiko/smile06.exp.json"
+    },
+    {
+      "name": "surprised01",
+      "file": "../_mtn_emp/sakiko/surprised01.exp.json"
+    },
+    {
+      "name": "serious01",
+      "file": "../_mtn_emp/sakiko/serious01.exp.json"
+    },
+    {
+      "name": "thinking01",
+      "file": "../_mtn_emp/sakiko/thinking01.exp.json"
+    }
+  ]
+}

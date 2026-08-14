@@ -1,45 +1,60 @@
 # Nai学长工作室 · 升级版说明
 
-本文说明 **升级版仓库** 与 **稳定版 v1.4.0** 的关系、已落地的能力，以及使用方式。它不是许可证，也不改变 [MIT License](../LICENSE) 授予的代码使用权。
+本文说明 **升级版 v1.5.0** 与 **稳定版 v1.4.0** 的关系、已落地的能力，以及使用方式。它不是许可证，也不改变 [MIT License](../LICENSE) 授予的代码使用权。
 
 ## 两条产品线
 
 | 名称 | 仓库 | 给谁用 |
 |---|---|---|
-| 稳定版 v1.4.0 修复版 | [h1neolzr7f/NaiXueZhang-Studio](https://github.com/h1neolzr7f/NaiXueZhang-Studio) | 需要官方一键 Windows 包、要对哈希的用户 |
-| 升级版 v2.0.0 | [h1neolzr7f/NaiXueZhang-Studio-Upgrade](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade) | 要从源码跟进 `/app` 工作区与模块拆分的用户 |
+| 稳定版 v1.4.0 修复版 | [h1neolzr7f/NaiXueZhang-Studio](https://github.com/h1neolzr7f/NaiXueZhang-Studio) | 需要冻结的官方一键包、要对旧哈希的用户 |
+| 升级版 v1.5.0 | [h1neolzr7f/NaiXueZhang-Studio-Upgrade](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade) | 需要当前维护线、图库拖入文件夹和侧栏助手的用户 |
 
-升级版从稳定版的工程与付费闸门出发，把常用工具收到同一套工作区，并拆开过大的后端模块。它**不是**另一个产品名，也**不是**官方对 pixiv / NovelAI 的授权版本。
+升级版从稳定版的工程与付费闸门出发，补上主图库拖入、两位助手侧栏，并拆开过大的后端模块。它**不是**另一个产品名，也**不是**官方对 pixiv / NovelAI 的授权版本。
 
 ## 不要混用的几件事
 
-1. **一键 zip 仍以稳定版 Releases 为准。** 升级版仓库当前发布的是源码，没有另打官方便携包。
+1. **升级版一键 zip 以本仓库 Releases 为准。** 稳定版 v1.4.0 仍然可从原仓库下载，但不会包含 v1.5.0 的新功能。
 2. **不要把 Token、图库、`data/` 提交进 Git。** 两条线的 `.gitignore` 规则相同。
 3. **付费出图规则没有放宽。** 工作区只是换了界面，生成、导演台、批量换角仍走原来的任务与预检接口。
-4. **经典 HTML 没有删除。** `/`、`/studio`、`/remix` 等书签仍可用；主导航指向 `/app`。
+4. **经典 HTML 没有删除。** 默认打开 `/`；`/studio`、`/remix` 等书签仍可用；`/app` 工作区保留。
+5. **侧栏 Live2D 立绘随 v1.5.0 一键包提供。** MIT 许可不授予角色或造型权利。
 
 ## 界面与导航
 
-升级版启动后，建议使用：
+升级版启动后，默认打开：
 
 ```text
-http://127.0.0.1:8797/app
+http://127.0.0.1:8797/
 ```
 
 主导航固定 8 项：
 
-1. 图库 `/app`
-2. 生成库 `/app/generated`
-3. 工作台 `/app/studio`
-4. 小镜 `/app/butler`
-5. 换角 `/app/remix`
-6. 爬虫 `/app/progress`
-7. 分类 `/app/tags`
-8. 发布 `/app/pixiv`
+1. 图库 `/`
+2. 生成库 `/generated`
+3. 工作台 `/studio`
+4. 换角 `/remix`
+5. 待生成 `/queue`
+6. 爬虫 `/progress`
+7. 分类 `/nai-tags`
+8. 发布 `/pixiv`
 
-工作区内还有导演台、后处理、运营、合规。设置仍可通过工作区或经典 `/settings` 打开。
+客服小祥、助手凑企鹅、导演台、自选库、后处理、设置在「更多」里。工作区入口为 `/app`。
 
 ## 相对 v1.4.0 的功能
+
+### 图库拖入
+
+- 在主图库切到 **自选库** 或 **Q群** 后，可拖入文件或整个文件夹。
+- 只解析 NovelAI 元数据；普通图、SD、ComfyUI 不会入库。
+- 未指定文件夹时，每一批自动进入 `拖入 月-日 时:分:秒`；重名会加 `·2`。
+- 文件夹可以合并；合并只认 `category` / `group_key`，不会误搬只是显示名相同的采集作品。
+- 导入后可把该夹作品加入批量换角。拖入本身不调用 NovelAI，不扣 Anlas。
+
+### 两位助手
+
+- 左侧客服小祥：用法、图库体检、采集、收藏、后处理、设置、排障。
+- 右侧助手凑企鹅：选材、换角、出图、导演、待生成、投稿准备。
+- 完整对话在「更多」；侧栏可划开 Live2D 立绘并互动。
 
 ### 工作区
 
@@ -77,12 +92,12 @@ http://127.0.0.1:8797/app
 - 会话令牌拿不到则写接口 fail-closed；
 - 非 Windows 无法 DPAPI 时拒绝把密钥写入 `data/`。
 
-## 从稳定版迁到升级版源码
+## 从稳定版迁到升级版
 
 1. 备份整个 `data/`（图库、数据库、加密凭据都在这里）。
-2. 克隆本仓库，建立 venv，安装 `requirements.core.lock.txt`。
+2. 下载 v1.5.0 一键包，或克隆本仓库后建立 venv、安装 `requirements.core.lock.txt`。
 3. 将稳定版的 `data/` 放到升级版目录（或配置相同的数据目录）。
-4. 启动 `python server.py`，打开 `/app` 确认图库仍在。
+4. 启动后打开 `/` 确认图库仍在。
 5. 不要把两套程序同时写同一个正在使用的数据库。
 
 数据库 schema 若需迁移，启动时会按现有逻辑升级；不要手工降级 `PRAGMA user_version`。
@@ -102,8 +117,10 @@ python scripts/asset_versions.py
 
 除稳定版已有的付费 / 安全回归外，升级版还覆盖：
 
-- `tests/test_workspace_stack.py`：工作区包、主题顺序、API 针、禁止裸 fetch、主导航 `/app/tags`
+- `tests/test_workspace_stack.py`：工作区包、主题顺序、API 针、禁止裸 fetch
 - `tests/test_architecture_split.py`：facade 与 executors 拆分契约、`DATA_DIR` 延迟解析
 - `tests/test_site_nav_ui.py`：主导航恰好 8 项
+- `tests/test_gallery_drop_folders.py`、`tests/test_codex_import_drop.py`：主图库拖入与合并
+- `tests/test_companion_dock_ui.py`：侧栏助手与互动
 
 Playwright 选择器探测 `tests/test_pixiv_selector_probe.py` 需要本机 Chromium，默认不纳入 CI。

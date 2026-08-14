@@ -4,7 +4,7 @@
 
 ## Secrets and local data
 
-- [ ] `python scripts/scan_sensitive.py` 通过
+- [ ] `python scripts/scan_sensitive.py --git-candidates` 通过
 - [ ] 仓库中不存在 Token、refresh token、Cookie、API Key 或账号文件
 - [ ] 不存在真实图库、生成历史、数据库、浏览器档案或缓存
 - [ ] 不存在用户名、家庭目录、本地绝对路径和调试转储
@@ -31,12 +31,12 @@
 
 ## Public repository presentation
 
-- [ ] 仓库描述清楚说明这是升级版源码主干，并链到稳定版 Releases
+- [ ] 仓库描述清楚说明这是升级版 v1.5.0，并链到本仓库 Releases 与稳定版 v1.4.0
 - [ ] Topics 至少包含 `novelai`、`aigc`、`fastapi`、`local-first`、`image-management`
 - [ ] README 的下载、Roadmap 和贡献链接有效
 - [ ] 至少准备 3 张脱敏截图或 1 个短 Demo GIF
 - [ ] Issues、Discussions 或安全报告渠道已配置
-- [ ] 当前公开版本标记正确（稳定版一键包为 v1.4.0 修复版；本升级版仓库为 v2.0.0 源码主干，不要把未发布的 zip 写成正式 Release）
+- [ ] 当前公开版本标记正确（本升级版一键包为 v1.5.0；稳定版冻结包为 v1.4.0 修复版）
 
 ## Release provenance
 

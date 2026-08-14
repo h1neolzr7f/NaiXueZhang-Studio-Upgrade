@@ -2,7 +2,8 @@
 
 | 文档 | 内容 |
 |---|---|
-| [UPGRADE.md](UPGRADE.md) | 升级版与稳定版 v1.4.0 的对照、工作区入口、迁移注意 |
+| [user-guide.md](user-guide.md) | 小白使用指南：页面入口、两位助手分工、确认与费用 |
+| [UPGRADE.md](UPGRADE.md) | 升级版 v1.5.0 与稳定版 v1.4.0 的对照、拖入文件夹、迁移注意 |
 | [../README.md](../README.md) | 产品说明、安装与结构总览 |
 | [../ROADMAP.md](../ROADMAP.md) | 已发布版本与后续方向 |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | 贡献流程与禁止提交的数据 |

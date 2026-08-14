@@ -50,9 +50,10 @@ class ProductionQueueTests(unittest.TestCase):
         studio = nav.find('id: "studio"')
         self.assertGreater(gallery, 0)
         self.assertLess(gallery, generated)
-        # queue 已收进"更多"（secondary），不再出现在主序列中
-        self.assertIn('{ href: "/queue", id: "queue", label: "待生成", group: "创作" },', nav)
+        # 待生成提升到主导航；完整对话收进「更多」
+        self.assertIn('{ href: "/queue", id: "queue", label: "待生成" }', nav)
         self.assertLess(generated, studio)
+        self.assertLess(studio, queue)
         self.assertIn("本地图库资产", nav)
         # 二级菜单按 创作/管理/系统 分组渲染
         self.assertIn('className = "nav-more-group"', nav)

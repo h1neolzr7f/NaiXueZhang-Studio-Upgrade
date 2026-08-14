@@ -62,10 +62,15 @@ def test_full_release_preserves_all_features_and_new_pixiv_nai_dependencies() ->
         "pixiv_launch_config.py",
         "pixiv_ai_transport.py",
         "pixiv_launch_tags.py",
+        "DISCLAIMER.md",
+        "RESPONSIBLE_USE.md",
+        "SECURITY.md",
     ):
         assert f'"{relative}"' in full_block
     assert 'Copy-DirRel "routes"' in release
     assert 'Copy-DirRel "web"' in release
+    assert 'Copy-DirRel "docs"' in release
+    assert "scripts\\import_bangdream_live2d.py" in release
 
 
 def test_full_release_can_bundle_the_profile_aware_portable_runtime() -> None:

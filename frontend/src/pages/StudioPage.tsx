@@ -29,7 +29,7 @@ const DEFAULTS = { width: 832, height: 1216, steps: 28, scale: 5, sampler: "k_eu
 function parseSearch(search: string) {
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   return {
-    workId: params.get("work") || "",
+    workId: params.get("from") || params.get("work") || "",
     galleryId: params.get("gallery") || "site",
     pageIndex: Math.max(0, Number(params.get("page") || 0) || 0),
   };
@@ -349,11 +349,8 @@ export function StudioPage({ search }: { search: string }) {
             </div>
           </div>
         ) : null}
-        <a className="ws-status" href={workId ? remixPath(workId, galleryId, pageIndex) : "/app/remix"}>
+        <a className="ws-status" href={workId ? remixPath(workId, galleryId, pageIndex) : "/remix"}>
           去换角
-        </a>
-        <a className="ws-status" href={workId ? `/studio?work=${encodeURIComponent(workId)}` : "/studio"}>
-          打开经典工作台
         </a>
       </div>
       <div className="ws-panel">

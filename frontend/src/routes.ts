@@ -14,22 +14,22 @@ export type WorkspaceRoute =
   | "compliance";
 
 export const ROUTES: { id: WorkspaceRoute; path: string; label: string }[] = [
-  { id: "gallery", path: "/app", label: "图库" },
-  { id: "studio", path: "/app/studio", label: "工作台" },
-  { id: "generated", path: "/app/generated", label: "生成库" },
-  { id: "remix", path: "/app/remix", label: "换角" },
-  { id: "butler", path: "/app/butler", label: "小镜" },
-  { id: "progress", path: "/app/progress", label: "爬虫" },
-  { id: "pixiv", path: "/app/pixiv", label: "发布" },
-  { id: "settings", path: "/app/settings", label: "设置" },
+  { id: "gallery", path: "/", label: "图库" },
+  { id: "studio", path: "/studio", label: "工作台" },
+  { id: "generated", path: "/generated", label: "生成库" },
+  { id: "remix", path: "/remix", label: "换角" },
+  { id: "butler", path: "/butler", label: "助手" },
+  { id: "progress", path: "/progress", label: "爬虫" },
+  { id: "pixiv", path: "/pixiv", label: "发布" },
+  { id: "settings", path: "/settings", label: "设置" },
 ];
 
 export const EXTRA_ROUTES: { id: WorkspaceRoute; path: string; label: string }[] = [
-  { id: "tags", path: "/app/tags", label: "分类" },
-  { id: "director", path: "/app/director", label: "导演台" },
-  { id: "pipeline", path: "/app/pipeline", label: "后处理" },
-  { id: "ops", path: "/app/ops", label: "运营" },
-  { id: "compliance", path: "/app/compliance", label: "合规" },
+  { id: "tags", path: "/nai-tags", label: "分类" },
+  { id: "director", path: "/director", label: "导演台" },
+  { id: "pipeline", path: "/pipeline", label: "后处理" },
+  { id: "ops", path: "/ops", label: "运营" },
+  { id: "compliance", path: "/compliance", label: "合规" },
 ];
 
 export function routeFromPath(pathname: string): WorkspaceRoute {
@@ -55,17 +55,18 @@ export function currentHref(): string {
 
 export function navigate(path: string) {
   if (currentHref() === path) return;
-  window.history.pushState({}, "", path);
-  window.dispatchEvent(new PopStateEvent("popstate"));
+  // Classic HTML pages are the real product. Always leave the React shell
+  // so a leftover /app bookmark cannot trap the user in a stub.
+  window.location.assign(path);
 }
 
 export function studioPath(workId: string, galleryId: string, pageIndex = 0): string {
   const query = new URLSearchParams();
-  if (workId) query.set("work", workId);
+  if (workId) query.set("from", workId);
   if (galleryId && galleryId !== "site") query.set("gallery", galleryId);
   if (pageIndex > 0) query.set("page", String(pageIndex));
   const encoded = query.toString();
-  return "/app/studio" + (encoded ? `?${encoded}` : "");
+  return "/studio" + (encoded ? `?${encoded}` : "");
 }
 
 export type GalleryQuery = {
@@ -95,19 +96,19 @@ export function galleryPath(galleryId: string | GalleryQuery, q = "", page = 1):
   if (view && view !== "all") params.set("view", view);
   if ((query.page || 1) > 1) params.set("page", String(query.page));
   const encoded = params.toString();
-  return "/app" + (encoded ? `?${encoded}` : "");
+  return "/" + (encoded ? `?${encoded}` : "");
 }
 
 export function generatedPath(groupId = ""): string {
-  if (!groupId) return "/app/generated";
-  return "/app/generated?group=" + encodeURIComponent(groupId);
+  if (!groupId) return "/generated";
+  return "/generated?g=" + encodeURIComponent(groupId);
 }
 
 export function remixPath(workId = "", galleryId = "site", pageIndex = 0): string {
   const query = new URLSearchParams();
-  if (workId) query.set("work", workId);
+  if (workId) query.set("from", workId);
   if (galleryId && galleryId !== "site") query.set("gallery", galleryId);
   if (pageIndex > 0) query.set("page", String(pageIndex));
   const encoded = query.toString();
-  return "/app/remix" + (encoded ? `?${encoded}` : "");
+  return "/remix" + (encoded ? `?${encoded}` : "");
 }

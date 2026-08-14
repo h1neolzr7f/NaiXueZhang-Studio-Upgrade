@@ -120,6 +120,7 @@ class GalleryFiltersUiTests(unittest.TestCase):
         self.assertIn("clearFiltersBtn.addEventListener('click'", app)
         self.assertIn("qInput.value = ''", app)
         self.assertIn("promptInput.value = ''", app)
+        self.assertIn("galleryGroupSel.value = ''", app)
 
     def test_detail_keeps_every_action_but_has_one_primary_action(self) -> None:
         app = read_app()

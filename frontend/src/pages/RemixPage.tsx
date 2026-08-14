@@ -49,7 +49,7 @@ type BatchStatus = {
 function parseSearch(search: string) {
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   return {
-    workId: params.get("work") || "",
+    workId: params.get("from") || params.get("work") || "",
     galleryId: params.get("gallery") || "site",
     pageIndex: Math.max(0, Number(params.get("page") || 0) || 0),
   };

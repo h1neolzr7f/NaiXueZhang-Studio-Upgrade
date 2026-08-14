@@ -114,7 +114,7 @@ export function CompliancePage() {
       <h2>合规与来源</h2>
       <p className="ws-status">
         黑名单默认只拦爬取（scope=crawl），不会删本地文件。清理删除请走{" "}
-        <a href="/compliance">经典合规页</a> 并二次确认。
+        <a href="/compliance">合规详情</a> 并二次确认。
       </p>
       <h3>责任声明 {notice?.accepted_current ? "已接受" : "待确认"}</h3>
       <p className="ws-prompt">本机图库、爬虫和发布由你自己负责来源与内容合规。接受记录只写在本机。</p>
@@ -138,7 +138,7 @@ export function CompliancePage() {
         {blacklist.map((item) => (
           <li key={String(item.author_id)}>
             {item.author_name} · {item.author_id} · {item.scope}
-            {item.cleanup_required ? " · 仍有本地作品，清理请用经典页" : ""}
+            {item.cleanup_required ? " · 仍有本地作品，请到合规详情清理" : ""}
             <button
               className="link"
               type="button"

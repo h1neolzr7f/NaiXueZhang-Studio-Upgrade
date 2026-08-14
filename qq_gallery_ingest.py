@@ -554,18 +554,21 @@ def rebuild_group_index(db) -> list[dict[str, Any]]:
         key=lambda key: (-group_counts[key], group_labels[key]),
     ):
         filter_key = f"group:{group_key}"
+        members = [
+            pair for pair in account_counts if pair[0] == group_key
+        ]
+        drop_only = bool(members) and all(pair[1] == "local-drop" for pair in members)
         groups.append(
             {
                 "key": filter_key,
                 "label": group_labels[group_key],
                 "count": group_counts[group_key],
-                "kind": "group",
+                "kind": "folder" if drop_only else "group",
                 "group_key": group_key,
             }
         )
-        members = [
-            pair for pair in account_counts if pair[0] == group_key
-        ]
+        if drop_only:
+            continue
         for pair in sorted(
             members,
             key=lambda value: (

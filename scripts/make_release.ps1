@@ -364,6 +364,12 @@ $fullRootFiles = @(
     "RESTORE_GALLERY.bat",
     "LICENSE",
     "VERSION",
+    "DISCLAIMER.md",
+    "RESPONSIBLE_USE.md",
+    "SECURITY.md",
+    "ROADMAP.md",
+    "PRODUCT.md",
+    "CONTRIBUTING.md",
     "THIRD_PARTY_NOTICES.md",
     "ark_char_library.py",
     "ark_stats.py",
@@ -580,6 +586,7 @@ if ($Profile -eq "core") {
     Copy-DirRel "butler"
     Copy-DirRel "third_party"
     Copy-DirRel "web"
+    Copy-DirRel "docs"
     Copy-DirRel "tests"
     Copy-DirRel "scripts"
 }
@@ -602,6 +609,8 @@ Get-ChildItem -LiteralPath $stage -Recurse -Force -Directory -ErrorAction Silent
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 Get-ChildItem -LiteralPath $stage -Recurse -Force -File -Filter "*.pyc" -ErrorAction SilentlyContinue |
     Remove-Item -Force -ErrorAction SilentlyContinue
+# The local Live2D import helper contains a machine path and pack password.
+Remove-Item -LiteralPath (Join-Path $stage "scripts\import_bangdream_live2d.py") -Force -ErrorAction SilentlyContinue
 
 $fullDataFiles = @(
     "data\ark_char_library.json",

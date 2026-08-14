@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>小镜 · 图库智能管家</title>
+  <title>助手 · 图库智能管家</title>
   <link rel="stylesheet" href="/assets/styles.css?v=1f1b43909b" />
   <link rel="stylesheet" href="/assets/local.css?v=2e0bfcbad7" />
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
-  <link rel="stylesheet" href="/assets/butler.css?v=a24ee4595a" />
-  <link rel="stylesheet" href="/assets/studio-theme.css?v=726f16a66a" />
+  <link rel="stylesheet" href="/assets/butler.css?v=e207f1eed5" />
+  <link rel="stylesheet" href="/assets/studio-theme.css?v=51de05869a" />
 </head>
 <body class="butler-body">
   <nav id="siteNav"></nav>
@@ -16,8 +16,8 @@
     <header class="butler-hero">
       <div>
         <p class="butler-kicker">你的本地图库伙伴</p>
-        <h1><span data-assistant-name>小镜</span> <span class="butler-title-soft">· 图库智能管家</span></h1>
-        <p>像聊天一样告诉我你想找什么、生成什么。复杂步骤我来拆解，花钱、写入或投稿前一定先问你。</p>
+        <h1><span data-assistant-name>客服小祥</span> <span class="butler-title-soft">· 图库智能管家</span></h1>
+        <p>像聊天一样告诉我你想找什么、生成什么。维护和用法找客服小祥，出图找助手凑企鹅；服饰和动作会按情景更换，花钱、写入或投稿前一定先问你。</p>
       </div>
       <div class="butler-hero-side">
         <div class="butler-readiness" id="butlerReadiness" aria-live="polite">正在检查能力…</div>
@@ -29,7 +29,7 @@
       <div class="butler-start-copy">
         <span>从这里开始</span>
         <strong id="butlerStartTitle">先选一个目标，再补充范围</strong>
-        <small>下面的快捷任务只填入，不会立即执行；涉及生图、写入或投稿时，小镜仍会再次确认。</small>
+        <small>下面的快捷任务只填入，不会立即执行；涉及生图、写入或投稿时，助手仍会再次确认。</small>
       </div>
       <div class="butler-start-actions">
         <button type="button" data-command="帮我检查图库状态，并告诉我最需要先处理的三件事"><b>检查</b><span>先看图库状态</span></button>
@@ -39,26 +39,30 @@
     </section>
 
     <section class="butler-layout">
-      <aside class="butler-avatar-panel" id="assistantPortrait" aria-label="小镜的 Live2D 伙伴形象">
+      <aside class="butler-avatar-panel" id="assistantPortrait" aria-label="客服小祥的 Live2D 伙伴形象">
         <div class="butler-stage-head">
           <div>
             <span class="butler-live-dot" aria-hidden="true"></span>
-            <strong><span data-assistant-name>小镜</span> · LIVE</strong>
+            <strong><span data-assistant-name>客服小祥</span> · LIVE</strong>
           </div>
           <button type="button" class="butler-companion-toggle" id="toggleLive2d" hidden>隐藏形象</button>
+        </div>
+        <div class="butler-agent-switch" id="agentSwitch" aria-label="切换助手">
+          <button type="button" data-agent="sakiko" class="is-active"><strong>客服小祥</strong><span>处理和维护</span></button>
+          <button type="button" data-agent="tomori"><strong>助手凑企鹅</strong><span>选材与生成</span></button>
         </div>
         <div class="butler-stage-shell">
           <div class="butler-stage-grid" aria-hidden="true"></div>
           <div class="butler-stage-aura" aria-hidden="true"></div>
           <div class="butler-live2d-stage" id="live2dStage">
             <div class="butler-companion-fallback" id="live2dFallback" aria-hidden="true">
-              <span>镜</span>
-              <small>你的图库伙伴</small>
+              <span>祥</span>
+              <small>处理和维护</small>
             </div>
           </div>
           <div class="butler-stage-nameplate">
-            <span>AITAG COMPANION</span>
-            <strong data-assistant-name>小镜</strong>
+            <span id="costumeLabel">情景服饰</span>
+            <strong data-assistant-name>客服小祥</strong>
           </div>
         </div>
         <div class="butler-companion-status" data-mood="ready">
@@ -75,7 +79,7 @@
       <div class="butler-chat-panel">
         <div class="butler-chat-head">
           <div>
-            <strong>和<span data-assistant-name>小镜</span>聊聊</strong>
+            <strong>和<span data-assistant-name>客服小祥</span>聊聊</strong>
             <span id="butlerModel">模型未读取</span>
           </div>
           <div class="butler-chat-actions">
@@ -84,11 +88,11 @@
           </div>
         </div>
 
-        <div class="butler-messages" id="butlerMessages" aria-live="polite" aria-label="与小镜的对话">
+        <div class="butler-messages" id="butlerMessages" aria-live="polite" aria-label="与助手的对话">
           <article class="butler-message assistant" data-welcome-message>
-            <div class="butler-avatar" aria-hidden="true">镜</div>
+            <div class="butler-avatar" aria-hidden="true">祥</div>
             <div class="butler-bubble">
-              <p>欢迎回来呀。告诉我你想找的作品，或者想完成的图库任务，剩下的交给我就好。</p>
+              <p>欢迎回来。维护、采集、排障和「怎么用」找客服小祥；选材、换角和出图找助手凑企鹅。两人工具台分开，越权会请你切换。</p>
             </div>
           </article>
         </div>
@@ -103,7 +107,7 @@
           </div>
           <div class="butler-compare-actions">
             <input id="galleryCompareQuestion" maxlength="300" value="这几张哪个更好看？请比较构图、完成度和明显不足。" aria-label="比较标准" />
-            <button type="button" id="runGalleryCompare" disabled>请小镜比较 · 会调用识图</button>
+            <button type="button" id="runGalleryCompare" disabled>请助手比较 · 会调用识图</button>
           </div>
         </section>
 
@@ -122,7 +126,7 @@
         </div>
 
         <form class="butler-composer" id="butlerForm">
-          <label for="butlerInput">想让<span data-assistant-name>小镜</span>帮你做什么？</label>
+          <label for="butlerInput">想让<span data-assistant-name>客服小祥</span>帮你做什么？</label>
           <div class="butler-image-preview" id="imagePreview" hidden>
             <img id="imagePreviewThumb" alt="待识别图片预览" />
             <div><strong id="imagePreviewName">已选择图片</strong><span>发送时临时识别，不写入聊天数据库</span></div>
@@ -148,7 +152,7 @@
           </div>
           <div class="butler-card-title butler-latest-title"><strong>最近任务</strong><span id="workflowBadge">空闲</span></div>
           <div id="workflowPanel" class="butler-workflow">暂无管家后台任务</div>
-          <div id="taskList" class="butler-task-list" aria-label="小镜任务列表"></div>
+          <div id="taskList" class="butler-task-list" aria-label="助手任务列表"></div>
           <div id="taskDetail" class="butler-task-detail" aria-live="polite"></div>
         </section>
 
@@ -160,9 +164,9 @@
         <section class="butler-rail-card">
           <div class="butler-card-title"><h2>安全边界</h2></div>
           <ul class="butler-safety-list">
-            <li><span class="dot auto"></span>找图和整理草稿可以自动完成</li>
-            <li><span class="dot confirm"></span>生图、收藏、删除成果、采集和投稿准备会先问你</li>
-            <li><span class="dot locked"></span>真实上传、账号和密钥始终由你控制</li>
+            <li><span class="dot auto"></span>找图、教学和整理草稿可以自动完成</li>
+            <li><span class="dot confirm"></span>生图、采集、删除成果和投稿准备会先问你</li>
+            <li><span class="dot locked"></span>两位助手不能越权；真实上传和密钥始终由你控制</li>
           </ul>
         </section>
 
@@ -174,10 +178,11 @@
     </section>
   </main>
 
-  <script src="/assets/shared/site-nav.js?v=dc348bd777"></script>
-  <script src="/assets/shared/quick-dock.js?v=bbc9c81e12"></script>
-  <script src="/assets/shared/api-client.js?v=96524289cc"></script>
+  <script src="/assets/shared/site-nav.js?v=fe86cea773"></script>
+  <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
+  <script src="/assets/shared/api-client.js?v=2a8a70c746"></script>
   <script src="/assets/shared/comparison-workspace.js?v=5f74cfb2d6"></script>
-  <script src="/assets/butler.js?v=f853e8c255"></script>
+  <script src="/assets/shared/live2d-touch.js?v=dd0a813c9f"></script>
+  <script src="/assets/butler.js?v=f8f3759297"></script>
 </body>
 </html>

@@ -300,7 +300,7 @@ BUTLER_SYSTEM_PROMPT = """
 - retry_exhausted_previews: 无参数；cancel_generation: task_id?
 - read_logs: name?(server|crawler|watchdog|heartbeat|all，默认 all)，lines?(50..500 默认 200)
 - diagnose_error: error_text?(用户贴的报错/症状，可空则只看日志), since_lines?(50..500 默认 200)
-- product_guide: topic?(采集|生成|投稿|设置|故障|入门|全部，默认 全部)
+- product_guide: topic?(采集|生成|投稿|设置|故障|入门|换角|助手|全部，默认 全部)
 - inspect_config: 无参数
 - modify_setting: 白名单键值：ai_model?, enabled?, source_mode?(auto|api|public), search_queries?[string], user_ids?[string], rankings?[string], request_delay_sec?(0..60), browser_mode?, watch_interval_sec?(60..3600)。禁止 ai_api_base/proxy_url/port，改这些请引导 /settings#ai-service。主图库为空时不得启用或改采集范围
 - set_auto_mode: auto_mode(bool 必填), auto_repair?(bool)。auto_mode 不能跳过生产工单；auto_repair 只允许跳过具名检修剧本的确认

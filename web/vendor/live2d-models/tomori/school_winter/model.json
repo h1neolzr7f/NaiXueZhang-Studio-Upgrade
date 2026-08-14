@@ -1,0 +1,999 @@
+{
+  "version": "Sample 1.0.0",
+  "layout": {
+    "center_x": 0,
+    "center_y": -0.08,
+    "width": 2.2
+  },
+  "hit_areas_custom": {
+    "head_x": [
+      -0.25,
+      1
+    ],
+    "head_y": [
+      0.25,
+      0.2
+    ],
+    "body_x": [
+      -0.3,
+      0.2
+    ],
+    "body_y": [
+      0.3,
+      -1.9
+    ]
+  },
+  "model": "live2d/model.moc",
+  "physics": "live2d/physics.json",
+  "textures": [
+    "live2d/texture_00.png",
+    "live2d/texture_01.png"
+  ],
+  "motions": {
+    "tomori_nnf04": [
+      {
+        "file": "../_mtn_emp/tomori/nnf04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf04": [
+      {
+        "file": "../_mtn_emp/tomori/nnf04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_sing02": [
+      {
+        "file": "../_mtn_emp/tomori/sing02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sing02": [
+      {
+        "file": "../_mtn_emp/tomori/sing02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_smile02": [
+      {
+        "file": "../_mtn_emp/tomori/smile02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "smile02": [
+      {
+        "file": "../_mtn_emp/tomori/smile02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_angry02": [
+      {
+        "file": "../_mtn_emp/tomori/angry02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "angry02": [
+      {
+        "file": "../_mtn_emp/tomori/angry02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nf03": [
+      {
+        "file": "../_mtn_emp/tomori/nf03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf03": [
+      {
+        "file": "../_mtn_emp/tomori/nf03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nf04": [
+      {
+        "file": "../_mtn_emp/tomori/nf04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf04": [
+      {
+        "file": "../_mtn_emp/tomori/nf04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nnf01": [
+      {
+        "file": "../_mtn_emp/tomori/nnf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf01": [
+      {
+        "file": "../_mtn_emp/tomori/nnf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_thinking02": [
+      {
+        "file": "../_mtn_emp/tomori/thinking02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "thinking02": [
+      {
+        "file": "../_mtn_emp/tomori/thinking02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nf02": [
+      {
+        "file": "../_mtn_emp/tomori/nf02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf02": [
+      {
+        "file": "../_mtn_emp/tomori/nf02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_sad04": [
+      {
+        "file": "../_mtn_emp/tomori/sad04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sad04": [
+      {
+        "file": "../_mtn_emp/tomori/sad04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_sad02": [
+      {
+        "file": "../_mtn_emp/tomori/sad02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sad02": [
+      {
+        "file": "../_mtn_emp/tomori/sad02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_surprised01": [
+      {
+        "file": "../_mtn_emp/tomori/surprised01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "surprised01": [
+      {
+        "file": "../_mtn_emp/tomori/surprised01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nf05": [
+      {
+        "file": "../_mtn_emp/tomori/nf05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf05": [
+      {
+        "file": "../_mtn_emp/tomori/nf05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nf01": [
+      {
+        "file": "../_mtn_emp/tomori/nf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf01": [
+      {
+        "file": "../_mtn_emp/tomori/nf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nf_left01": [
+      {
+        "file": "../_mtn_emp/tomori/nf_left01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf_left01": [
+      {
+        "file": "../_mtn_emp/tomori/nf_left01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_smile01": [
+      {
+        "file": "../_mtn_emp/tomori/smile01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "smile01": [
+      {
+        "file": "../_mtn_emp/tomori/smile01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_smile04": [
+      {
+        "file": "../_mtn_emp/tomori/smile04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "smile04": [
+      {
+        "file": "../_mtn_emp/tomori/smile04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_cry02": [
+      {
+        "file": "../_mtn_emp/tomori/cry02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "cry02": [
+      {
+        "file": "../_mtn_emp/tomori/cry02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_shame02": [
+      {
+        "file": "../_mtn_emp/tomori/shame02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "shame02": [
+      {
+        "file": "../_mtn_emp/tomori/shame02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_kandou03": [
+      {
+        "file": "../_mtn_emp/tomori/kandou03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "kandou03": [
+      {
+        "file": "../_mtn_emp/tomori/kandou03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nnf02": [
+      {
+        "file": "../_mtn_emp/tomori/nnf02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf02": [
+      {
+        "file": "../_mtn_emp/tomori/nnf02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nnf_left01": [
+      {
+        "file": "../_mtn_emp/tomori/nnf_left01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf_left01": [
+      {
+        "file": "../_mtn_emp/tomori/nnf_left01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nnf05": [
+      {
+        "file": "../_mtn_emp/tomori/nnf05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf05": [
+      {
+        "file": "../_mtn_emp/tomori/nnf05.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_kandou02": [
+      {
+        "file": "../_mtn_emp/tomori/kandou02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "kandou02": [
+      {
+        "file": "../_mtn_emp/tomori/kandou02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_kime01": [
+      {
+        "file": "../_mtn_emp/tomori/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "kime01": [
+      {
+        "file": "../_mtn_emp/tomori/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_sing01": [
+      {
+        "file": "../_mtn_emp/tomori/sing01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sing01": [
+      {
+        "file": "../_mtn_emp/tomori/sing01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_sad01": [
+      {
+        "file": "../_mtn_emp/tomori/sad01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sad01": [
+      {
+        "file": "../_mtn_emp/tomori/sad01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_thinking01": [
+      {
+        "file": "../_mtn_emp/tomori/thinking01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "thinking01": [
+      {
+        "file": "../_mtn_emp/tomori/thinking01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_shame01": [
+      {
+        "file": "../_mtn_emp/tomori/shame01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "shame01": [
+      {
+        "file": "../_mtn_emp/tomori/shame01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nnf_right01": [
+      {
+        "file": "../_mtn_emp/tomori/nnf_right01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf_right01": [
+      {
+        "file": "../_mtn_emp/tomori/nnf_right01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_bye01": [
+      {
+        "file": "../_mtn_emp/tomori/bye01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "bye01": [
+      {
+        "file": "../_mtn_emp/tomori/bye01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_serious01": [
+      {
+        "file": "../_mtn_emp/tomori/serious01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "serious01": [
+      {
+        "file": "../_mtn_emp/tomori/serious01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nnf03": [
+      {
+        "file": "../_mtn_emp/tomori/nnf03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nnf03": [
+      {
+        "file": "../_mtn_emp/tomori/nnf03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_cry01": [
+      {
+        "file": "../_mtn_emp/tomori/cry01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "cry01": [
+      {
+        "file": "../_mtn_emp/tomori/cry01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_serious02": [
+      {
+        "file": "../_mtn_emp/tomori/serious02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "serious02": [
+      {
+        "file": "../_mtn_emp/tomori/serious02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_kime02": [
+      {
+        "file": "../_mtn_emp/tomori/kime02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "kime02": [
+      {
+        "file": "../_mtn_emp/tomori/kime02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_angry01": [
+      {
+        "file": "../_mtn_emp/tomori/angry01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "angry01": [
+      {
+        "file": "../_mtn_emp/tomori/angry01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_sad03": [
+      {
+        "file": "../_mtn_emp/tomori/sad03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sad03": [
+      {
+        "file": "../_mtn_emp/tomori/sad03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_kandou01": [
+      {
+        "file": "../_mtn_emp/tomori/kandou01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "kandou01": [
+      {
+        "file": "../_mtn_emp/tomori/kandou01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_idle01": [
+      {
+        "file": "../_mtn_emp/tomori/idle01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "idle01": [
+      {
+        "file": "../_mtn_emp/tomori/idle01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_nf_right01": [
+      {
+        "file": "../_mtn_emp/tomori/nf_right01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "nf_right01": [
+      {
+        "file": "../_mtn_emp/tomori/nf_right01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_smile03": [
+      {
+        "file": "../_mtn_emp/tomori/smile03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "smile03": [
+      {
+        "file": "../_mtn_emp/tomori/smile03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_cd3_gacha01": [
+      {
+        "file": "../_mtn_emp/tomori/collabo_d_3_ur/gacha01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "cd3_gacha01": [
+      {
+        "file": "../_mtn_emp/tomori/collabo_d_3_ur/gacha01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_e235_gacha01": [
+      {
+        "file": "../_mtn_emp/tomori/live_event_235_ur/gacha01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "e235_gacha01": [
+      {
+        "file": "../_mtn_emp/tomori/live_event_235_ur/gacha01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tomori_e250_gacha01": [
+      {
+        "file": "../_mtn_emp/tomori/live_event_250_ur/gacha01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "e250_gacha01": [
+      {
+        "file": "../_mtn_emp/tomori/live_event_250_ur/gacha01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "idle": [
+      {
+        "file": "../_mtn_emp/tomori/idle01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/nf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/nnf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/nf02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "tap_body": [
+      {
+        "file": "../_mtn_emp/tomori/smile01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/smile02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "flick_head": [
+      {
+        "file": "../_mtn_emp/tomori/surprised01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "ready": [
+      {
+        "file": "../_mtn_emp/tomori/idle01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/bye01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/smile01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "happy": [
+      {
+        "file": "../_mtn_emp/tomori/smile01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/smile02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/smile03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/kandou01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "thinking": [
+      {
+        "file": "../_mtn_emp/tomori/thinking01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/thinking02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/serious01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/nf03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "sorry": [
+      {
+        "file": "../_mtn_emp/tomori/sad01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/sad02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/cry01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/shame01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "surprised": [
+      {
+        "file": "../_mtn_emp/tomori/surprised01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "working": [
+      {
+        "file": "../_mtn_emp/tomori/thinking01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/serious01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/serious02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/nf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/nnf01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "generate": [
+      {
+        "file": "../_mtn_emp/tomori/sing01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/kime02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/smile03.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/kandou02.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ],
+    "publish": [
+      {
+        "file": "../_mtn_emp/tomori/kime01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/smile04.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/bye01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      },
+      {
+        "file": "../_mtn_emp/tomori/kandou01.mtn",
+        "fade_in": 400,
+        "fade_out": 400
+      }
+    ]
+  },
+  "expressions": [
+    {
+      "name": "surprised01",
+      "file": "../_mtn_emp/tomori/surprised01.exp.json"
+    },
+    {
+      "name": "sad04",
+      "file": "../_mtn_emp/tomori/sad04.exp.json"
+    },
+    {
+      "name": "angry01",
+      "file": "../_mtn_emp/tomori/angry01.exp.json"
+    },
+    {
+      "name": "bye01",
+      "file": "../_mtn_emp/tomori/bye01.exp.json"
+    },
+    {
+      "name": "cry01",
+      "file": "../_mtn_emp/tomori/cry01.exp.json"
+    },
+    {
+      "name": "kime01",
+      "file": "../_mtn_emp/tomori/kime01.exp.json"
+    },
+    {
+      "name": "cry02",
+      "file": "../_mtn_emp/tomori/cry02.exp.json"
+    },
+    {
+      "name": "sad01",
+      "file": "../_mtn_emp/tomori/sad01.exp.json"
+    },
+    {
+      "name": "kandou02",
+      "file": "../_mtn_emp/tomori/kandou02.exp.json"
+    },
+    {
+      "name": "smile02",
+      "file": "../_mtn_emp/tomori/smile02.exp.json"
+    },
+    {
+      "name": "sad02",
+      "file": "../_mtn_emp/tomori/sad02.exp.json"
+    },
+    {
+      "name": "smile03",
+      "file": "../_mtn_emp/tomori/smile03.exp.json"
+    },
+    {
+      "name": "kandou01",
+      "file": "../_mtn_emp/tomori/kandou01.exp.json"
+    },
+    {
+      "name": "serious02",
+      "file": "../_mtn_emp/tomori/serious02.exp.json"
+    },
+    {
+      "name": "kime02",
+      "file": "../_mtn_emp/tomori/kime02.exp.json"
+    },
+    {
+      "name": "sing02",
+      "file": "../_mtn_emp/tomori/sing02.exp.json"
+    },
+    {
+      "name": "smile04",
+      "file": "../_mtn_emp/tomori/smile04.exp.json"
+    },
+    {
+      "name": "sad03",
+      "file": "../_mtn_emp/tomori/sad03.exp.json"
+    },
+    {
+      "name": "shame02",
+      "file": "../_mtn_emp/tomori/shame02.exp.json"
+    },
+    {
+      "name": "thinking01",
+      "file": "../_mtn_emp/tomori/thinking01.exp.json"
+    },
+    {
+      "name": "smile01",
+      "file": "../_mtn_emp/tomori/smile01.exp.json"
+    },
+    {
+      "name": "shame01",
+      "file": "../_mtn_emp/tomori/shame01.exp.json"
+    },
+    {
+      "name": "idle",
+      "file": "../_mtn_emp/tomori/idle.exp.json"
+    },
+    {
+      "name": "serious01",
+      "file": "../_mtn_emp/tomori/serious01.exp.json"
+    },
+    {
+      "name": "thinking02",
+      "file": "../_mtn_emp/tomori/thinking02.exp.json"
+    },
+    {
+      "name": "default",
+      "file": "../_mtn_emp/tomori/default.exp.json"
+    },
+    {
+      "name": "sing01",
+      "file": "../_mtn_emp/tomori/sing01.exp.json"
+    },
+    {
+      "name": "kandou03",
+      "file": "../_mtn_emp/tomori/kandou03.exp.json"
+    },
+    {
+      "name": "angry02",
+      "file": "../_mtn_emp/tomori/angry02.exp.json"
+    }
+  ]
+}

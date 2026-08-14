@@ -157,6 +157,15 @@ def test_home_gallery_exposes_online_filters_favorites_and_character_slots() -> 
     assert "localStorage" in app and "online draft localStorage save failed" in app
     assert "source_title" in app
     assert "我的 OC" in app
+    assert "applyOnlineSelectedTargetToSlot" in app
+    assert "applyOnlineTargetItem" in app
+    assert "先在下方点一个角色" in app
+    assert "点角色卡即换到当前槽" in app
+    assert "onlineImageArrayIndexes" in app
+    assert "character_caption" in app
+    assert "生成已换页" in app
+    assert "aria-disabled" in app
+    assert "换角面板初始化失败" in (root / "web" / "app-detail.js").read_text(encoding="utf-8")
     studio = (root / "web" / "studio.js").read_text(encoding="utf-8")
     assert "pickAitagDraftFromServerResult" in studio
     assert "switchAitagPage" in studio
@@ -182,3 +191,80 @@ def test_builtin_swap_target_uses_the_same_seed_as_local_gallery() -> None:
     assert record["trigger"] == "skadi_(arknights)"
     assert record["identity"] == preset["identity"]
     assert record["appearance"] == ["tall", "white_hair", "red_eyes"]
+
+
+def test_builtin_oc_preset_keeps_whole_caption_for_online_replace() -> None:
+    preset = {
+        "id": "feijibei",
+        "label": "费济北",
+        "gender": "male",
+        "kind": "oc",
+        "char_caption": "1boy, 18 years old, slim, youthful, black hair",
+        "identity": ["1boy", "male_focus"],
+        "source": "custom",
+        "is_custom": True,
+    }
+    with patch.object(aitag_routes, "list_char_presets", return_value=[preset]):
+        record = aitag_routes._builtin_target_record("preset:male:feijibei")
+
+    assert record["kind"] == "oc"
+    assert record["char_caption"] == preset["char_caption"]
+    assert "18 years old" not in record["appearance"]
+    assert "youthful" not in record["appearance"]
+
+
+def test_catalog_custom_oc_keeps_whole_caption_when_raw_omits_it() -> None:
+    item = {
+        "reference_id": "ref_feijibei",
+        "source": "custom",
+        "label": "费济北",
+        "gender": "male",
+        "character_caption": "1boy, 18 years old, slim, youthful, black hair",
+        "raw": {
+            "name": "费济北",
+            "gender": "male",
+            "core_tags": ["1boy", "18 years old", "slim"],
+            "source": "custom",
+        },
+    }
+    record = aitag_routes._merge_catalog_target_record(item, "ref_feijibei")
+    assert record["kind"] == "oc"
+    assert record["char_caption"] == item["character_caption"]
+    assert record["is_custom"] is True
+
+
+def test_online_detail_page_index_matches_image_array() -> None:
+    from aitag_core.external import normalize_aitag_detail
+
+    detail = normalize_aitag_detail(
+        {
+            "id": "148389562",
+            "title": "multi page",
+            "images": [
+                {"id": "p0", "aiJson": {"Software": "NovelAI"}},
+                {"id": "p1", "aiJson": {"Software": "NovelAI"}},
+            ],
+        }
+    )
+    payload = aitag_routes._detail_payload(detail)
+    assert [image["page_index"] for image in payload["images"]] == [0, 1]
+
+
+def test_named_catalog_record_does_not_become_oc() -> None:
+    item = {
+        "reference_id": "ref_skadi",
+        "source": "animadex",
+        "label": "Skadi",
+        "gender": "female",
+        "character_caption": "girl, skadi (arknights), white hair",
+        "trigger": "skadi_(arknights)",
+        "raw": {
+            "name": "Skadi",
+            "trigger": "skadi_(arknights)",
+            "gender": "female",
+        },
+    }
+    record = aitag_routes._merge_catalog_target_record(item, "ref_skadi")
+    assert record.get("kind") != "oc"
+    assert "char_caption" not in record or record.get("kind") != "oc"
+    assert record["trigger"] == "skadi_(arknights)"

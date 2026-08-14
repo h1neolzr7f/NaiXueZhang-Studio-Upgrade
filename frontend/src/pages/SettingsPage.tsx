@@ -172,7 +172,7 @@ export function SettingsPage() {
         </p>
       ) : null}
       <p className="ws-status">
-        端口、代理和完整偏好仍可打开 <a href="/settings">经典设置</a>。
+        端口、代理和完整偏好请打开 <a href="/settings">设置详情</a>。
       </p>
       {message ? <p className="ws-status ok">{message}</p> : null}
       {error ? <p className="ws-status err">{error}</p> : null}

@@ -29,9 +29,9 @@
   function fillConfig(data) {
     const prefs = data.prefs || {};
     const ai = data.ai || (data.config && data.config.ai) || {};
-    $("assistantName").value = prefs.assistant_name || "小镜";
+    $("assistantName").value = prefs.assistant_name || "助手";
     $("assistantLive2d").checked = prefs.assistant_live2d_enabled !== false;
-    $("assistantLive2dModel").value = prefs.assistant_live2d_model || "/assets/vendor/live2d-models/hiyori/Hiyori.model3.json";
+    $("assistantLive2dModel").value = prefs.assistant_live2d_model || "";
     $("assistantPollMode").value = prefs.assistant_poll_mode || "eco";
     $("prefNaiOnly").checked = prefs.nai_only_gallery !== false;
     $("prefQuickStudio").checked = !!prefs.quick_send_studio;
@@ -45,6 +45,123 @@
     $("aiMaxTokens").value = String(ai.max_tokens || 4096);
   }
 
+  const slotChecks = {};
+
+  function providerLabel(provider) {
+    const key = String(provider || "").toLowerCase();
+    if (key === "xianyun") return "闲云";
+    if (key === "novelai") return "NovelAI";
+    return provider || "未知";
+  }
+
+  function applyCheckResult(row, slot, item) {
+    const ok = !!item.ok;
+    slotChecks[slot.id] = { ok, message: item.message || "" };
+    row.classList.toggle("is-ok", ok);
+    row.classList.toggle("is-bad", !ok);
+    const meta = row.querySelector(".token-slot-meta");
+    if (meta) {
+      meta.textContent = ok
+        ? `可用 · ${item.message || "检测通过"}`
+        : `不可用 · ${item.message || "检测失败"}`;
+    }
+  }
+
+  function renderTokenSlots(token) {
+    const list = $("tokenSlotList");
+    const statusText = $("tokenStatusText");
+    const empty = $("tokenEmptyState");
+    if (!list || !statusText || !empty) return;
+    const tokens = Array.isArray(token && token.tokens) ? token.tokens : [];
+    const count = Number(
+      (token && (token.token_count || token.enabled_count || token.count)) || tokens.length || 0,
+    );
+    const hasToken = !!(token && token.has_token) || tokens.length > 0;
+    statusText.textContent = hasToken
+      ? `已配置 ${count} 个槽位`
+      : "未配置 Token，生成暂不可用";
+    empty.hidden = hasToken;
+    list.hidden = !tokens.length;
+    list.replaceChildren();
+    tokens.forEach((slot, idx) => {
+      const check = slotChecks[slot.id] || {};
+      const row = document.createElement("div");
+      row.className = "token-slot" + (check.ok === true ? " is-ok" : check.ok === false ? " is-bad" : "");
+      row.dataset.tokenId = String(slot.id || "");
+      const main = document.createElement("div");
+      main.className = "token-slot-main";
+      const title = document.createElement("div");
+      title.className = "token-slot-title";
+      const enabled = slot.enabled !== false;
+      title.textContent = `#${idx + 1} ${slot.label || providerLabel(slot.provider)} · ${providerLabel(slot.provider)} · ${slot.masked || "已保存"}`;
+      const meta = document.createElement("small");
+      meta.className = "token-slot-meta";
+      if (check.ok === true) meta.textContent = `可用 · ${check.message || "检测通过"}`;
+      else if (check.ok === false) meta.textContent = `不可用 · ${check.message || "检测失败"}`;
+      else {
+        const disabledText = enabled ? "已保存，尚未检测" : `已停用${slot.disabled_reason ? `：${slot.disabled_reason}` : ""}`;
+        meta.textContent = `${disabledText}${slot.updated_at ? ` · ${slot.updated_at}` : ""}`;
+      }
+      main.appendChild(title);
+      main.appendChild(meta);
+      const actions = document.createElement("div");
+      actions.className = "token-slot-actions";
+      const checkBtn = document.createElement("button");
+      checkBtn.type = "button";
+      checkBtn.dataset.check = "1";
+      checkBtn.textContent = "检测";
+      checkBtn.addEventListener("click", () => checkOneSlot(slot, row, checkBtn));
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.dataset.delete = "1";
+      delBtn.textContent = "删除";
+      delBtn.addEventListener("click", () => deleteSlot(slot));
+      actions.appendChild(checkBtn);
+      actions.appendChild(delBtn);
+      row.appendChild(main);
+      row.appendChild(actions);
+      list.appendChild(row);
+    });
+  }
+
+  async function checkOneSlot(slot, row, button) {
+    if (!slot || !slot.id) return;
+    if (button) {
+      button.disabled = true;
+      button.textContent = "检测中…";
+    }
+    try {
+      const result = await api("/api/nai/token/check", {
+        method: "POST",
+        body: { token_id: slot.id, remove_bad: false },
+      });
+      const item = (result.results || [])[0] || {};
+      applyCheckResult(row, slot, item);
+      setStatus(item.message || (item.ok ? "该槽位可用" : "该槽位不可用"), !!item.ok);
+    } catch (error) {
+      setStatus(error.message || String(error), false);
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "检测";
+      }
+    }
+  }
+
+  async function deleteSlot(slot) {
+    if (!slot || !slot.id) return;
+    const name = slot.label || slot.masked || "该槽位";
+    if (!window.confirm(`删除生图槽位「${name}」？删除后无法从列表恢复，需要重新粘贴 Token。`)) return;
+    try {
+      await api(`/api/nai/token/${encodeURIComponent(slot.id)}`, { method: "DELETE" });
+      delete slotChecks[slot.id];
+      setStatus(`已删除槽位「${name}」`, true);
+      await load();
+    } catch (error) {
+      setStatus(error.message || String(error), false);
+    }
+  }
+
   function renderStatus(data, pixiv) {
     const ready = data.ready || {};
     markReady("gallery", ready.gallery !== false);
@@ -56,11 +173,7 @@
       && pixiv.active_account.has_token
     );
     markReady("publish", publishReady, !publishReady);
-    const token = data.token || {};
-    $("tokenStatusText").textContent = token.has_token
-      ? `已配置 ${token.count || 0} 个槽位`
-      : "未配置 Token，生成暂不可用";
-    $("tokenEmptyState").hidden = !!token.has_token;
+    renderTokenSlots(data.token || {});
   }
 
   function renderUsage(data) {
@@ -107,7 +220,7 @@
 
   function prefsPayload() {
     return {
-      assistant_name: ($("assistantName").value || "小镜").trim().slice(0, 12) || "小镜",
+      assistant_name: ($("assistantName").value || "助手").trim().slice(0, 12) || "助手",
       assistant_live2d_enabled: $("assistantLive2d").checked,
       assistant_live2d_model: $("assistantLive2dModel").value.trim(),
       assistant_poll_mode: $("assistantPollMode").value,
@@ -148,43 +261,87 @@
     }
   });
 
-  $("saveTokenBtn")?.addEventListener("click", async () => {
-    try {
-      let token = ($("settingsToken").value || "").trim();
-      const defaultProvider = $("tokenDefaultProvider").value;
-      if (defaultProvider && token) {
-        token = token.split(/\r?\n/).map((line) => {
-          const value = line.trim();
-          if (!value || value.startsWith("{") || value.includes(":")) return line;
-          if (defaultProvider === "xianyun" && !/^pst-/i.test(value)) return `xianyun:${value}`;
-          if (defaultProvider === "novelai" && !/^(xianyun|xy|idlecloud):/i.test(value)) {
-            return value.startsWith("pst-") ? value : `nai:${value}`;
-          }
-          return line;
-        }).join("\n");
+  function prefixedTokenLines() {
+    const defaultProvider = $("tokenDefaultProvider").value;
+    return ($("settingsToken").value || "").split(/\r?\n/).map((line) => {
+      const value = line.trim();
+      if (!value) return "";
+      if (!defaultProvider || value.startsWith("{") || value.includes(":")) return value;
+      if (defaultProvider === "xianyun" && !/^pst-/i.test(value)) return `xianyun:${value}`;
+      if (defaultProvider === "novelai" && !/^(xianyun|xy|idlecloud):/i.test(value)) {
+        return value.startsWith("pst-") ? value : `nai:${value}`;
       }
-      await api("/api/settings/nai-token", {
-        method: "POST",
-        body: { token, default_provider: defaultProvider || undefined },
-      });
+      return value;
+    }).filter(Boolean);
+  }
+
+  $("saveTokenBtn")?.addEventListener("click", async () => {
+    const button = $("saveTokenBtn");
+    const lines = prefixedTokenLines();
+    if (!lines.length) {
+      setStatus("请先在上面粘贴 Token，每行一个", false);
+      return;
+    }
+    button.disabled = true;
+    try {
+      let added = 0;
+      let skipped = 0;
+      for (const token of lines) {
+        try {
+          await api("/api/nai/token/add", {
+            method: "POST",
+            body: { token },
+          });
+          added += 1;
+        } catch (error) {
+          const message = String(error.message || error);
+          if (message.toLowerCase().includes("already exists")) {
+            skipped += 1;
+            continue;
+          }
+          throw error;
+        }
+      }
       $("settingsToken").value = "";
-      setStatus("生图账号池已保存", true);
+      const parts = [];
+      if (added) parts.push(`已加入 ${added} 个槽位`);
+      if (skipped) parts.push(`${skipped} 个已在账号池中`);
+      setStatus(parts.join("，") || "账号池没有变化", true);
       await load();
     } catch (error) {
       setStatus(error.message || String(error), false);
+      await load();
+    } finally {
+      button.disabled = false;
     }
   });
 
   $("checkTokenBtn")?.addEventListener("click", async () => {
+    const button = $("checkTokenBtn");
+    button.disabled = true;
     try {
       const result = await api("/api/nai/token/check", {
         method: "POST",
-        body: { remove_bad: true },
+        body: { remove_bad: false },
       });
-      setStatus((result.results || []).map((item) => item.message || item.label).join(" · ") || "检查完成", true);
-      await load();
+      const results = result.results || [];
+      results.forEach((item) => {
+        if (!item || !item.id) return;
+        slotChecks[item.id] = { ok: !!item.ok, message: item.message || "" };
+      });
+      renderTokenSlots(result);
+      const okCount = results.filter((item) => item.ok).length;
+      const badCount = results.length - okCount;
+      setStatus(
+        results.length
+          ? `检测完成：可用 ${okCount}，不可用 ${badCount}`
+          : "还没有可检测的槽位",
+        badCount === 0,
+      );
     } catch (error) {
       setStatus(error.message || String(error), false);
+    } finally {
+      button.disabled = false;
     }
   });
 

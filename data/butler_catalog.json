@@ -1,7 +1,18 @@
 {
   "skills": [
     {
+      "id": "help",
+      "desk": "sakiko",
+      "label": "使用教学",
+      "capabilities": [
+        "按主题讲解每个页面",
+        "检索本地知识库",
+        "说明是否耗 Token、要不要确认"
+      ]
+    },
+    {
       "id": "gallery",
+      "desk": "shared",
       "label": "图库检索",
       "capabilities": [
         "搜索作品",
@@ -11,24 +22,37 @@
     },
     {
       "id": "gallery_audit",
+      "desk": "sakiko",
       "label": "图库体检",
       "capabilities": [
-        "识别画面问题",
-        "核对图片状态",
-        "定位缺图与不足"
+        "核对缩略图和索引",
+        "定位缺图与不足",
+        "默认不识图"
       ]
     },
     {
-      "id": "collection",
-      "label": "收藏与待生成",
+      "id": "favorites",
+      "desk": "sakiko",
+      "label": "收藏管理",
       "capabilities": [
-        "查看和维护收藏",
-        "维护待生成清单",
-        "把清单作为批量任务输入"
+        "查看收藏",
+        "加入或移出收藏",
+        "跨三图库保持作品身份"
+      ]
+    },
+    {
+      "id": "queue",
+      "desk": "tomori",
+      "label": "待生成队列",
+      "capabilities": [
+        "查看待生成清单",
+        "加入、移出或清空",
+        "作为批量出图输入"
       ]
     },
     {
       "id": "remix",
+      "desk": "tomori",
       "label": "换角与换画风",
       "capabilities": [
         "理解角色槽位",
@@ -38,6 +62,7 @@
     },
     {
       "id": "references",
+      "desk": "tomori",
       "label": "NAI 角色资料",
       "capabilities": [
         "检索角色资料",
@@ -47,6 +72,7 @@
     },
     {
       "id": "studio",
+      "desk": "tomori",
       "label": "工作台",
       "capabilities": [
         "导入作品",
@@ -56,6 +82,7 @@
     },
     {
       "id": "generation",
+      "desk": "tomori",
       "label": "生成任务",
       "capabilities": [
         "单次生图",
@@ -65,6 +92,7 @@
     },
     {
       "id": "director",
+      "desk": "tomori",
       "label": "NAI 批量导演",
       "capabilities": [
         "批量去背景/线稿/草图",
@@ -74,15 +102,17 @@
     },
     {
       "id": "generated",
+      "desk": "shared",
       "label": "生成结果",
       "capabilities": [
-        "按来源系列整理",
-        "查看或确认删除成果",
-        "把本批精确交接给后处理"
+        "按来源系列查看",
+        "给后处理或投稿交接",
+        "删除成果只在客服台确认"
       ]
     },
     {
       "id": "pipeline",
+      "desk": "sakiko",
       "label": "后处理",
       "capabilities": [
         "投稿前补跑放大/打码/元数据",
@@ -92,6 +122,7 @@
     },
     {
       "id": "pixiv",
+      "desk": "tomori",
       "label": "投稿准备",
       "capabilities": [
         "整理多图",
@@ -101,6 +132,7 @@
     },
     {
       "id": "crawler",
+      "desk": "sakiko",
       "label": "采集与数据状态",
       "capabilities": [
         "理解采集进度与数据范围",
@@ -110,10 +142,12 @@
     },
     {
       "id": "operations",
-      "label": "账号与运营",
+      "desk": "sakiko",
+      "label": "账号、排障与知识库",
       "capabilities": [
-        "理解账号、分析和健康状态",
-        "敏感配置仅引导到专用页面"
+        "查看健康状态和日志",
+        "有限白名单改配置",
+        "增量重建使用说明知识库"
       ]
     }
   ],

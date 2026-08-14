@@ -11,7 +11,7 @@ Nai学长工作室的目标不是成为另一个通用生图界面，而是成�
 - [x] **v0.9 Public Preview**：本地图库、NAI 准入、Studio / 换角 / 生成队列、Pipeline、Pixiv 草稿
 - [x] **v1.3.0**（2026-08-12）：图库随机刷新、介绍区可收起、导航分组、构建期资源戳、一键 Windows 包
 - [x] **v1.4.0 修复版**（2026-08-13）：付费出图走任务队列、会话令牌 fail-closed、非 Windows 拒绝明文密钥、小镜三条车道、空库禁止采集、DOM 转义。不改已有本地图库用户的首页，也不另开漫画、剪辑或新客户端
-- [x] **升级版 v2.0.0 源码主干**（2026-08-13）：独立仓库 [`NaiXueZhang-Studio-Upgrade`](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade)。主入口 `/app`；分类 / 批量换角 / Pixiv 上传进工作区；`nai/`、`butler/` 模块拆分。一键包仍以稳定版 v1.4.0 为准，对照见 [docs/UPGRADE.md](docs/UPGRADE.md)
+- [x] **升级版 v1.5.0**（2026-08-14）：独立仓库 [`NaiXueZhang-Studio-Upgrade`](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade) 发布一键 Windows 包。主图库自选库 / Q群拖入文件夹并合并、侧栏两位助手、`/app` 工作区保留、`nai/` 与 `butler/` 模块拆分。对照见 [docs/UPGRADE.md](docs/UPGRADE.md)
 
 ## 可复现工作流
 

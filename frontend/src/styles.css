@@ -5,48 +5,41 @@
   font-family: var(--sans, "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif);
 }
 
-.ws-nav {
+.ws-pagehead {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 14px;
-  align-items: center;
-  padding: 10px 24px;
-  border-bottom: 1px solid var(--line, rgba(120, 180, 235, 0.14));
-  background: rgba(11, 13, 16, 0.92);
-  position: sticky;
-  top: 0;
-  z-index: 40;
+  align-items: baseline;
+  gap: 12px 16px;
+  padding: 14px 24px 0;
 }
 
-.ws-brand {
+.ws-pagehead h1 {
+  margin: 0;
+  font-size: 1.15rem;
   font-weight: 700;
-  color: var(--cyan, #5de4ff);
-  margin-right: 8px;
 }
 
-.ws-nav a,
-.ws-nav button.link {
-  color: #9eb4d0;
+.ws-back {
+  color: var(--cyan, #5de4ff);
   text-decoration: none;
   font-size: 0.88rem;
-  font-weight: 600;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
+  font-weight: 700;
 }
 
-.ws-nav a.active,
-.ws-nav button.link.active {
-  color: #fff;
-  background: rgba(76, 159, 255, 0.28);
+.ws-back:hover,
+.ws-back:focus-visible {
+  text-decoration: underline;
 }
 
-.ws-nav .legacy {
-  margin-left: auto;
+.ws-empty {
+  padding: 16px;
+  border: 1px dashed var(--line, rgba(120, 180, 235, 0.22));
+  border-radius: 12px;
   color: var(--muted, #93a5ba);
-  font-size: 0.8rem;
+}
+
+.ws-empty p {
+  margin: 0 0 10px;
 }
 
 .ws-main {

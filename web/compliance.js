@@ -194,8 +194,8 @@
       const info = await api("/api/settings/status").catch(() => null);
       const version = info && (info.version || info.app_version) ? (info.version || info.app_version) : "—";
       $("aboutInfo").innerHTML = `
-        Pixiv NAI Gallery（Nai学长工作室）· 版本 <strong>${esc(version)}</strong><br />
-        官方仓库：<a href="https://github.com/h1neolzr7f/pixiv-nai-gallery" target="_blank" rel="noopener">h1neolzr7f/pixiv-nai-gallery</a><br />
+        Nai学长工作室 · 升级版 · 版本 <strong>${esc(version)}</strong><br />
+        官方仓库：<a href="https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade" target="_blank" rel="noopener">h1neolzr7f/NaiXueZhang-Studio-Upgrade</a><br />
         License：MIT · 本软件按现状提供，使用者自行确认其行为符合适用法律与平台规则。
       `;
     } catch (e) {

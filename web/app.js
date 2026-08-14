@@ -142,7 +142,9 @@ function updateGallerySourceUi() {
   }
   setText('#galleryResultsHelp', online
     ? '单击打开详情与全部图片；可在同一详情页建立草稿、识别角色槽并换角。'
-    : '单击打开详情与全部图片；右侧灵感栏可直接送去生成、换角或队列。排序选「随机刷新」后点「换一批」，每次都能看到不同的图。');
+    : (window.GalleryDropFolders && window.GalleryDropFolders.isDropGallery()
+      ? '把图片拖进下方区域解析入库；每次拖入收成一个文件夹，可折叠、合并，并一键加入批量换角。'
+      : '单击打开详情与全部图片；右侧灵感栏可直接送去生成、换角或队列。排序选「随机刷新」后点「换一批」，每次都能看到不同的图。'));
   setText('#searchStatus span', online ? '正在读取 AITag 在线库…' : '正在读取本地图谱…');
   setText('#inspirationEmpty', online
     ? '单击在线作品查看详情与全部图片；在同一页面完成角色槽识别与换角'
@@ -184,6 +186,7 @@ function updateGallerySourceUi() {
     if (descZh) descZh.textContent = CONFIG.gallery_desc_zh || '从 Pixiv 搜索、画师与榜单发现候选图片；只有包含可验证 NovelAI 元数据的页面才会进入本地图库。Pixiv 标签用于分类，NAI 提示词标签另行解析并入库。';
     if (descEn) descEn.textContent = CONFIG.gallery_desc_en || 'Candidates come from Pixiv search, users, and rankings. Only pages with verified NovelAI metadata enter the local gallery; Pixiv tags and parsed NAI prompt tags remain separate.';
   }
+  try { window.GalleryDropFolders && window.GalleryDropFolders.sync(); } catch { }
 }
 
 function updateAdvancedFilterSummary() {
@@ -235,10 +238,23 @@ function applyGalleryParams(url) {
 function renderGalleryGroups(items) {
   if (!galleryGroupSel) return;
   const rows = Array.isArray(items) ? items : [];
+  const folders = rows.filter((it) => it.kind === 'folder');
   const groups = rows.filter((it) => it.kind === 'group');
   const accounts = rows.filter((it) => it.kind === 'account');
-  const html = ['<option value="">全部群组和账号</option>'];
-  if (groups.length) {
+  const allLabel = folders.length && groups.length
+    ? '全部文件夹、群组和账号'
+    : (folders.length ? '全部文件夹' : '全部群组和账号');
+  const html = [`<option value="">${allLabel}</option>`];
+  if (folders.length && !groups.length) {
+    folders.forEach((folder) => {
+      const key = String(folder.group_key || folder.label || '');
+      html.push(`<option value="${escapeHtml(folder.key || `group:${key}`)}">文件夹 · ${escapeHtml(folder.label || key)} (${Number(folder.count) || 0})</option>`);
+    });
+  } else if (groups.length) {
+    folders.forEach((folder) => {
+      const key = String(folder.group_key || folder.label || '');
+      html.push(`<option value="${escapeHtml(folder.key || `group:${key}`)}">文件夹 · ${escapeHtml(folder.label || key)} (${Number(folder.count) || 0})</option>`);
+    });
     groups.forEach((group) => {
       const groupKey = String(group.group_key || '');
       const label = String(group.label || groupKey);
@@ -368,6 +384,11 @@ async function loadGalleryHierarchy(
   if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
   if (requestGeneration !== galleryRequestGeneration || selected !== currentGalleryId()) return false;
   renderGalleryGroups(data.items || []);
+  try {
+    if (window.GalleryDropFolders && typeof window.GalleryDropFolders.refresh === "function") {
+      await window.GalleryDropFolders.refresh();
+    }
+  } catch { }
   return true;
 }
 
@@ -1045,8 +1066,10 @@ if (clearFiltersBtn) {
     if (sortModeSel2) sortModeSel2.value = resetSort;
     if (timeRangeSel) timeRangeSel.value = 'all';
     if (timeRangeSel2) timeRangeSel2.value = 'all';
+    if (galleryGroupSel) galleryGroupSel.value = '';
     resetOnlineAdvancedFilters();
     updateAdvancedFilterSummary();
+    try { updateGalleryLocation(); } catch { }
     triggerSearch();
     qInput.focus();
   });
@@ -1060,8 +1083,10 @@ if (clearFiltersPanelBtn) {
     if (sortModeSel2) sortModeSel2.value = resetSort;
     if (timeRangeSel) timeRangeSel.value = 'all';
     if (timeRangeSel2) timeRangeSel2.value = 'all';
+    if (galleryGroupSel) galleryGroupSel.value = '';
     resetOnlineAdvancedFilters();
     updateAdvancedFilterSummary();
+    try { updateGalleryLocation(); } catch { }
     triggerSearch();
     qInput.focus();
   });
@@ -1597,3 +1622,8 @@ async function fetchWorksListPage(page = state.page) {
 }
 
 galleryListRuntime.mount();
+
+window.currentGalleryId = currentGalleryId;
+window.loadGalleryHierarchy = loadGalleryHierarchy;
+window.triggerSearch = triggerSearch;
+window.fetchWorks = fetchWorks;

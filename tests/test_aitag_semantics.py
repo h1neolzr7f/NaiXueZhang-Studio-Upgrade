@@ -110,6 +110,68 @@ def test_cross_gender_swap_updates_subject_count_and_preserves_other_slot() -> N
     assert compiled["recipe"]["character"]["label"] == "Target boy"
 
 
+def test_online_oc_replace_writes_caption_and_keeps_slot_action() -> None:
+    detail = normalize_aitag_detail(
+        {
+            "id": "work-oc-swap",
+            "title": "Boy and woman",
+            "images": [
+                {
+                    "id": "image-oc",
+                    "aiJson": {
+                        "Software": "NovelAI",
+                        "Source": "NovelAI Diffusion V4.5",
+                        "Comment": {
+                            "prompt": "2people, indoors",
+                            "v4_prompt": {
+                                "caption": {
+                                    "base_caption": "2people, indoors",
+                                    "char_captions": [
+                                        {
+                                            "char_caption": "faceless boy, standing, black randoseru",
+                                            "centers": [{"x": 0.25, "y": 0.5}],
+                                        },
+                                        {
+                                            "char_caption": "woman, tall, big breasts, plump",
+                                            "centers": [{"x": 0.75, "y": 0.5}],
+                                        },
+                                    ],
+                                }
+                            },
+                        },
+                    },
+                }
+            ],
+        }
+    )
+    oc = {
+        "id": "feijibei",
+        "name": "费济北",
+        "label": "费济北",
+        "gender": "male",
+        "kind": "oc",
+        "identity": ["1boy", "male_focus"],
+        "char_caption": "1boy, 18 years old, slim, youthful, black hair",
+    }
+
+    compiled = compile_aitag_studio_draft(
+        detail,
+        image_index=0,
+        slot_index=0,
+        target_record=oc,
+        target_reference_id="preset:male:feijibei",
+    )
+
+    slots = compiled["draft"]["comment"]["v4_prompt"]["caption"]["char_captions"]
+    first = slots[0]["char_caption"]
+    assert "18 years old" in first
+    assert "slim" in first
+    assert "standing" in first
+    assert "faceless boy" not in first
+    assert slots[1]["char_caption"] == "woman, tall, big breasts, plump"
+    assert compiled["draft"]["reference"]["referenceId"] == "preset:male:feijibei"
+
+
 def test_ai_json_software_and_source_are_novelai_qualification_evidence() -> None:
     work = normalize_aitag_work(
         {

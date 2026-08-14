@@ -267,6 +267,15 @@ def _upsert_full(
     crawled_at: str,
     commit: bool,
 ) -> None:
+    existing = db.conn.execute(
+        "SELECT create_date FROM works WHERE id = ?",
+        (work_id,),
+    ).fetchone()
+    if existing and existing["create_date"]:
+        item["create_date"] = existing["create_date"]
+        work = detail.get("work")
+        if isinstance(work, dict):
+            work["create_date"] = existing["create_date"]
     list_json = json.dumps(item, ensure_ascii=False)
     detail_json = compress_text(json.dumps(detail, ensure_ascii=False))
     rel = preview_rel.replace("\\", "/")

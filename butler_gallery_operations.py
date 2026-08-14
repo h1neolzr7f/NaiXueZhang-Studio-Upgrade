@@ -272,16 +272,31 @@ def _ensure_work(gallery_id: str, work_id: int) -> None:
 def execute_read(name: str, args: dict[str, Any]) -> dict[str, Any]:
     """Execute a normalized read operation."""
     if name == "inspect_capabilities":
+        from butler.agents import agent_record, agent_tools
+
+        allowed = agent_tools()
+        record = agent_record() or {}
+        specs = [spec for spec in _SPECS if not allowed or spec.name in allowed]
         by_category: dict[str, list[str]] = {}
-        for spec in _SPECS:
+        for spec in specs:
             by_category.setdefault(spec.category, []).append(spec.label)
+        other = str(record.get("handoff") or "")
+        agent_name = str(record.get("name") or "助手")
         return {
             "ok": True,
             "tool": name,
-            "supported": len(_SPECS),
+            "agent": str(record.get("id") or ""),
+            "supported": len(allowed) if allowed is not None else len(_SPECS),
             "categories": by_category,
+            "tools": sorted(allowed) if allowed is not None else [spec.name for spec in _SPECS],
             "protected": list(PROTECTED_OPERATIONS),
-            "message": f"助手已接入 {len(_SPECS)} 项图库操作；敏感操作仍需专用页面人工完成。",
+            "message": (
+                f"{agent_name}只负责{record.get('duty') or '当前工作台'}，白名单 {len(allowed or specs)} 项；"
+                f"越权操作请切换到另一位助手。"
+                if record
+                else f"助手已接入 {len(_SPECS)} 项图库操作；敏感操作仍需专用页面人工完成。"
+            ),
+            "handoff": other,
         }
     if name == "list_favorites":
         from favorites import list_refs

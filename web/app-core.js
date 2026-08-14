@@ -1062,6 +1062,18 @@ function updateNoResultVisibility() {
     // 有数据但全被前端规则（黑名单 / NAI_X / 疑似无效 TAG）挡住时，说明原因而非谎称「无结果」
     if (visible === 0 && (state.items || []).length > 0) {
       setNoResultMessage('本页作品均被当前屏蔽/隐藏规则过滤。可在设置中调整黑名单，或打开「显示 NAI_X / 疑似无效 TAG」。');
+    } else if (visible === 0 && state.favoritesMode) {
+      setNoResultMessage('暂无收藏作品');
+    } else if (visible === 0 && state.queueMode) {
+      setNoResultMessage('待生成队列为空');
+    } else if (visible === 0 && window.GalleryDropFolders && window.GalleryDropFolders.isDropGallery()) {
+      const grouped = typeof currentGalleryGroup === "function" && currentGalleryGroup();
+      const hasQuery = !!(state.q || state.prompt || grouped);
+      setNoResultMessage(hasQuery
+        ? "无搜索结果。可清空条件，或把图片拖进上方区域新建文件夹。"
+        : "还没有作品。把带 NovelAI 元数据的图片拖进这块区域，会收成一个文件夹。");
+    } else if (visible === 0) {
+      setNoResultMessage(t('no_results'));
     }
   } catch { }
 }
@@ -1424,6 +1436,7 @@ function applyListShelfModeUi({ modeClass, title, description, emptyText }) {
   document.querySelector('.gallery-source-bar')?.classList.add('hidden');
   const empty = document.getElementById('inspirationEmpty');
   if (empty && emptyText) empty.textContent = emptyText;
+  try { window.GalleryDropFolders && window.GalleryDropFolders.sync(); } catch { }
 }
 
 function applyFavoritesModeUi() {

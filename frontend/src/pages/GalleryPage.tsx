@@ -279,6 +279,9 @@ export function GalleryPage({ search }: { search: string }) {
           <span className="ws-status">{loading ? "加载中…" : `共 ${data.total ?? items.length} 条`}</span>
         </div>
         {error ? <p className="ws-status err">{error}</p> : null}
+        {!loading && items.length === 0 ? (
+          <p className="ws-status">这里还没有作品。用上面的搜索框查找，或点导航「爬虫」采集新图。</p>
+        ) : null}
         <div className="ws-grid">
           {items.map((item) => {
             const workId = workIdOf(item.work_id ?? item.id);
@@ -301,11 +304,6 @@ export function GalleryPage({ search }: { search: string }) {
                   <button className="link" type="button" onClick={() => workId && navigate(studioPath(workId, gid))}>
                     {item.title || `#${workId}`}
                   </button>
-                  {workId ? (
-                    <a href={`/i/${encodeURIComponent(workId)}${gid !== "site" ? `?gallery=${encodeURIComponent(gid)}` : ""}`}>
-                      详情
-                    </a>
-                  ) : null}
                 </div>
               </article>
             );
@@ -343,7 +341,7 @@ export function GalleryPage({ search }: { search: string }) {
             </div>
           </>
         ) : (
-          <p className="ws-status">点选一张图查看筛选后的作品，并从这里进工作台或换角。经典图库仍保留完整 atlas。</p>
+          <p className="ws-status">点一张图，右侧会显示它。然后可以去工作台出图，或去换角。</p>
         )}
       </aside>
     </section>

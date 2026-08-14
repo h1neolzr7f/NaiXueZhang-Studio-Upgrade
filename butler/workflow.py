@@ -44,6 +44,23 @@ async def submit_butler_chat(
     image: Any = None,
     intent: str = "",
     comparison: Any = None,
+    agent: str = "",
+) -> dict[str, Any]:
+    from butler.agents import reset_current_agent, set_current_agent
+
+    token = set_current_agent(agent)
+    try:
+        return await _submit_butler_chat(message, history, image, intent, comparison)
+    finally:
+        reset_current_agent(token)
+
+
+async def _submit_butler_chat(
+    message: str,
+    history: Any = None,
+    image: Any = None,
+    intent: str = "",
+    comparison: Any = None,
 ) -> dict[str, Any]:
     preplanned = None
     clean_intent = str(intent or "").strip().lower()
@@ -61,6 +78,15 @@ async def submit_butler_chat(
                 ]
                 source_line = f"\n依据：{'、'.join(sources)}" if sources else ""
                 reply = f"{help_answer['answer']}{source_line}\n入口：{help_answer['page']}"
+                from butler.agents import agent_record
+
+                record = agent_record() or {}
+                if record.get("id") == "tomori":
+                    other = "客服小祥"
+                    reply = (
+                        f"用法这摊是{other}的工作台。我先把说明转给你：\n"
+                        f"{reply}\n完整教学请切到{other}。"
+                    )
                 model = "local"
             else:
                 with usage_scope(answer_id):

@@ -123,10 +123,14 @@ export function ButlerPage() {
     });
   }
 
-  async function send(event?: FormEvent, extras?: { intent?: string; comparison?: CompareCandidate[] }) {
+  async function send(event?: FormEvent, extras?: { intent?: string; comparison?: CompareCandidate[]; text?: string }) {
     event?.preventDefault();
     const comparison = extras?.comparison;
-    const message = draft.trim() || (attachment ? "请看这张图片，说明画面内容并给我具体建议。" : "") || (comparison ? "请比较这些固定候选。" : "");
+    const message =
+      (extras?.text || "").trim() ||
+      draft.trim() ||
+      (attachment ? "请看这张图片，说明画面内容并给我具体建议。" : "") ||
+      (comparison ? "请比较这些固定候选。" : "");
     if (!message || busy) return;
     setDraft("");
     setBusy(true);
@@ -206,7 +210,8 @@ export function ButlerPage() {
   return (
     <section className="ws-split">
       <div className="ws-panel">
-        <h2>小镜</h2>
+        <h2>助手能帮你做什么</h2>
+        <p className="ws-status">客服小祥负责维护和教学，助手凑企鹅负责出图。涉及生图、写入或投稿时会先问你确认。</p>
         <ul className="ws-status">
           <li>AI：{status?.ai?.configured ? `${status.ai.provider || ""} ${status.ai.model || ""}` : "未配置"}</li>
           <li>出图 Token：{status?.generation?.configured ? "已配置" : "未配置"}</li>
@@ -275,11 +280,29 @@ export function ButlerPage() {
           </div>
         ) : null}
         <a className="ws-status" href="/butler">
-          打开经典小镜
+          需要形象和完整任务面板时，打开完整助手
         </a>
       </div>
       <div className="ws-panel">
         <div className="ws-chat" aria-live="polite">
+          {messages.length === 0 ? (
+            <div className="ws-empty">
+              <p>还没有对话。可以试试：</p>
+              <div className="ws-actions">
+                {["帮我看看图库里有什么", "这张图怎么改更好看", "比较这两张哪个更适合发"].map((hint) => (
+                  <button
+                    key={hint}
+                    className="ws-btn ghost"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void send(undefined, { text: hint })}
+                  >
+                    {hint}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {messages.map((item, index) => (
             <div key={item.id || index} className={"ws-bubble " + (item.role === "user" ? "user" : "assistant")}>
               {item.preview ? <img src={item.preview} alt="" /> : null}
@@ -349,7 +372,7 @@ export function ButlerPage() {
             rows={3}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="给小镜下达任务或提问…"
+            placeholder="给客服小祥或助手凑企鹅下达任务或提问…"
             disabled={busy}
           />
           <div className="ws-actions">

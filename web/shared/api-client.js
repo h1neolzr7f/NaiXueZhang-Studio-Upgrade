@@ -96,8 +96,15 @@
       timeoutMs: opts.timeoutMs,
     };
     if (opts.body !== undefined) {
-      init.headers["Content-Type"] = init.headers["Content-Type"] || "application/json";
-      init.body = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
+      const isForm = typeof FormData !== "undefined" && opts.body instanceof FormData;
+      if (isForm) {
+        init.body = opts.body;
+        delete init.headers["Content-Type"];
+        delete init.headers["content-type"];
+      } else {
+        init.headers["Content-Type"] = init.headers["Content-Type"] || "application/json";
+        init.body = typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body);
+      }
     }
     const res = await raw(path, init);
     const contentType = res.headers.get("content-type") || "";

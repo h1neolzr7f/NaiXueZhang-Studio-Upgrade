@@ -1,5 +1,5 @@
 (function () {
-  const PLUGIN_URL = "/assets/plugins/char-swap/plugin.js?v=c8ac91e2e1";
+  const PLUGIN_URL = "/assets/plugins/char-swap/plugin.js?v=838915f997";
   let loadGeneration = 0;
 
   function normalizeWorkId(value) {
@@ -32,6 +32,15 @@
   function currentGalleryId() {
     const params = new URLSearchParams(window.location.search);
     return params.get("gallery") || params.get("gallery_id") || "site";
+  }
+
+  function isOnlineGallery(galleryId) {
+    return String(galleryId || "").trim().toLowerCase() === "aitag-online";
+  }
+
+  function redirectOnlineWork(workId) {
+    const id = encodeURIComponent(String(workId || "").trim());
+    window.location.replace(`/i/${id}?gallery=aitag-online#onlineRemixPanel`);
   }
 
   function syncLoadedWorkContext(workId, galleryId) {
@@ -74,6 +83,10 @@
     const gid = galleryId || "site";
     const wid = normalizeWorkId(workId);
     if (!wid) throw new Error("请输入有效的作品 ID");
+    if (isOnlineGallery(gid)) {
+      redirectOnlineWork(wid);
+      return false;
+    }
     const requestGeneration = ++loadGeneration;
     setLoading(true);
     setStatus(`正在载入作品 #${wid}…`, false);
@@ -125,9 +138,17 @@
   async function boot() {
     bind();
     const params = new URLSearchParams(window.location.search);
-    let workId = normalizeWorkId(params.get("from") || params.get("work_id") || params.get("id") || params.get("target_work_id"));
+    let workId = normalizeWorkId(params.get("from") || params.get("work") || params.get("work_id") || params.get("id") || params.get("target_work_id"));
     let galleryId = params.get("gallery") || params.get("gallery_id");
     if (!galleryId) galleryId = "site";
+    if (isOnlineGallery(galleryId)) {
+      if (workId) {
+        redirectOnlineWork(workId);
+        return;
+      }
+      setStatus("在线灵感库请打开作品详情后使用「角色换角」。本地换角页不加载在线作品。", true);
+      return;
+    }
     if (workId) {
       const input = document.getElementById("remixWorkId");
       if (input) input.value = String(workId);

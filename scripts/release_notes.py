@@ -71,8 +71,8 @@ Get-FileHash -Algorithm SHA256 .\\{zip_path.name}
 
 ### 官方仓库
 
+- 升级版发布页：https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases
 - 稳定版发布页：https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases
-- 升级版源码：https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade
 - 反馈：请提交 Issue（避免在公开渠道披露凭据等敏感信息）
 """
     print(notes)

@@ -8,8 +8,8 @@
   <link rel="stylesheet" href="/assets/local.css?v=2e0bfcbad7" />
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
   <link rel="stylesheet" href="/assets/core-theme.css?v=0158aeb657" />
-  <link rel="stylesheet" href="/assets/gallery-atlas.css?v=a4977b50f0" />
-  <link rel="stylesheet" href="/assets/studio-theme.css?v=726f16a66a" />
+  <link rel="stylesheet" href="/assets/gallery-atlas.css?v=4233544a88" />
+  <link rel="stylesheet" href="/assets/studio-theme.css?v=51de05869a" />
   <style>
     .codex-wrap { max-width: 1080px; margin: 0 auto; padding: 24px 18px 64px; }
     h1 { font-size: 22px; margin: 8px 0 2px; }
@@ -47,7 +47,7 @@
   <nav id="siteNav"></nav>
   <main class="codex-wrap">
     <h1>自选库</h1>
-    <p class="sub">本地图片拖入导入：只收含 NovelAI 元数据的图片，每次拖入指定一个「小类」归档。点击缩略图打开详情与创作入口。</p>
+    <p class="sub">本地图片拖入导入：只收含 NovelAI 元数据的图片。不选小类时，每次拖入会自动收成一个新文件夹。点击缩略图打开详情与创作入口。</p>
 
     <div class="drop-row">
       <label>小类：</label>
@@ -67,9 +67,9 @@
     <p class="muted" id="codexEmpty" hidden>自选库还没有作品——拖入第一批图片吧。</p>
   </main>
 
-  <script src="/assets/shared/api-client.js?v=96524289cc"></script>
-  <script src="/assets/shared/site-nav.js?v=dc348bd777"></script>
-  <script src="/assets/shared/quick-dock.js?v=bbc9c81e12"></script>
+  <script src="/assets/shared/api-client.js?v=2a8a70c746"></script>
+  <script src="/assets/shared/site-nav.js?v=fe86cea773"></script>
+  <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
   <script>
   (() => {
     "use strict";
@@ -102,7 +102,7 @@
 
     function currentCategory() {
       return (byId("codexNewCategory").value.trim() ||
-        byId("codexCategory").value || "").trim() || "未分类";
+        byId("codexCategory").value || "").trim();
     }
 
     async function uploadFiles(files) {
@@ -110,7 +110,9 @@
       const box = byId("codexResult");
       box.hidden = false;
       box.className = "result-box";
-      box.textContent = `正在解析 ${files.length} 张图片 → 小类「${category}」…`;
+      box.textContent = category
+        ? `正在解析 ${files.length} 张图片 → 小类「${category}」…`
+        : `正在解析 ${files.length} 张图片，将收成一个新文件夹…`;
       const form = new FormData();
       form.append("category", category);
       for (const file of files) form.append("files", file);
@@ -118,8 +120,10 @@
         const payload = await request(`/api/gallery/${GID}/import-drop`, { method: "POST", body: form });
         const accepted = payload.accepted || [];
         const rejected = payload.rejected || [];
+        const folder = payload.folder || payload.category || category || "";
         const lines = [];
-        for (const item of accepted) lines.push(`✓ ${item.file} → 入库（${item.category}）`);
+        if (folder) lines.push(`文件夹「${folder}」`);
+        for (const item of accepted) lines.push(`✓ ${item.file} → 入库（${item.category || folder}）`);
         for (const item of rejected) lines.push(`✗ ${item.file} → ${item.reason}`);
         box.className = "result-box " + (accepted.length ? "ok" : "fail");
         box.textContent = lines.length ? lines.join("\n") : "（没有可处理的文件）";
@@ -128,6 +132,11 @@
         box.className = "result-box fail";
         box.textContent = `导入失败：${error.message || String(error)}`;
       }
+    }
+
+    function folderKeyOf(item) {
+      const raw = String((item && (item.group_key || item.label || item.key)) || "").trim();
+      return raw.startsWith("group:") ? raw.slice(6) : raw;
     }
 
     async function loadFacets() {
@@ -141,7 +150,7 @@
       all.addEventListener("click", () => { selectedCategory = ""; refresh(); });
       row.append(all);
       for (const item of items) {
-        const key = String(item.key ?? item.label ?? item.name ?? item.category ?? "").trim();
+        const key = folderKeyOf(item);
         if (!key) continue;
         const label = String(item.label ?? item.name ?? key);
         const chip = document.createElement("button");
@@ -157,7 +166,7 @@
       placeholder.textContent = "（选择已有小类）";
       select.append(placeholder);
       for (const item of items) {
-        const key = String(item.key ?? item.label ?? item.name ?? item.category ?? "").trim();
+        const key = folderKeyOf(item);
         if (!key) continue;
         const label = String(item.label ?? item.name ?? key);
         const option = document.createElement("option");

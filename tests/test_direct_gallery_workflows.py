@@ -9,11 +9,14 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def test_small_mirror_and_character_swap_stay_in_primary_nav():
+def test_character_swap_stays_in_primary_and_full_chats_live_under_more():
     nav = read("web/shared/site-nav.js")
     primary = nav.split("const NAV_SECONDARY", 1)[0]
-    assert '{ href: "/app/butler", id: "butler", label: "小镜" }' in primary
-    assert '{ href: "/app/remix", id: "remix", label: "换角" }' in primary
+    assert '{ href: "/queue", id: "queue", label: "待生成" }' in primary
+    assert '{ href: "/remix", id: "remix", label: "换角" }' in primary
+    assert "butler-sakiko" not in primary
+    assert '{ href: "/butler?agent=sakiko", id: "butler-sakiko", label: "客服小祥", group: "对话" }' in nav
+    assert '{ href: "/butler?agent=tomori", id: "butler-tomori", label: "助手凑企鹅", group: "对话" }' in nav
 
 
 def test_gallery_switch_is_visible_and_race_guarded():
@@ -109,6 +112,10 @@ def test_remix_manual_loader_is_keyboard_safe_and_keeps_current_context():
     assert "window.WorkBridge.save" in remix
     gallery_line = next(line for line in remix.splitlines() if "let galleryId =" in line)
     assert 'params.get("group")' not in gallery_line
+    assert "isOnlineGallery" in remix
+    assert "redirectOnlineWork" in remix
+    assert "aitag-online#onlineRemixPanel" in remix
+    assert "本地换角页不加载在线作品" in remix
 
 
 def test_character_editor_leads_with_detected_slots_and_reports_initialization_failure():

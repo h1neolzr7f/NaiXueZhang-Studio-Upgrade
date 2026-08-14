@@ -2,7 +2,7 @@ Nai学长工作室 发行包说明
 ============================
 
 1. 本项目是非官方工具，与 pixiv Inc.、NovelAI（Anlatan Inc.）及其他第三方平台不存在隶属、授权或合作关系。
-2. 发行包只包含程序、空数据库和公开配置示例，不包含爬取的 Pixiv 图片、用户图库或生成结果。
+2. 发行包包含程序、空数据库、公开配置示例，以及侧栏助手的 Live2D 立绘。不包含爬取的 Pixiv 图片、用户图库或生成结果。代码的 MIT 许可不授予角色或造型权利。
 3. 不包含 refresh_token、access_token、API Key、Cookie、收藏、发布记录、用户偏好、采集断点或本地回收区。
 4. 软件默认仅监听 127.0.0.1；NovelAI Token 与 Pixiv refresh_token 在 Windows 上使用 DPAPI 加密保存在本机。
 5. 代码按 MIT License 发布。代码许可不授予任何第三方图片、Prompt、角色、商标或平台数据的权利。
@@ -12,6 +12,6 @@ Nai学长工作室 发行包说明
 9. 文件名带 one-click-windows 的便携包额外包含 CPython 和锁定依赖；完整解压后双击“一键启动.bat”即可运行。
 10. 官方 Release 应同时公布版本、Commit SHA 和发布包 SHA-256。任何其他来源或不同哈希的构建均应视为第三方版本。
 
-官方仓库（稳定版 Releases）：https://github.com/h1neolzr7f/NaiXueZhang-Studio
-升级版源码仓库：https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade
+升级版 v1.5.0 Releases：https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases
+稳定版 v1.4.0 Releases：https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases
 完整条款：DISCLAIMER.md / RESPONSIBLE_USE.md / SECURITY.md

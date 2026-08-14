@@ -159,7 +159,7 @@ export function DirectorPage() {
       ))}
       {batch?.status ? <p className="ws-status">当前任务 {batch.status} {batch.message || ""}</p> : null}
       <p className="ws-status">
-        表情/线稿等完整参数仍在 <a href="/director">经典导演台</a>。
+        表情/线稿等完整参数请打开 <a href="/director">导演台详情</a>。
       </p>
       {notice ? <p className="ws-status ok">{notice}</p> : null}
       {error ? <p className="ws-status err">{error}</p> : null}

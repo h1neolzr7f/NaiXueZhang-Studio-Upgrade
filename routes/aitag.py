@@ -6,7 +6,7 @@ import math
 import threading
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Mapping
 
 from fastapi import APIRouter, Body, HTTPException, Query, Response
 
@@ -238,9 +238,12 @@ def _detail_payload(detail: AitagWorkDetail) -> dict[str, Any]:
     work["external_url"] = f"https://aitag.win/i/{work['work_id']}"
     work["title"] = strip_aitag_html(work.get("title") or work["work_id"])
     images = []
-    for image in detail.images:
+    for image_index, image in enumerate(detail.images):
         data = image.to_dict()
         data["id"] = data["image_id"]
+        # Always 0-based array index. Do not reuse remote page numbers here —
+        # draft/generate APIs index detail.images the same way.
+        data["page_index"] = image_index
         data["remote_url"] = data.get("url") or data.get("thumbnail_url") or ""
         proxy_url = _image_proxy_url(image)
         if proxy_url:
@@ -322,8 +325,11 @@ def _builtin_target_record(target_reference_id: str) -> dict[str, Any] | None:
         if str(value).strip()
     ]
     caption = str(item.get("char_caption") or "").strip()
-    if caption:
+    preset_kind = str(item.get("kind") or "").strip().lower()
+    if caption and preset_kind != "oc":
         appearance.extend(value.strip() for value in caption.replace("\n", ",").split(",") if value.strip())
+    if caption:
+        preset_kind = preset_kind or "oc"
     trigger = next(
         (value for value in identity if value not in {"1girl", "1boy", "female_focus", "male_focus", "original_character"}),
         str(item.get("tag") or "").strip(),
@@ -334,13 +340,51 @@ def _builtin_target_record(target_reference_id: str) -> dict[str, Any] | None:
         "name": str(item.get("label") or item_id),
         "character": str(item.get("label") or item_id),
         "gender": gender,
+        "kind": preset_kind,
+        "char_caption": caption,
         "trigger": trigger,
         "identity": identity,
         "appearance": appearance,
+        "body": [str(value).strip() for value in item.get("body") or [] if str(value).strip()],
         "core_tags": [*identity, *appearance],
         "source": "builtin-preset" if kind == "preset" else "builtin-ark-library",
         "source_id": item_id,
     }
+
+
+def _merge_catalog_target_record(item: Mapping[str, Any], target_reference_id: str) -> dict[str, Any]:
+    """Keep custom OC captions whole; named catalog records still use Anima fields."""
+
+    raw = item.get("raw") if isinstance(item.get("raw"), Mapping) else {}
+    merged = dict(raw)
+    caption = str(
+        merged.get("char_caption")
+        or item.get("char_caption")
+        or item.get("character_caption")
+        or ""
+    ).strip()
+    gender = str(merged.get("gender") or item.get("gender") or "").strip().lower()
+    kind = str(merged.get("kind") or item.get("kind") or "").strip().lower()
+    source = str(item.get("source") or merged.get("source") or "").strip().lower()
+    is_custom = bool(item.get("is_custom") or merged.get("is_custom") or source == "custom")
+    if caption and (kind == "oc" or is_custom):
+        merged["kind"] = "oc"
+        merged["char_caption"] = caption
+        merged["is_custom"] = True
+    elif caption and "character_caption" not in merged:
+        merged["character_caption"] = caption
+    merged["reference_id"] = target_reference_id
+    if not merged.get("name"):
+        merged["name"] = str(item.get("label") or item.get("name") or "")
+    if not merged.get("character"):
+        merged["character"] = str(item.get("label") or merged.get("name") or "")
+    if gender:
+        merged["gender"] = gender
+    if item.get("trigger") and not merged.get("trigger"):
+        merged["trigger"] = item.get("trigger")
+    if item.get("identity") and not merged.get("identity"):
+        merged["identity"] = list(item.get("identity") or [])
+    return merged
 
 
 @router.get("/status")
@@ -758,10 +802,10 @@ def api_aitag_draft(work_id: str, payload: dict = Body(default_factory=dict)) ->
         target_record = _builtin_target_record(target_reference_id)
         if target_record is None:
             item = get_reference_catalog().get(target_reference_id)
-            if item is None:
+            if not isinstance(item, dict):
                 raise HTTPException(status_code=404, detail="Target character reference was not found")
-            target_record = item.get("raw") if isinstance(item, dict) else None
-            if not isinstance(target_record, dict):
+            target_record = _merge_catalog_target_record(item, target_reference_id)
+            if not target_record:
                 raise HTTPException(status_code=400, detail="Target character reference is invalid")
     # Only accept explicit gender_scope — do not reuse payload "gender" (target gender).
     gender_scope = str(payload.get("gender_scope") or "").strip().lower()

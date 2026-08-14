@@ -1,7 +1,7 @@
 (function () {
   if (window.__AITAG_DETAIL_HOOKS__) return;
   window.__AITAG_DETAIL_HOOKS__ = true;
-  const PLUGIN_URL = "/assets/plugins/char-swap/plugin.js?v=c8ac91e2e1";
+  const PLUGIN_URL = "/assets/plugins/char-swap/plugin.js?v=838915f997";
   const STYLE_URL = "/assets/plugins/char-swap/char-swap.css?v=220e25d883";
   let pluginPromise = null;
 

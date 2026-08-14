@@ -1,22 +1,22 @@
 (function () {
   // Product IA: gallery assets first, production surfaces second, ops last.
   const NAV_PRIMARY = [
-    { href: "/app", id: "gallery", label: "图库" },
-    { href: "/app/generated", id: "generated", label: "生成库" },
-    { href: "/app/studio", id: "studio", label: "工作台" },
-    { href: "/app/butler", id: "butler", label: "小镜" },
-    { href: "/app/remix", id: "remix", label: "换角" },
-    { href: "/app/progress", id: "progress", label: "爬虫" },
-    { href: "/app/tags", id: "nai-tags", label: "分类" },
-    { href: "/app/pixiv", id: "pixiv", label: "发布" },
+    { href: "/", id: "gallery", label: "图库" },
+    { href: "/generated", id: "generated", label: "生成库" },
+    { href: "/studio", id: "studio", label: "工作台" },
+    { href: "/remix", id: "remix", label: "换角" },
+    { href: "/queue", id: "queue", label: "待生成" },
+    { href: "/progress", id: "progress", label: "爬虫" },
+    { href: "/nai-tags", id: "nai-tags", label: "分类" },
+    { href: "/pixiv", id: "pixiv", label: "发布" },
   ];
   const NAV_SECONDARY = [
-    { href: "/queue", id: "queue", label: "待生成", group: "创作" },
+    { href: "/butler?agent=sakiko", id: "butler-sakiko", label: "客服小祥", group: "对话" },
+    { href: "/butler?agent=tomori", id: "butler-tomori", label: "助手凑企鹅", group: "对话" },
     { href: "/director", id: "director", label: "导演台", group: "创作" },
     { href: "/favorites", id: "favorites", label: "收藏", group: "创作" },
     { href: "/references", id: "references", label: "参考库", group: "创作" },
     { href: "/codex", id: "codex", label: "自选库", group: "创作" },
-    { href: "/", id: "classic", label: "经典图库", group: "创作" },
     { href: "/pipeline", id: "pipeline", label: "后处理", group: "管理" },
     { href: "/tag-assets", id: "tag-assets", label: "本地资产", group: "管理" },
     { href: "/settings", id: "settings", label: "设置", group: "系统" },
@@ -29,7 +29,11 @@
     const p = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
     if (p.startsWith("/app/studio") || p.startsWith("/studio")) return "studio";
     if (p.startsWith("/app/generated") || p.startsWith("/generated")) return "generated";
-    if (p.startsWith("/app/butler") || p.startsWith("/butler")) return "butler";
+    if (p.startsWith("/app/butler") || p.startsWith("/butler")) {
+      const search = String((window.location && window.location.search) || "");
+      const match = search.match(/[?&]agent=([^&]*)/);
+      return match && match[1] === "tomori" ? "butler-tomori" : "butler-sakiko";
+    }
     if (p.startsWith("/app/settings") || p.startsWith("/settings")) return "settings";
     if (p.startsWith("/app/remix") || p.startsWith("/remix")) return "remix";
     if (p.startsWith("/app/progress") || p.startsWith("/progress")) return "progress";
@@ -39,8 +43,7 @@
     if (p.startsWith("/app/tags") || p.startsWith("/nai-tags")) return "nai-tags";
     if (p.startsWith("/app/ops") || p.startsWith("/ops")) return "ops";
     if (p.startsWith("/app/compliance") || p.startsWith("/compliance")) return "compliance";
-    if (p === "/") return "classic";
-    if (p.startsWith("/i/") || p === "/app" || p.startsWith("/app")) return "gallery";
+    if (p === "/" || p.startsWith("/i/") || p === "/app") return "gallery";
     if (p.startsWith("/references")) return "references";
     if (p.startsWith("/favorites")) return "favorites";
     if (p.startsWith("/queue")) return "queue";
@@ -56,6 +59,25 @@
     return "";
   }
 
+  function remixHref() {
+    try {
+      const p = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
+      const match = p.match(/^\/i\/([^/]+)$/);
+      if (!match) return "/remix";
+      const search = String((window.location && window.location.search) || "");
+      if (!/(?:^|[?&])gallery(?:_id)?=aitag-online(?:&|$)/i.test(search)) return "/remix";
+      const encode = typeof encodeURIComponent === "function" ? encodeURIComponent : String;
+      return `/i/${encode(match[1])}?gallery=aitag-online#onlineRemixPanel`;
+    } catch (_) {
+      return "/remix";
+    }
+  }
+
+  function itemHref(item) {
+    if (item && item.id === "remix") return remixHref();
+    return item.href;
+  }
+
   function appendItems(el, items, active) {
     let lastGroup = "";
     items.forEach((item) => {
@@ -68,7 +90,7 @@
         el.appendChild(heading);
       }
       const a = document.createElement("a");
-      a.href = item.href;
+      a.href = itemHref(item);
       a.textContent = item.label;
       a.dataset.navId = item.id;
       if (item.id === active) {
@@ -82,6 +104,7 @@
   function mountNav(host) {
     const el = host || document.getElementById("siteNav");
     if (!el) return;
+    if (typeof el.removeAttribute === "function") el.removeAttribute("aria-hidden");
     if (typeof el._siteNavCleanup === "function") el._siteNavCleanup();
     const active = currentNavId();
     el.className = "site-nav";
@@ -144,7 +167,7 @@
     el.appendChild(spacer);
     const note = document.createElement("span");
     note.className = "nav-note";
-    note.textContent = "本地图库资产 · 再创作流水线";
+    note.textContent = "本地图库资产 · 点「图库」随时回来";
     el.appendChild(note);
   }
 
@@ -213,9 +236,24 @@
     SECONDARY: NAV_SECONDARY,
   };
 
+  function loadCompanionDock() {
+    const path = (window.location.pathname || "").replace(/\/+$/, "") || "/";
+    if (path === "/butler" || path.startsWith("/app/butler")) return;
+    if (document.querySelector("script[data-companion-dock]")) return;
+    const script = document.createElement("script");
+    script.src = "/assets/shared/companion-dock.js?v=ab14b1b2ff";
+    script.dataset.companionDock = "1";
+    script.async = true;
+    document.head.appendChild(script);
+  }
+
   function start() {
     mountNav();
+    loadCompanionDock();
     mountResponsibilityNotice();
+  }
+  if (typeof window.addEventListener === "function") {
+    window.addEventListener("popstate", () => mountNav());
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();

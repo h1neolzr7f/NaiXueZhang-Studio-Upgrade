@@ -3,14 +3,16 @@ import hashlib
 import json
 import sys
 import tempfile
+import threading
 import time
 import subprocess
+from datetime import datetime
 from typing import Any
 from pathlib import Path
 import httpx
 
-from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from server_shared import (
@@ -56,6 +58,7 @@ from scripts.gallery_import_common import (
     stable_work_id,
     upsert_local_work,
 )
+from db_compression import compress_text, decompress_if_needed
 from user_prefs import load_prefs
 from static_asset_security import is_disallowed_web_asset
 from gallery_catalog import (
@@ -150,7 +153,104 @@ def api_gallery_groups(gallery_id: str) -> dict:
 
 
 _DROP_MAX_BYTES = 64 * 1024 * 1024
+_DROP_MAX_FILES = 250
+_DROP_MAX_TOTAL_BYTES = 512 * 1024 * 1024
 _DROP_GALLERIES = frozenset({"codex", "qqgroup"})
+_DROP_LOCKS_GUARD = threading.Lock()
+_DROP_LOCKS: dict[str, threading.Lock] = {}
+
+
+def _drop_lock(gid: str) -> threading.Lock:
+    with _DROP_LOCKS_GUARD:
+        lock = _DROP_LOCKS.get(gid)
+        if lock is None:
+            lock = threading.Lock()
+            _DROP_LOCKS[gid] = lock
+        return lock
+
+
+def _plain_folder_key(raw: str) -> str:
+    text = str(raw or "").strip()
+    if text.startswith("group:"):
+        text = text.split(":", 1)[1]
+    return text[:80]
+
+
+def _invalidate_group_index(gid: str) -> None:
+    try:
+        get_gallery_db(gid).set_state(f"group_index:{gid}", "")
+    except Exception:
+        pass
+
+
+def _refresh_group_index(gid: str) -> None:
+    _invalidate_group_index(gid)
+    try:
+        list_group_keys(gid)
+    except Exception:
+        pass
+
+
+def _existing_folder_names(gid: str) -> set[str]:
+    db = get_gallery_db(gid)
+
+    def read() -> set[str]:
+        rows = db.conn.execute(
+            """
+            SELECT DISTINCT
+              COALESCE(
+                NULLIF(json_extract(list_json, '$.group_key'), ''),
+                NULLIF(json_extract(list_json, '$.category'), '')
+              ) AS k
+            FROM works
+            """
+        ).fetchall()
+        names = set()
+        for row in rows:
+            name = _plain_folder_key(str(row["k"] or ""))
+            if name:
+                names.add(name)
+        return names
+
+    try:
+        return db._run(read)
+    except Exception:
+        return set()
+
+
+def _unique_drop_folder(gid: str, base: str) -> str:
+    used = _existing_folder_names(gid)
+    used.discard("")
+    name = base
+    n = 2
+    while name in used:
+        name = f"{base} ·{n}"
+        n += 1
+    return name
+
+
+def _existing_work_folder(gid: str, work_id: int) -> str:
+    db = get_gallery_db(gid)
+
+    def read() -> str:
+        row = db.conn.execute(
+            "SELECT list_json FROM works WHERE id = ?",
+            (work_id,),
+        ).fetchone()
+        if not row or not row["list_json"]:
+            return ""
+        try:
+            item = json.loads(row["list_json"] or "{}")
+        except Exception:
+            return ""
+        if not isinstance(item, dict):
+            return ""
+        return str(item.get("group_key") or item.get("category") or "").strip()
+
+    try:
+        return db._run(read)
+    except Exception:
+        return ""
 
 
 def _import_drop_files(
@@ -158,6 +258,8 @@ def _import_drop_files(
     category: str,
     spec,
     buffered: list[tuple[str, bytes]],
+    *,
+    keep_existing_folder: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     accepted: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
@@ -184,7 +286,14 @@ def _import_drop_files(
             continue
         digest = hashlib.sha256(data).hexdigest()
         work_id = stable_work_id("drop", digest)
-        category_safe = sanitize_filename(category)
+        folder = category
+        existed = False
+        if keep_existing_folder:
+            previous = _existing_work_folder(gid, work_id)
+            if previous:
+                folder = previous
+                existed = True
+        category_safe = sanitize_filename(folder)
         if (
             not category_safe
             or category_safe in {".", ".."}
@@ -201,20 +310,42 @@ def _import_drop_files(
         dest.parent.mkdir(parents=True, exist_ok=True)
         if not dest.exists() or dest.stat().st_size != len(data):
             atomic_write_bytes(dest, data)
+        extra = {
+            "group_key": folder,
+            "group_label": folder,
+        }
+        qq_account = ""
+        qq_label = ""
+        if gid == "qqgroup":
+            extra["account_key"] = "local-drop"
+            extra["account_label"] = "本地拖入"
+            qq_account = "local-drop"
+            qq_label = "本地拖入"
         upsert_local_work(
             gid,
             work_id=work_id,
             title=Path(name).stem[:80] or "dropped",
-            caption=f"本地拖入导入 · 分类 {category}",
-            tags=f"drop,local,NAI,category:{category}",
+            caption=f"本地拖入导入 · 文件夹 {folder}",
+            tags=f"drop,local,NAI,category:{folder}",
             prompt_text=parsed.prompt,
             model=parsed.model,
             ai_json=json.dumps(parsed.storage_metadata(), ensure_ascii=False),
             preview_rel=preview_rel,
-            category=category,
-            source=f"local-drop:{category}",
+            category=folder,
+            account_key=qq_account,
+            account_label=qq_label,
+            source=f"local-drop:{folder}",
+            extra=extra,
         )
-        accepted.append({"file": name, "work_id": work_id, "category": category})
+        accepted.append(
+            {
+                "file": name,
+                "work_id": work_id,
+                "category": folder,
+                "folder": folder,
+                "existing": existed,
+            }
+        )
     return accepted, rejected
 
 
@@ -228,7 +359,7 @@ async def api_gallery_import_drop(
 
     Only local-import galleries (codex / qqgroup) accept drops.  Every file is
     parsed for NovelAI provenance; non-NAI images are rejected and reported.
-    A category (小类) is required to organize the codex gallery.
+    An empty category creates a new folder named after this drop batch.
     """
     gid = normalize_gallery_id(gallery_id)
     if gid not in _DROP_GALLERIES:
@@ -238,11 +369,13 @@ async def api_gallery_import_drop(
         )
     if not files:
         raise HTTPException(status_code=400, detail="no files uploaded")
-    category = str(category or "").strip()[:80] or "未分类"
+    explicit = bool(str(category or "").strip())
+    category = str(category or "").strip()[:80] or datetime.now().strftime("拖入 %m-%d %H:%M:%S")
     spec = get_gallery_spec(gid)
     buffered: list[tuple[str, bytes]] = []
     rejected: list[dict[str, Any]] = []
-    for upload in files:
+    total_bytes = 0
+    for upload in files[:_DROP_MAX_FILES]:
         name = str(upload.filename or "image.png").strip() or "image.png"
         try:
             data = await upload.read(_DROP_MAX_BYTES + 1)
@@ -255,18 +388,167 @@ async def api_gallery_import_drop(
         if len(data) > _DROP_MAX_BYTES:
             rejected.append({"file": name, "reason": "too_large"})
             continue
+        if total_bytes + len(data) > _DROP_MAX_TOTAL_BYTES:
+            rejected.append({"file": name, "reason": "batch_too_large"})
+            continue
+        total_bytes += len(data)
         buffered.append((name, data))
-    accepted, more_rejected = await asyncio.to_thread(
-        _import_drop_files, gid, category, spec, buffered
-    )
+    if len(files) > _DROP_MAX_FILES:
+        rejected.append(
+            {
+                "file": "",
+                "reason": f"too_many_files_truncated:{_DROP_MAX_FILES}",
+            }
+        )
+
+    def job() -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+        with _drop_lock(gid):
+            folder = category
+            if not explicit:
+                folder = _unique_drop_folder(gid, folder)
+            accepted_rows, parse_rejected = _import_drop_files(
+                gid,
+                folder,
+                spec,
+                buffered,
+                keep_existing_folder=not explicit,
+            )
+            used = [str(item.get("folder") or folder) for item in accepted_rows]
+            if accepted_rows and all(item.get("existing") for item in accepted_rows):
+                folder = used[0]
+            _refresh_group_index(gid)
+            return folder, accepted_rows, parse_rejected
+
+    folder, accepted, more_rejected = await asyncio.to_thread(job)
     rejected.extend(more_rejected)
     return {
         "ok": True,
         "gallery_id": gid,
-        "category": category,
+        "category": folder,
+        "folder": folder,
+        "folder_key": f"group:{folder}",
         "accepted": accepted,
         "rejected": rejected,
     }
+
+
+def _work_folder_names(item: dict[str, Any]) -> set[str]:
+    names = set()
+    for key in ("category", "group_key"):
+        value = _plain_folder_key(str(item.get(key) or ""))
+        if value:
+            names.add(value)
+    return names
+
+
+def _merge_gallery_folders(gid: str, source_keys: list[str], target_key: str) -> dict[str, Any]:
+    target = _plain_folder_key(target_key)
+    sources = {_plain_folder_key(key) for key in source_keys if _plain_folder_key(key)}
+    sources.discard("")
+    if not target:
+        raise HTTPException(status_code=400, detail="target folder is required")
+    if not sources:
+        raise HTTPException(status_code=400, detail="source folders are required")
+    sources.discard(target)
+    db = get_gallery_db(gid)
+    moved = 0
+
+    def action() -> None:
+        nonlocal moved
+        rows = db.conn.execute("SELECT id, tags, list_json, detail_json FROM works").fetchall()
+        for row in rows:
+            try:
+                item = json.loads(row["list_json"] or "{}")
+            except Exception:
+                continue
+            if not isinstance(item, dict):
+                continue
+            if not (_work_folder_names(item) & sources):
+                continue
+            item["category"] = target
+            item["group_key"] = target
+            item["group_label"] = target
+            item["source"] = f"local-drop:{target}"
+            if gid == "qqgroup":
+                item["account_key"] = item.get("account_key") or "local-drop"
+                item["account_label"] = item.get("account_label") or "本地拖入"
+            tags = [
+                part
+                for part in str(row["tags"] or item.get("tags") or "").split(",")
+                if part.strip() and not part.strip().startswith("category:")
+            ]
+            tags.append(f"category:{target}")
+            tag_text = ",".join(dict.fromkeys(tags))
+            item["tags"] = tag_text
+            item["caption"] = f"本地拖入导入 · 文件夹 {target}"
+            new_detail = None
+            detail_blob = row["detail_json"]
+            if detail_blob:
+                try:
+                    detail = json.loads(decompress_if_needed(detail_blob) or "{}")
+                except Exception:
+                    detail = None
+                if isinstance(detail, dict):
+                    work = detail.get("work")
+                    if isinstance(work, dict):
+                        work["category"] = target
+                        work["group_key"] = target
+                        work["group_label"] = target
+                        work["source"] = f"local-drop:{target}"
+                        work["tags"] = tag_text
+                        work["caption"] = item["caption"]
+                        if gid == "qqgroup":
+                            work["account_key"] = work.get("account_key") or "local-drop"
+                            work["account_label"] = work.get("account_label") or "本地拖入"
+                        detail["work"] = work
+                    new_detail = compress_text(json.dumps(detail, ensure_ascii=False))
+            if new_detail is not None:
+                db.conn.execute(
+                    "UPDATE works SET tags = ?, caption = ?, list_json = ?, detail_json = ? WHERE id = ?",
+                    (tag_text, item["caption"], json.dumps(item, ensure_ascii=False), new_detail, row["id"]),
+                )
+            else:
+                db.conn.execute(
+                    "UPDATE works SET tags = ?, caption = ?, list_json = ? WHERE id = ?",
+                    (tag_text, item["caption"], json.dumps(item, ensure_ascii=False), row["id"]),
+                )
+            db._sync_work_fts(row["id"])
+            moved += 1
+        db.conn.commit()
+
+    with _drop_lock(gid):
+        db._run(action)
+        _refresh_group_index(gid)
+    return {
+        "ok": True,
+        "gallery_id": gid,
+        "folder": target,
+        "folder_key": f"group:{target}",
+        "moved": moved,
+        "sources": sorted(sources),
+    }
+
+
+@router.post("/api/gallery/{gallery_id}/folders/merge")
+async def api_gallery_merge_folders(gallery_id: str, payload: dict = Body(default_factory=dict)) -> dict:
+    gid = normalize_gallery_id(gallery_id)
+    if gid not in _DROP_GALLERIES:
+        raise HTTPException(
+            status_code=400,
+            detail="folder merge is only supported for local-import galleries (codex/qqgroup)",
+        )
+    sources = payload.get("source_keys") or payload.get("sources") or []
+    if isinstance(sources, str):
+        sources = [sources]
+    if not isinstance(sources, list):
+        raise HTTPException(status_code=400, detail="source_keys must be a list")
+    target = str(payload.get("target_key") or payload.get("target") or "").strip()
+    return await asyncio.to_thread(
+        _merge_gallery_folders,
+        gid,
+        [str(item) for item in sources],
+        target,
+    )
 
 
 _STORAGE_OPEN_TARGETS = {
@@ -804,10 +1086,46 @@ def studio_page() -> FileResponse:
     return _serve_web_page("studio.html")
 
 
+# React /app/* shells are incomplete clones. Send people to the classic pages
+# that already have thumbnails, Live2D 小镜, crawler tables, and drafts.
+_APP_CLASSIC_PAGES = {
+    "": "/",
+    "gallery": "/",
+    "studio": "/studio",
+    "generated": "/generated",
+    "butler": "/butler",
+    "remix": "/remix",
+    "progress": "/progress",
+    "tags": "/nai-tags",
+    "nai-tags": "/nai-tags",
+    "pixiv": "/pixiv",
+    "settings": "/settings",
+    "pipeline": "/pipeline",
+    "director": "/director",
+    "ops": "/ops",
+    "compliance": "/compliance",
+}
+
+
+def _classic_app_redirect(rest: str, request: Request) -> RedirectResponse | None:
+    key = (rest or "").strip("/").split("/", 1)[0]
+    dest = _APP_CLASSIC_PAGES.get(key)
+    if dest is None:
+        return None
+    query = request.url.query
+    return RedirectResponse(url=dest + (f"?{query}" if query else ""), status_code=303)
+
+
 @router.get("/app")
-@router.get("/app/{rest:path}")
-def workspace_page(rest: str = "") -> FileResponse:
-    _ = rest
+def workspace_root(request: Request) -> RedirectResponse:
+    return _classic_app_redirect("", request) or RedirectResponse(url="/", status_code=303)
+
+
+@router.get("/app/{rest:path}", response_model=None)
+def workspace_page(rest: str, request: Request) -> FileResponse | RedirectResponse:
+    redirect = _classic_app_redirect(rest, request)
+    if redirect is not None:
+        return redirect
     return _serve_web_page("workspace.html")
 
 

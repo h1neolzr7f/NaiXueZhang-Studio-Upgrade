@@ -51,6 +51,11 @@ from butler.service_api import api
 def _execute_auto(action: dict[str, Any]) -> dict[str, Any]:
     tool = action["tool"]
     args = action["arguments"]
+    from butler.agents import reject_foreign_tool
+
+    foreign = reject_foreign_tool(tool)
+    if foreign:
+        raise ValueError(foreign)
     if tool == "search_gallery":
         gallery_id = api._gallery_id(args.get("gallery_id"))
         # ``DB`` remains the canonical site-gallery singleton; only the new
@@ -329,51 +334,10 @@ def _execute_auto(action: dict[str, Any]) -> dict[str, Any]:
         }
 
     if tool == "product_guide":
-        topic = str(args.get("topic") or "全部")
-        guides = {
-            "采集": (
-                "采集（Pixiv NAI 图库）：1) 打开采集页（首页 → 采集），配置搜索标签/画师/榜单；"
-                "2) 无 Pixiv 账号可直接用公网通道（自动选择），有账号填账号 ID 走 API；"
-                "3) 网络不稳可填代理 http://127.0.0.1:7897，请求间隔建议 ≥1 秒；"
-                "4) 点启动，首次建议先用少量标签验证；5) 采集结果在首页按 全部时间/近7天/近30天 查看。"
-            ),
-            "生成": (
-                "生成：1) 在首页选择作品或收藏；2) 选 换角/换画风/批量生成 并确认参数；"
-                "3) 生成走 NovelAI，完成后在 生成结果 查看；4) 需先在图库有初始数据（先采集或自选库导入）。"
-            ),
-            "投稿": (
-                "投稿：1) 生成完成后用 准备投稿 补齐后处理与文案；"
-                "2) 小镜只准备素材，最终上传需你在投稿页人工核对发布。"
-            ),
-            "设置": (
-                "设置：AI 模型与密钥在 设置页 → AI 服务 填写（DeepSeek/OpenAI 兼容）；"
-                "采集与代理在 采集页 调整；桌面版在系统托盘可启动/停止服务。"
-            ),
-            "故障": (
-                "常见故障：1) 连接失败/打不开页面 → 检查代理环境变量与 Clash 是否运行；"
-                "2) 端口占用 → 结束占用进程或改端口；3) 浏览器通道报错 → 重装 playwright；"
-                "4) 采集无结果 → 确认任务启用与网络；5) 更多 → 让小镜读日志诊断（直接贴报错）。"
-            ),
-            "入门": (
-                "入门三步：1) 先采集或导入，让图库有初始数据（无账号也能采）；"
-                "2) 浏览筛选收藏；3) 用 换角/换画风/生成 创作，投稿前人工核对。"
-            ),
-        }
-        if topic in guides:
-            return {"ok": True, "tool": tool, "topic": topic, "guide": guides[topic]}
-        if topic == "全部":
-            return {
-                "ok": True,
-                "tool": tool,
-                "topic": topic,
-                "guide": "\n\n".join(guides.values()),
-            }
-        return {
-            "ok": True,
-            "tool": tool,
-            "topic": topic,
-            "guide": f"暂无「{topic}」专题，可问：采集 / 生成 / 投稿 / 设置 / 故障 / 入门。",
-        }
+        from software_help import product_guide as _product_guide
+
+        payload = _product_guide(args.get("topic") or "全部")
+        return {"ok": True, "tool": tool, **payload}
 
     if tool == "inspect_config":
         import json as _json

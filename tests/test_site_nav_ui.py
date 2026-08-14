@@ -27,6 +27,7 @@ class SiteNavUiTests(unittest.TestCase):
           }
           appendChild(child) { this.children.push(child); return child; }
           setAttribute(name, value) { this.attributes[name] = value; }
+          removeAttribute(name) { delete this.attributes[name]; }
           get innerHTML() { return ''; }
           set innerHTML(_value) { this.children = []; }
         }
@@ -37,7 +38,7 @@ class SiteNavUiTests(unittest.TestCase):
           createElement: (tag) => new Element(tag),
           getElementById: () => null,
         };
-        const window = { location: { pathname: '/settings' } };
+        const window = { location: { pathname: '/settings' }, addEventListener() {}, dispatchEvent() {} };
         vm.runInNewContext(fs.readFileSync('web/shared/site-nav.js', 'utf8'), { window, document });
         const host = new Element('div');
         window.SiteNav.mount(host);
@@ -48,12 +49,15 @@ class SiteNavUiTests(unittest.TestCase):
         const secondaryLinks = menu ? menu.children.filter((child) => child.tagName === 'A') : [];
         const activeSecondary = secondaryLinks.find((child) => child.attributes['aria-current'] === 'page');
         window.location.pathname = '/butler';
+        window.location.search = '';
         const butlerHost = new Element('nav');
         window.SiteNav.mount(butlerHost);
         const butlerDirectLinks = butlerHost.children.filter((child) => child.tagName === 'A');
-        const activeButler = butlerDirectLinks.find((child) => child.attributes['aria-current'] === 'page');
         const butlerMore = butlerHost.children.find((child) => child.tagName === 'DETAILS');
         const butlerSummary = butlerMore && butlerMore.children.find((child) => child.tagName === 'SUMMARY');
+        const butlerMenu = butlerMore && butlerMore.children.find((child) => child.className === 'nav-more-menu');
+        const butlerSecondary = butlerMenu ? butlerMenu.children.filter((child) => child.tagName === 'A') : [];
+        const activeButler = butlerSecondary.find((child) => child.attributes['aria-current'] === 'page');
         console.log(JSON.stringify({
           directCount: directLinks.length,
           directIds: directLinks.map((item) => item.dataset.navId),
@@ -90,17 +94,21 @@ class SiteNavUiTests(unittest.TestCase):
                 "gallery",
                 "generated",
                 "studio",
-                "butler",
                 "remix",
+                "queue",
                 "progress",
                 "nai-tags",
                 "pixiv",
             ],
         )
         self.assertTrue(data["moreText"].startswith("更多"))
-        self.assertEqual(data["secondaryCount"], 12)  # + 经典图库 + codex + 合规
-        self.assertNotIn("butler", data["secondaryIds"])
-        for nav_id in ("queue", "director", "references", "favorites", "classic"):
+        self.assertEqual(data["secondaryCount"], 12)
+        self.assertNotIn("queue", data["secondaryIds"])
+        self.assertIn("butler-sakiko", data["secondaryIds"])
+        self.assertIn("butler-tomori", data["secondaryIds"])
+        self.assertNotIn("classic", data["secondaryIds"])
+        self.assertNotIn("gallery", data["secondaryIds"])
+        for nav_id in ("director", "references", "favorites"):
             with self.subTest(nav_id=nav_id):
                 self.assertIn(nav_id, data["secondaryIds"])
         self.assertFalse(data["moreOpen"], "secondary-page navigation must not cover page content by default")
@@ -110,8 +118,8 @@ class SiteNavUiTests(unittest.TestCase):
         self.assertEqual(data["navLabel"], "主导航")
         self.assertEqual(data["menuRole"], "group")
         self.assertEqual(data["activeSecondary"], "settings")
-        self.assertEqual(data["activeButler"], "butler")
-        self.assertFalse(data["butlerMoreActive"])
+        self.assertEqual(data["activeButler"], "butler-sakiko")
+        self.assertTrue(data["butlerMoreActive"])
         self.assertIsNone(data["butlerHostRole"], "native nav elements must not receive a redundant role")
 
 

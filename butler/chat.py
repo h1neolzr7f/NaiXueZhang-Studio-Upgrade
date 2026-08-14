@@ -71,6 +71,12 @@ def run_chat(
         try:
             action = api.normalize_action(raw)
             tool = action["tool"]
+            from butler.agents import reject_foreign_tool
+
+            foreign = reject_foreign_tool(tool)
+            if foreign:
+                rejected.append({"tool": tool, "reason": foreign})
+                continue
             if tool in {"start_crawler", "configure_crawler"} and api._main_gallery_empty():
                 rejected.append({"tool": tool, "reason": api.EMPTY_GALLERY_CRAWL_MSG})
                 continue
@@ -155,6 +161,8 @@ def butler_status() -> dict[str, Any]:
         }
     except Exception:
         pipeline = {"status": "idle", "total": 0, "done": 0}
+    from butler.agents import public_agents
+
     return {
         "ok": True,
         "ai": {
@@ -172,6 +180,7 @@ def butler_status() -> dict[str, Any]:
         "pipeline": pipeline,
         "pending_count": pending_count,
         "audit": api.recent_audit(),
+        "agents": public_agents(),
         "safety": {
             "confirmation_ttl_seconds": api.CONFIRM_TTL_SECONDS,
             "direct_publish_enabled": False,

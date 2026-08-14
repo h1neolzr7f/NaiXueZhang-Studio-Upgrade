@@ -118,12 +118,38 @@
   .readiness-card { min-height: 62px; padding: 9px; }
   .usage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .knowledge-actions { align-items: stretch; flex-direction: column; }
+  .token-slot { align-items: stretch; flex-direction: column; }
 }
 .token-slot-list { display: grid; gap: 8px; margin-top: 10px; }
-.token-slot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid var(--line, #2b3a4a); border-radius: 10px; background: rgba(255,255,255,.025); }
-.token-slot span { display: grid; gap: 2px; min-width: 0; }
-.token-slot small { overflow-wrap: anywhere; }
-.token-slot button { border: 0; border-radius: 8px; padding: 6px 9px; color: #ffb4b4; background: rgba(255,90,90,.12); cursor: pointer; }
+.token-slot-list[hidden] { display: none; }
+.token-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid rgba(148, 163, 184, .18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .03);
+}
+.token-slot.is-ok { border-color: rgba(74, 222, 178, .42); background: rgba(74, 222, 178, .08); }
+.token-slot.is-bad { border-color: rgba(248, 113, 113, .42); background: rgba(248, 113, 113, .08); }
+.token-slot-main { display: grid; gap: 3px; min-width: 0; flex: 1; }
+.token-slot-title { color: #eef5ff; font-size: .86rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.token-slot-meta { color: var(--settings-soft); font-size: .72rem; line-height: 1.45; overflow-wrap: anywhere; }
+.token-slot-actions { display: flex; flex-shrink: 0; gap: 6px; }
+.token-slot-actions button {
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 800;
+}
+.token-slot-actions button:disabled { opacity: .55; cursor: wait; }
+.token-slot-actions [data-check] { color: #d7fff2; background: rgba(74, 222, 178, .16); }
+.token-slot-actions [data-delete] { color: #ffd0d4; background: rgba(248, 113, 113, .16); }
 
 /* 设置页皮肤（自 studio-theme.css 拆入，仅本页加载） */
 .settings-body, .settings-shell { color: var(--text) !important; background: transparent !important; }

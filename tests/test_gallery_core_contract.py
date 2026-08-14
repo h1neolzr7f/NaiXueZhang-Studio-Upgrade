@@ -208,6 +208,38 @@ process.stdout.write(JSON.stringify({
         self.assertEqual(current.json(), sample)
         self.assertEqual(legacy.json(), sample)
 
+    def test_app_tool_routes_redirect_to_classic_pages(self) -> None:
+        client = TestClient(server.app)
+        expected = {
+            "/app": "/",
+            "/app/gallery": "/",
+            "/app/studio": "/studio",
+            "/app/generated": "/generated",
+            "/app/butler": "/butler",
+            "/app/remix": "/remix",
+            "/app/progress": "/progress",
+            "/app/tags": "/nai-tags",
+            "/app/pixiv": "/pixiv",
+            "/app/settings": "/settings",
+            "/app/director": "/director",
+            "/app/pipeline": "/pipeline",
+        }
+        for src, dest in expected.items():
+            with self.subTest(src=src):
+                response = client.get(src, follow_redirects=False)
+                self.assertEqual(response.status_code, 303, src)
+                location = response.headers.get("location") or ""
+                self.assertTrue(
+                    location == dest or location.endswith(dest),
+                    f"{src} -> {location!r}, expected {dest}",
+                )
+        query = client.get("/app/studio?from=123&gallery=codex", follow_redirects=False)
+        self.assertEqual(query.status_code, 303)
+        location = query.headers.get("location") or ""
+        self.assertIn("/studio", location)
+        self.assertIn("from=123", location)
+        self.assertIn("gallery=codex", location)
+
 
 if __name__ == "__main__":
     unittest.main()

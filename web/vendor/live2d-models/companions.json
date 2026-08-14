@@ -1,0 +1,133 @@
+{
+  "sakiko": {
+    "id": "sakiko",
+    "name": "客服小祥",
+    "scale": 1.05,
+    "offset": [
+      0,
+      0.18
+    ],
+    "default_costume": "causal",
+    "school": {
+      "summer": "school_summer",
+      "winter": "school_winter"
+    },
+    "situations": {
+      "ready": "causal",
+      "idle": "causal",
+      "thinking": "school",
+      "working": "school",
+      "happy": "causal",
+      "sorry": "jh_school_winter",
+      "surprised": "school_summer",
+      "generate": "school",
+      "publish": "causal",
+      "remix": "causal"
+    },
+    "costumes": {
+      "causal": {
+        "id": "causal",
+        "label": "便服",
+        "path": "/assets/vendor/live2d-models/sakiko/causal/model.json"
+      },
+      "jh_school_winter": {
+        "id": "jh_school_winter",
+        "label": "冬季制服（外套）",
+        "path": "/assets/vendor/live2d-models/sakiko/jh_school_winter/model.json"
+      },
+      "school_summer": {
+        "id": "school_summer",
+        "label": "夏季校服",
+        "path": "/assets/vendor/live2d-models/sakiko/school_summer/model.json"
+      },
+      "school_winter": {
+        "id": "school_winter",
+        "label": "冬季校服",
+        "path": "/assets/vendor/live2d-models/sakiko/school_winter/model.json"
+      }
+    }
+  },
+  "tomori": {
+    "id": "tomori",
+    "name": "助手凑企鹅",
+    "scale": 1.05,
+    "offset": [
+      0,
+      0.18
+    ],
+    "default_costume": "casual",
+    "school": {
+      "summer": "school_summer",
+      "winter": "school_winter"
+    },
+    "situations": {
+      "ready": "casual",
+      "idle": "casual",
+      "thinking": "school",
+      "working": "live_default",
+      "happy": [
+        "live_sr_01",
+        "casual",
+        "live_event_250_ur",
+        "live_event_235_ur"
+      ],
+      "sorry": "school_winter",
+      "surprised": "collabo_d_3_ur",
+      "generate": "live_default",
+      "publish": "furisode",
+      "remix": "collabo_d_3_ur"
+    },
+    "costumes": {
+      "casual": {
+        "id": "casual",
+        "label": "便服",
+        "path": "/assets/vendor/live2d-models/tomori/casual/model.json"
+      },
+      "collabo_d_3_ur": {
+        "id": "collabo_d_3_ur",
+        "label": "联动舞台服",
+        "path": "/assets/vendor/live2d-models/tomori/collabo_d_3_ur/model.json"
+      },
+      "furisode": {
+        "id": "furisode",
+        "label": "振袖",
+        "path": "/assets/vendor/live2d-models/tomori/furisode/model.json"
+      },
+      "live_default": {
+        "id": "live_default",
+        "label": "Live 默认",
+        "path": "/assets/vendor/live2d-models/tomori/live_default/model.json"
+      },
+      "live_event_235_ur": {
+        "id": "live_event_235_ur",
+        "label": "活动舞台 UR",
+        "path": "/assets/vendor/live2d-models/tomori/live_event_235_ur/model.json"
+      },
+      "live_event_240_ssr": {
+        "id": "live_event_240_ssr",
+        "label": "活动舞台 SSR",
+        "path": "/assets/vendor/live2d-models/tomori/live_event_240_ssr/model.json"
+      },
+      "live_event_250_ur": {
+        "id": "live_event_250_ur",
+        "label": "活动舞台 UR+",
+        "path": "/assets/vendor/live2d-models/tomori/live_event_250_ur/model.json"
+      },
+      "live_sr_01": {
+        "id": "live_sr_01",
+        "label": "Live SR",
+        "path": "/assets/vendor/live2d-models/tomori/live_sr_01/model.json"
+      },
+      "school_summer": {
+        "id": "school_summer",
+        "label": "夏季校服",
+        "path": "/assets/vendor/live2d-models/tomori/school_summer/model.json"
+      },
+      "school_winter": {
+        "id": "school_winter",
+        "label": "冬季校服",
+        "path": "/assets/vendor/live2d-models/tomori/school_winter/model.json"
+      }
+    }
+  }
+}

@@ -271,6 +271,73 @@ def _resolve_slot_indexes(
     return [max(0, min(5, int(slot_index)))]
 
 
+def _ensure_v4_slot(comment: dict[str, Any], slot_index: int, caption: str = "") -> dict[str, Any]:
+    v4 = comment.setdefault("v4_prompt", {})
+    if not isinstance(v4, dict):
+        v4 = {}
+        comment["v4_prompt"] = v4
+    cap = v4.setdefault("caption", {})
+    if not isinstance(cap, dict):
+        cap = {}
+        v4["caption"] = cap
+    slots = list(cap.get("char_captions") or [])
+    while len(slots) <= slot_index:
+        slots.append({"char_caption": "", "centers": [{"x": 0.5, "y": 0.5}]})
+    current = slots[slot_index] if isinstance(slots[slot_index], dict) else {"centers": [{"x": 0.5, "y": 0.5}]}
+    if caption and not str(current.get("char_caption") or "").strip():
+        current = {**current, "char_caption": caption}
+    slots[slot_index] = current
+    cap["char_captions"] = slots[:6]
+    return comment
+
+
+def _apply_target_character(
+    comment: dict[str, Any],
+    target_record: Mapping[str, Any],
+    *,
+    slot_index: int,
+    source_caption: str = "",
+    model: str = "",
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Write a target into one V4 slot.
+
+    Custom OC presets keep their whole ``char_caption`` (same path as local
+    char-swap). Named library records still go through the Anima adapter.
+    """
+
+    record = dict(target_record or {})
+    oc_caption = str(record.get("char_caption") or "").strip()
+    kind = str(record.get("kind") or "").strip().lower()
+    comment = _ensure_v4_slot(comment, slot_index, source_caption)
+    if oc_caption or kind == "oc":
+        from aitag_core.transform.planner import apply_replacement_plan, plan_replacement
+
+        v4 = comment.get("v4_prompt") or {}
+        cap = v4.get("caption") or {} if isinstance(v4, dict) else {}
+        slots = cap.get("char_captions") or [] if isinstance(cap, dict) else []
+        current = ""
+        if slot_index < len(slots) and isinstance(slots[slot_index], dict):
+            current = str(slots[slot_index].get("char_caption") or "")
+        gender = str(record.get("gender") or "").strip().lower()
+        plan = plan_replacement(
+            {"char_caption": current or source_caption},
+            record,
+            slot_index=slot_index,
+            preserve_action=True,
+            force_gender=gender if gender in {"male", "female"} else None,
+        )
+        patched = apply_replacement_plan(comment, plan)
+        subject = "1boy" if gender == "male" else "1girl" if gender == "female" else ""
+        return patched, {
+            "character_caption": plan.output_caption,
+            "base_subject_tag": subject,
+            "label": str(record.get("name") or record.get("label") or record.get("character") or ""),
+        }
+    return apply_anima_character_to_comment(
+        comment, record, slot_index=slot_index, model=model
+    )
+
+
 def _apply_style_to_comment(
     comment: dict[str, Any],
     *,
@@ -380,10 +447,11 @@ def compile_aitag_studio_draft(
                 )
             else:
                 source_subjects.append("")
-            comment, card = apply_anima_character_to_comment(
+            comment, card = _apply_target_character(
                 comment,
                 selected_record,
                 slot_index=si,
+                source_caption=str(source_for_slot.caption if source_for_slot is not None else ""),
                 model=model_name,
             )
             applied_slots.append(si)
