@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.NaiPhone" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/night_bg</item>
+        <item name="android:statusBarColor">@color/night_bg</item>
+        <item name="android:navigationBarColor">@color/night_deep</item>
+        <item name="android:colorPrimary">@color/pink</item>
+        <item name="android:colorAccent">@color/gold</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:textColorPrimary">@color/cream</item>
+        <item name="android:textColorSecondary">@color/lavender</item>
+    </style>
+    <style name="Theme.NaiPhone.Splash" parent="Theme.NaiPhone">
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowBackground">@color/night_deep</item>
+    </style>
+</resources>

@@ -33,6 +33,7 @@ data/*
 data/user_prefs.json
 data/galleries/
 !data/ark_char_library.json
+!data/ark_cn_aliases.json
 !data/butler_catalog.json
 !data/char_presets.json
 !data/char_tag_groups.json
@@ -104,3 +105,11 @@ _prof_swap*.py
 
 # Local Live2D import helper (machine path / pack password).
 scripts/import_bangdream_live2d.py
+
+# Android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/www/
+android/app/src/main/assets/data/

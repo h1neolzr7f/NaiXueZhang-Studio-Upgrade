@@ -12,6 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from static_asset_security import SafeStaticFiles
 from routes.compliance import router as compliance_router, page_router as compliance_page_router
+from routes.mobile import (
+    is_mobile_token,
+    is_pair_claim_path,
+    page_router as mobile_page_router,
+    router as mobile_router,
+)
 
 try:
     from server_shared import (
@@ -129,8 +135,10 @@ _WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 async def _require_session_token(request: Request, call_next):
     if request.method.upper() in _WRITE_METHODS:
+        if is_pair_claim_path(request.url.path):
+            return await call_next(request)
         provided = request.headers.get("x-session-token") or ""
-        if provided != SESSION_TOKEN:
+        if provided != SESSION_TOKEN and not is_mobile_token(provided):
             return JSONResponse(status_code=403, content={"detail": "缺少有效的会话令牌（X-Session-Token）"})
     return await call_next(request)
 
@@ -176,6 +184,8 @@ def api_session_token(request: Request) -> dict:
 
 # Include sub-routers
 app.include_router(product.page_router)
+app.include_router(mobile_page_router)
+app.include_router(mobile_router)
 app.include_router(product.router)
 app.include_router(pixiv.router)
 app.include_router(studio.router)

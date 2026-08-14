@@ -1,0 +1,63 @@
+plugins {
+    id("com.android.application")
+}
+
+android {
+    namespace = "com.naixuezhang.studio.mobile"
+    compileSdk = 34
+    defaultConfig {
+        applicationId = "com.naixuezhang.studio.mobile"
+        minSdk = 24
+        targetSdk = 34
+        versionCode = 152
+        versionName = "1.5.2-phone"
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    buildTypes {
+        release {
+            minifyEnabled = false
+        }
+    }
+}
+
+dependencies {
+}
+
+def repoRoot = rootProject.projectDir.parentFile
+def wwwDir = file("src/main/assets/www")
+def dataDir = file("src/main/assets/data")
+
+tasks.register("syncPhoneAssets") {
+    doLast {
+        wwwDir.mkdirs()
+        dataDir.mkdirs()
+        copy {
+            from(new File(repoRoot, "web/m"))
+            include("m.js", "m.css", "standalone-core.js")
+            into(new File(wwwDir, "m"))
+        }
+        copy {
+            from(new File(repoRoot, "web/shared"))
+            include("api-client.js")
+            into(new File(wwwDir, "shared"))
+        }
+        copy {
+            from(new File(repoRoot, "data"))
+            include("char_presets.json", "ark_char_library.json", "ark_cn_aliases.json")
+            into(dataDir)
+        }
+        def html = new File(repoRoot, "web/m/index.html").getText("UTF-8")
+        html = html.replace('data-mobile="1"', 'data-mobile="1" data-standalone="1"')
+        html = html.replace(
+            '<script src="/assets/shared/api-client.js',
+            '<script>window.__NAI_STANDALONE__=true;window.__NAI_SESSION_TOKEN__="phone-local";</script>\n  <script src="/assets/m/standalone-core.js?v=phone"></script>\n  <script src="/assets/shared/api-client.js'
+        )
+        html = html.replace("配对</button>", "设置</button>")
+        new File(wwwDir, "m/index.html").write(html, "UTF-8")
+    }
+}
+
+tasks.named("preBuild").configure { dependsOn("syncPhoneAssets") }

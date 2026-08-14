@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a1230" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Nai学长工作室 · 手机版</title>
+  <link rel="stylesheet" href="/assets/m/m.css?v=47ce112029" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
+</head>
+<body data-mobile="1">
+  <div class="m-sky" aria-hidden="true">
+    <i class="m-moon"></i>
+    <i class="m-star s1"></i>
+    <i class="m-star s2"></i>
+    <i class="m-star s3"></i>
+    <i class="m-star s4"></i>
+    <i class="m-star s5"></i>
+    <i class="m-petal p1"></i>
+    <i class="m-petal p2"></i>
+    <i class="m-petal p3"></i>
+    <i class="m-petal p4"></i>
+  </div>
+  <header class="m-top">
+    <div class="m-brand">
+      <span class="m-mark" aria-hidden="true"></span>
+      <div>
+        <strong>Nai学长工作室</strong>
+        <em>升级版 · 手机本地</em>
+        <span id="mConn" class="m-pill">检查中</span>
+      </div>
+    </div>
+    <button type="button" id="mPairBtn" class="m-ghost">配对</button>
+  </header>
+  <main id="mApp" class="m-app"></main>
+  <nav class="m-tabbar" aria-label="手机导航">
+    <a href="#/browse" data-tab="browse">
+      <svg class="m-tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 11h2v9h6v-6h2v6h6v-9h2L12 3z"/></svg>
+      <span>发现</span>
+    </a>
+    <a href="#/work" data-tab="work">
+      <svg class="m-tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm11.2-4.2-1.4 1.4L19.2 6.6 16 9.8l-1.4-1.4 1.2-1.2-2.1.3-.3-2.1 1.2-1.2L12.2 2l1.4 1.4L15 2zm-8.7 8.2c-2.8 0-5 1.7-5 3.8V18h10v-2.2c0-2.1-2.2-3.8-5-3.8zm7.5 1.1-.9 2.2 2.1 1.5-2.1 1.5.9 2.2-2.3-.4-1.2 2 .3-2.3-2-.9 2-1.5-2-1.5 2-.9-.3-2.3 1.2 2z"/></svg>
+      <span>换角</span>
+    </a>
+    <a href="#/batch" data-tab="batch">
+      <svg class="m-tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h12v12H7zm-3 3h2v11h11v2H4z"/></svg>
+      <span>批量</span>
+    </a>
+    <a href="#/pipeline" data-tab="pipeline">
+      <svg class="m-tab-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.2a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8zm14 0a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8zM8 7.9h8v1.4H8zM5 13a2.4 2.4 0 1 1 0 4.8A2.4 2.4 0 0 1 5 13zm14 0a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8zM8 14.7h8v1.4H8z"/></svg>
+      <span>流水线</span>
+    </a>
+  </nav>
+  <div id="mToast" class="m-toast hidden" role="status"></div>
+  <div id="mModal" class="m-modal hidden" aria-hidden="true">
+    <div class="m-modal-card">
+      <h3 id="mModalTitle"></h3>
+      <p id="mModalBody"></p>
+      <div class="m-row">
+        <button type="button" id="mModalNo" class="m-ghost">取消</button>
+        <button type="button" id="mModalYes" class="m-primary">确认</button>
+      </div>
+    </div>
+  </div>
+  <script src="/assets/shared/api-client.js?v=afd161a5c9"></script>
+  <script src="/assets/m/m.js?v=f29fcf7699"></script>
+</body>
+</html>
