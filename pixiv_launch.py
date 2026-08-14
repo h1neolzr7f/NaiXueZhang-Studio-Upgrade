@@ -41,6 +41,7 @@ from usage_ledger import record_usage
 
 # --- 拆分模块回填（facade 再导出，保持 from pixiv_launch import X 兼容）---
 from pixiv_launch_config import (
+    AI_PROVIDER_PRESETS,
     CONFIG_PATH,
     DATA_DIR,
     DRAFT_PATH,
