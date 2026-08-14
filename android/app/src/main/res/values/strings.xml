@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nai学长工作室</string>
+    <string name="app_tagline">升级版 · 手机本地换角出图</string>
+    <string name="settings_title">本机设置</string>
+    <string name="settings_hint">Token 只写进这台手机的应用存储，不连电脑，出图直接走 NovelAI。</string>
+    <string name="token_hint">粘贴 NovelAI Token（pst- 或 Bearer 后面那段）</string>
+    <string name="save_token">保存 Token</string>
+    <string name="clear_token">清除 Token</string>
+    <string name="back">返回</string>
+</resources>

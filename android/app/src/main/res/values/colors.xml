@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="night_bg">#1A1230</color>
+    <color name="night_deep">#120C22</color>
+    <color name="cream">#FFF4E8</color>
+    <color name="pink">#FF8FB8</color>
+    <color name="lavender">#C9B6FF</color>
+    <color name="gold">#F4D27A</color>
+    <color name="muted">#B8A8C9</color>
+    <color name="field_bg">#241836</color>
+    <color name="danger">#FF7A90</color>
+</resources>
