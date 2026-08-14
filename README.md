@@ -4,7 +4,7 @@
 
 ### 升级版 v1.5.0 · 本地优先的 NovelAI 生产工作台
 
-**素材发现 · NAI 元数据验证 · 图库拖入文件夹 · 角色换角 · 批量生成 · 后处理 · Pixiv 发布**
+**素材发现 · NAI 元数据验证 · 图库拖入 · 侧栏助手 · 角色换角 · 批量生成 · 后处理 · Pixiv 发布**
 
 ![Line](https://img.shields.io/badge/Line-升级版_v1.5.0-6f42c1)
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
@@ -72,17 +72,19 @@ flowchart LR
 
 ## 界面预览
 
-当前深色工作台。启动后默认打开经典图库；需要工作区时打开 `/app`。
+v1.5.0 默认打开经典图库。主导航固定 8 项；任意页都可唤出左侧客服小祥、右侧助手凑企鹅。下面三张按当前界面重拍，检索用公开作品名，不含 Token 或私人库。
 
 <p align="center">
-  <img src="docs/screenshots/01-gallery.png" alt="本地图库：检索、作品流与灵感栏" width="900">
+  <img src="docs/screenshots/01-gallery.png" alt="本地图库：arknights 检索、四库切换，右侧助手凑企鹅 Live2D 侧栏" width="900">
 </p>
+<p align="center"><sub>图库 · 检索与作品流，右侧是助手凑企鹅</sub></p>
 
 <p align="center">
-  <img src="docs/screenshots/02-studio.png" alt="生图工作台：咒语编辑与生成参数" width="440">
+  <img src="docs/screenshots/02-studio.png" alt="生图工作台：咒语分区与生成参数，右侧助手凑企鹅" width="440">
   &nbsp;
-  <img src="docs/screenshots/03-butler.png" alt="小镜管家：对话拆解本地图库任务" width="440">
+  <img src="docs/screenshots/03-butler.png" alt="客服小祥完整对话：图库体检、技能与安全边界" width="440">
 </p>
+<p align="center"><sub>工作台（左）· 客服小祥完整对话（右）</sub></p>
 
 ## 核心能力
 
@@ -164,7 +166,7 @@ FastAPI localhost service
 ├─ web/app/                预编译工作区（Vite 产物）
 ├─ frontend/               工作区 TypeScript 源码
 ├─ nai/                    NovelAI Token、生成、导演实现
-├─ butler/                 小镜规划、执行、工作流运行时
+├─ butler/                 管家规划、执行、工作流运行时
 ├─ nai_api.py / butler_service.py   兼容 facade
 ├─ db.py                   SQLite、FTS 与迁移
 ├─ pixiv_*                 素材发现、账号与发布

@@ -14,4 +14,4 @@
 | [../CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) | 社区行为准则 |
 | [../OPEN_SOURCE_CHECKLIST.md](../OPEN_SOURCE_CHECKLIST.md) | 公开仓库与发版检查单 |
 
-截图位于 `docs/screenshots/`，仅用于说明界面结构，不含用户图库或凭据。
+截图位于 `docs/screenshots/`，按 v1.5.0 界面重拍：图库（含助手凑企鹅侧栏）、工作台、客服小祥完整对话。仅说明界面结构，不含 Token、私人库或凭据。
