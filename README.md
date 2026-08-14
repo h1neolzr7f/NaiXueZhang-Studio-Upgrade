@@ -2,17 +2,17 @@
 
 # 🐾 Nai学长工作室
 
-### 升级版 v1.5.0 · 本地优先的 NovelAI 生产工作台
+### 当前维护线 v1.5.0 · 本地优先的 NovelAI 生产工作台
 
 **素材发现 · NAI 元数据验证 · 图库拖入 · 侧栏助手 · 角色换角 · 批量生成 · 后处理 · Pixiv 发布**
 
-![Line](https://img.shields.io/badge/Line-升级版_v1.5.0-6f42c1)
+![Line](https://img.shields.io/badge/Line-Current_v1.5.0-6f42c1)
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Local First](https://img.shields.io/badge/Privacy-Local--first-7A5AF8)
 
-[升级版 v1.5.0 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.0) ·
+[下载 v1.5.0 Windows 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.0) ·
 [稳定版 v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0) ·
 [升级说明](docs/UPGRADE.md) ·
 [使用指南](docs/user-guide.md) ·
@@ -21,6 +21,32 @@
 [责任与来源](RESPONSIBLE_USE.md)
 
 </div>
+
+<p align="center">
+  <img src="docs/screenshots/01-gallery.png" alt="Nai学长工作室：本地 NovelAI 图库、检索与作品流" width="900">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/02-studio.png" alt="NovelAI 生图工作台：Prompt 分区、参数与任务队列" width="440">
+  &nbsp;
+  <img src="docs/screenshots/03-butler.png" alt="本地工作流助手：图库诊断与安全边界" width="440">
+</p>
+
+> [!TIP]
+> **第一次来？** 直接下载 [v1.5.0 Windows 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.0)，完整解压后双击启动；不需要先搭数据库或配置 Web 服务。想继续使用冻结界面，请前往 [v1.4 稳定保留线](https://github.com/h1neolzr7f/NaiXueZhang-Studio)。
+
+## 一分钟了解
+
+| 你原来需要做的事 | Nai学长工作室放到了一起 |
+|---|---|
+| 在文件夹里翻数千张图片 | SQLite FTS、标签图谱、来源与 NAI 元数据检索 |
+| 手工复制 Prompt、换角色、改参数 | Prompt 资产、角色换角、草稿与批量任务 |
+| 担心失败重试重复扣费 | 付费任务冻结参数、持久化状态、未知扣费明确标记 |
+| 在多个脚本间做超分、打码和清理 | 后处理、元数据处理与发布前检查 |
+| 把 Token 散落在配置文件 | Windows DPAPI、本地会话令牌与失败即拒绝写入 |
+
+**它不是单次出图按钮，而是面向长期创作的本地资产库与生产流水线。**
+
 
 > [!IMPORTANT]
 > **非官方项目。** 本项目与 pixiv Inc.、NovelAI（Anlatan Inc.）及其他第三方平台不存在隶属、授权或合作关系。使用者应自行确认访问、下载、处理与发布行为符合适用法律、平台规则及第三方权利要求。维护者不为绕过访问控制、干扰平台运行、未经授权的数据采集或侵权传播提供支持。详见 [免责声明](DISCLAIMER.md) 与 [负责任使用说明](RESPONSIBLE_USE.md)。
@@ -69,22 +95,6 @@ flowchart LR
     H --> D
     H --> E
 ```
-
-## 界面预览
-
-v1.5.0 默认打开经典图库。主导航固定 8 项；任意页都可唤出左侧客服小祥、右侧助手凑企鹅。下面三张按当前界面重拍，检索用公开作品名，不含 Token 或私人库。
-
-<p align="center">
-  <img src="docs/screenshots/01-gallery.png" alt="本地图库：arknights 检索、四库切换，右侧助手凑企鹅 Live2D 侧栏" width="900">
-</p>
-<p align="center"><sub>图库 · 检索与作品流，右侧是助手凑企鹅</sub></p>
-
-<p align="center">
-  <img src="docs/screenshots/02-studio.png" alt="生图工作台：咒语分区与生成参数，右侧助手凑企鹅" width="440">
-  &nbsp;
-  <img src="docs/screenshots/03-butler.png" alt="客服小祥完整对话：图库体检、技能与安全边界" width="440">
-</p>
-<p align="center"><sub>工作台（左）· 客服小祥完整对话（右）</sub></p>
 
 ## 核心能力
 
