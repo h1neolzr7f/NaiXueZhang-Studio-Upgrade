@@ -158,8 +158,10 @@ class CodexAtlasRouteTests(unittest.TestCase):
             http = _HTTP()
             client = CodexAtlasClient(http_client=http, cache_root=Path(tmp) / "cache")
             with patch.object(atlas_routes, "get_atlas_client", return_value=client), patch.object(
-                atlas_routes, "DATA_DIR", Path(tmp)
-            ), patch.object(atlas_routes, "_online_enabled", return_value=True):
+                atlas_routes, "_data_dir", return_value=Path(tmp)
+            ), patch.object(atlas_routes, "_online_enabled", return_value=True), patch.object(
+                atlas_routes, "_config", return_value={"codex_atlas_draft_ttl_sec": 3600}
+            ):
                 books = atlas_routes.api_atlas_books(safe_only=True)
                 self.assertEqual(books["items"][0]["id"], "suozhang")
                 self.assertEqual(books["items"][0]["kind"], "book")
