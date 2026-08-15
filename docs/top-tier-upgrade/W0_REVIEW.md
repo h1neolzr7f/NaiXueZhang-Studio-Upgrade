@@ -292,10 +292,11 @@ STATUS 的 Next 仍然正确：本波不要开 img2img UI，也不要把 tooling
 
 ## 测试
 
-复核提交后跑（cloud-safe，无 Token）：
+复核提交后已跑（cloud-safe，无 Token）：
 
 ```text
-python -m pytest -q tests/test_nai_generate_compile.py tests/tooling --ignore=tests/test_pixiv_selector_probe.py
+python3 -m pytest -q tests/test_nai_generate_compile.py tests/tooling --ignore=tests/test_pixiv_selector_probe.py
+28 passed in 1.22s
 ```
 
 不跑 Windows cmd/DPAPI，不跑真实 NAI，不把合成 bench 写成 10k/100k。
