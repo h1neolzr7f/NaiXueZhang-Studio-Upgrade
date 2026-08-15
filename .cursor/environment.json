@@ -1,0 +1,18 @@
+{
+  "name": "Nai学长工作室 (upgrade)",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "gallery",
+      "command": "PYTHONUTF8=1 PYTHONIOENCODING=utf-8 GALLERY_PORT=8797 .venv/bin/python server.py",
+      "description": "FastAPI gallery/workspace service on http://127.0.0.1:8797 (classic gallery at /, workspace at /app)."
+    }
+  ],
+  "ports": [
+    {
+      "name": "gallery",
+      "port": 8797
+    }
+  ]
+}
