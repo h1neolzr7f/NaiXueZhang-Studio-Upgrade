@@ -6,6 +6,8 @@ import math
 import threading
 from typing import Any
 
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Query, Response
 
 from aitag_core.draft_store import public_draft_response, save_studio_draft
@@ -19,7 +21,6 @@ from codex_atlas.online import (
     CodexAtlasClientError,
     parse_atlas_work_id,
 )
-from server_shared import CONFIG, DATA_DIR
 
 router = APIRouter(prefix="/api/nai/codex-atlas")
 _CLIENT: CodexAtlasClient | None = None
@@ -28,13 +29,23 @@ _DEFAULT_DRAFT_TTL_SECONDS = 30 * 24 * 60 * 60
 _GALLERY_ID = "codex-atlas"
 
 
+def _config() -> dict[str, Any]:
+    from server_shared import CONFIG
+    return CONFIG
+
+
+def _data_dir() -> Path:
+    from server_shared import DATA_DIR
+    return DATA_DIR
+
+
 def _online_enabled() -> bool:
-    return bool(CONFIG.get("codex_atlas_online_enabled", True))
+    return bool(_config().get("codex_atlas_online_enabled", True))
 
 
 def _draft_ttl_seconds() -> float:
     try:
-        value = float(CONFIG.get("codex_atlas_draft_ttl_sec", _DEFAULT_DRAFT_TTL_SECONDS))
+        value = float(_config().get("codex_atlas_draft_ttl_sec", _DEFAULT_DRAFT_TTL_SECONDS))
     except (TypeError, ValueError):
         return float(_DEFAULT_DRAFT_TTL_SECONDS)
     return value if math.isfinite(value) and value > 0 else float(_DEFAULT_DRAFT_TTL_SECONDS)
@@ -46,10 +57,10 @@ def get_atlas_client() -> CodexAtlasClient:
         with _CLIENT_LOCK:
             if _CLIENT is None:
                 _CLIENT = CodexAtlasClient(
-                    cache_root=DATA_DIR / ".cache" / "codex-atlas",
-                    cache_ttl_seconds=float(CONFIG.get("codex_atlas_cache_ttl_sec", 600) or 600),
-                    cache_max_bytes=int(CONFIG.get("codex_atlas_cache_max_bytes", 96 * 1024 * 1024) or 0),
-                    timeout_seconds=float(CONFIG.get("codex_atlas_timeout_sec", 30) or 30),
+                    cache_root=_data_dir() / ".cache" / "codex-atlas",
+                    cache_ttl_seconds=float(_config().get("codex_atlas_cache_ttl_sec", 600) or 600),
+                    cache_max_bytes=int(_config().get("codex_atlas_cache_max_bytes", 96 * 1024 * 1024) or 0),
+                    timeout_seconds=float(_config().get("codex_atlas_timeout_sec", 30) or 30),
                 )
     return _CLIENT
 
@@ -360,7 +371,7 @@ def api_atlas_draft(work_id: str, safe_only: bool = Query(True)) -> dict[str, An
     record = save_studio_draft(
         compiled,
         source=_GALLERY_ID,
-        root=DATA_DIR,
+        root=_data_dir(),
         ttl_seconds=_draft_ttl_seconds(),
     )
     payload = public_draft_response(record)
