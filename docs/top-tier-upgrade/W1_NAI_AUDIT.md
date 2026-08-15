@@ -14,7 +14,7 @@ Manga-Editor-Desu-NAI: not connected
 | worker_id | W1 |
 | run | https://cursor.com/agents/bc-e479afc0-6800-53a3-abbc-2a25955be753 |
 | baseline_branch | `cursor/cloud-top-tier-integration-f036` @ `4d8dbea13eb166c4351c4e31f55ecc658bd40c6d` |
-| worker_branch | `cursor/cloud-w1-nai-core-f036` |
+| worker_branch | `cursor/cloud-w1-nai-core-f036` @ `35808c6f15052a88f90fcdd821900d165178988a` |
 | main | untouched (`008de38ad4dc6c8afbf0ec32ae411cd85685ac02`) |
 | phase / wave | Phase 0 / Wave 2 |
 
@@ -138,8 +138,8 @@ python -m pytest -q tests/test_nai_param_snapshots.py tests/test_nai_generate_co
 python -m compileall -q -x "runtime|\.venv|node_modules|data" nai nai_api.py nai_char_modules tests/test_nai_param_snapshots.py
 ```
 
-Expected: new snapshot file green. Existing `tests/test_nai_generate_compile.py` already locks D-009.  
-Known pre-existing fail if the full suite is run: `test_generate_payload_characterization_preserves_cost_and_v4_contract` (finding 1).
+Recorded on this Worker: `34 passed, 13 subtests passed` for `tests/test_nai_param_snapshots.py` + `tests/test_nai_generate_compile.py`.  
+Known pre-existing fail if the characterization file is included: `test_generate_payload_characterization_preserves_cost_and_v4_contract` (finding 1).
 
 No official HTTP POST is executed by these tests. Body isolation is AST + local dict mirror of `nai/generate.py`.
 
