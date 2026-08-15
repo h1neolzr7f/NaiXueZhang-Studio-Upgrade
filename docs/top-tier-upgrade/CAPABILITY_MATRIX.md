@@ -3,7 +3,7 @@
 Base: `h1neolzr7f/NaiXueZhang-Studio-Upgrade` @ `008de38ad4dc6c8afbf0ec32ae411cd85685ac02`  
 Mode: `CLOUD_WEB`  
 Scoring: 0 none, 5 path works but weaker than benchmark, 8 production-usable for this product, 10 leading with evidence.  
-Barrel score = minimum of **core=Y** rows. Current barrel: **3.0** (`gen.img2img_inpaint_canvas`, `post.pipeline`).
+Barrel score = minimum of **core=Y** rows. Current barrel: **3.0** (`gen.img2img_inpaint_canvas`).
 
 | capability_id | user_journey_step | core | benchmark_project | current_behavior | evidence | score | target | decision | reason | acceptance |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -15,7 +15,7 @@ Barrel score = minimum of **core=Y** rows. Current barrel: **3.0** (`gen.img2img
 | gen.studio_frozen_txt2img | 生成 | Y | NyaNovel / NAIWeaver | /api/nai/generate 冻结 comment；默认 force_free | routes/nai.py, nai/generate.py | 7.0 | 8.0 | implement | 付费闸门是长板 | 未确认付费不发付费请求 |
 | gen.img2img_inpaint_canvas | 生成 | Y | NAIWeaver | 无蒙版画布；action 恒 generate | frontend/src/pages/StudioPage.tsx, nai_char_modules/generation.py | 3.0 | 8.0 | implement | 最短木板 1 | 能从本库图打开 img2img 并回填 |
 | gen.cancel_balance_error | 取消/余额/错误 | Y | SANP / Langbai | 5xx/超时 billing_uncertain；账本不猜 Anlas；Studio 无取消按钮 | generation_jobs.py, nai/generate.py, usage_ledger.py | 8.0 | 9.0 | implement | 扣费语义强；缺预估与 UI 取消 | unknown 不能当没扣费重试 |
-| post.pipeline | 后处理 | Y | SANP / NAI-Utility-Tool | Lanczos 超分；打码依赖外挂 ANR | post_pipeline.py | 3.0 | 7.0 | replace | 最短木板 2 | 无 ANR 时超分仍可用且声明引擎 |
+| post.pipeline | 后处理 | Y | SANP / NAI-Utility-Tool | Lanczos 超分默认可用并声明引擎；无 ANR 时 mosaic:unavailable，不中断流水线 | post_pipeline.py, tests/test_post_pipeline.py | 6.0 | 7.0 | replace | 打码仍依赖可选 ANR | 无 ANR 时超分仍可用且声明引擎 |
 | publish.pixiv_browser | 发布 | Y | SANP | Playwright 本机 Chrome；Butler 只准备草稿 | pixiv_web_upload.py, butler/planning.py | 7.0 | 8.0 | implement | 比 Cookie 直传更安全 | 预检失败不上传 |
 | recover.generation_unknown | 崩溃恢复 | Y | Langbai | running→unknown + recovered_after_restart | generation_jobs.py, tests/test_generation_jobs.py | 8.0 | 9.0 | implement | 已对齐崩溃≠没扣费 | 杀进程后 can_retry=false |
 | assist.split_desks | 小祥/凑企鹅 | Y | LingChat | 分台白名单+执行期二次鉴权；一次性计划器 | butler/agents.py, tests/test_butler_agents.py | 7.0 | 8.0 | exclude | 分台是强项，不要合成单角色 | 小祥不能 generate_image |
@@ -31,7 +31,7 @@ Barrel score = minimum of **core=Y** rows. Current barrel: **3.0** (`gen.img2img
 | NAI 原生创作 | 3.0 | gen.img2img_inpaint_canvas |
 | 批量生产 | 8.0 | gen.studio_frozen_txt2img / char-swap 预检 |
 | 图库与资产复用 | 6.0 | search.fts_works_prompt |
-| 后处理 | 3.0 | post.pipeline |
+| 后处理 | 6.0 | post.pipeline |
 | 发布与恢复 | 7.0 | publish.pixiv_browser |
 | 数据和付费安全 | 8.5 | recover.generation_unknown + P0 测试 |
 | Agent Tool Runtime | 5.0 | assist.tool_loop |
@@ -39,6 +39,6 @@ Barrel score = minimum of **core=Y** rows. Current barrel: **3.0** (`gen.img2img
 | Windows 安装与上手 | 8.0 | 云端未真机验证，见 PENDING_LOCAL_WINDOWS |
 | 文档与可验证性 | 7.5 | 本目录建立后提高 |
 
-**barrel_lowest_capability:** `gen.img2img_inpaint_canvas` / `post.pipeline`  
+**barrel_lowest_capability:** `gen.img2img_inpaint_canvas`  
 **barrel_lowest_score:** `3.0`  
-`assist.tool_loop` is now 5.0 (timeout/cancel/loop-limit finish) but still not wired to chat.
+`post.pipeline` is now 6.0 (Lanczos upscale survives missing ANR). Pixiv account work is deferred this wave.

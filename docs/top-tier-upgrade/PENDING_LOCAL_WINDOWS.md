@@ -156,7 +156,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: preview only unless confirmed
 - Failure meaning: publish safety broken
 - Responsible local role: user + local Lead
-- Status: blocked_needs_user
+- Status: deferred_by_user
 
 ## WIN-014 Upgrade / uninstall / data keep
 

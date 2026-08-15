@@ -137,7 +137,7 @@
       "depends_on": []
     }
   ],
-  "decisions": ["D-001", "D-002", "D-003", "D-004", "D-005", "D-006", "D-007", "D-008", "D-009"],
+  "decisions": ["D-001", "D-002", "D-003", "D-004", "D-005", "D-006", "D-007", "D-008", "D-009", "D-010", "D-011"],
   "pending_local_windows": [
     "WIN-001", "WIN-002", "WIN-003", "WIN-004", "WIN-005",
     "WIN-006", "WIN-007", "WIN-008", "WIN-009", "WIN-010",
@@ -147,7 +147,7 @@
     {
       "id": "CRED-001",
       "kind": "credentials",
-      "message": "Real NAI/Pixiv tokens and paid verification are not authorized."
+      "message": "Paid NovelAI generation and Pixiv login remain unauthorized/deferred. Do not persist chat secrets. Continue upgrade without account work."
     },
     {
       "id": "WIN-000",
@@ -160,5 +160,5 @@
     "sensitive_scan": "clean",
     "bench_gallery": "synthetic 1000/20 hits=200"
   },
-  "next_action": "Windows Lead: checkout cursor/cloud-top-tier-integration-f036, run doctor_windows and run_tests_windows. Cloud: do not wire tooling into planning.py and do not start img2img UI."
+  "next_action": "Continue Wave 2 without Pixiv/account work. Do not persist chat secrets or run paid NAI. Next shortest board is gen.img2img_inpaint_canvas compile/UI after tests stay green."
 }

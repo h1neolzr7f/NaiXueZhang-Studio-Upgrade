@@ -36,9 +36,9 @@ Integration Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/p
 
 ## Barrel
 
-- Lowest: `gen.img2img_inpaint_canvas` and `post.pipeline` at **3.0**
-- Next implementable kernel: `assist.tool_loop` 5.0
-- Paid/recovery remain a relative long board (~8.5)
+- Lowest: `gen.img2img_inpaint_canvas` at **3.0**
+- `post.pipeline` raised to **6.0** (Lanczos upscale survives missing ANR)
+- Pixiv account work deferred by user this wave
 
 ## Tests this run (Linux Cloud VM)
 
@@ -51,9 +51,10 @@ Integration Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/p
 
 ## Blockers
 
-1. Real NAI/Pixiv credentials and paid verification are not authorized.
-2. Windows one-click, DPAPI, Defender, Live2D, and large-gallery benches are queued.
+1. Paid NovelAI generation is still not authorized in cloud. Chat-provided tokens are not stored and not used.
+2. Pixiv login/publish verification is deferred by user (WIN-013).
+3. Windows one-click, DPAPI, Defender, Live2D, and large-gallery benches remain queued.
 
 ## Next
 
-Do not start img2img UI or wire tooling into `planning.py`. Windows Lead should run doctor/verify from HANDOFF.
+Continue without account work. Do not start img2img UI or wire tooling into `planning.py` until the current compile/pipeline tests stay green.

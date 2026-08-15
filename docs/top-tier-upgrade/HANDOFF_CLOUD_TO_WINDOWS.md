@@ -47,8 +47,10 @@ NAI compile now also returns `requested_action`, `unsupported_fields`, `unknown_
 ## 10. Three shortest boards
 
 1. `gen.img2img_inpaint_canvas` 3.0
-2. `post.pipeline` 3.0
-3. `assist.memory_tts_emotion` 4.0 (defer to v1.9; next implementable kernel is `assist.tool_loop` 5.0)
+2. `assist.memory_tts_emotion` 4.0 (defer to v1.9)
+3. `assist.tool_loop` 5.0 (kernel exists, not wired to chat)
+
+`post.pipeline` is now 6.0. Pixiv account work is deferred this wave.
 
 ## 11. PENDING_LOCAL_WINDOWS
 

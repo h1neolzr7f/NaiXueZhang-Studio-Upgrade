@@ -79,3 +79,25 @@
 - Tests: `test_unknown_and_uncompiled_fields_are_reported_not_dropped`
 - Rollback: revert the extra return keys
 - Layer: B
+
+## D-010 Missing ANR must not fail Lanczos upscale
+
+- Date: 2026-08-15
+- Capability: post.pipeline
+- Existing behavior: mosaic enabled + no ANR raised and aborted the whole pipeline after upscale work.
+- Chosen: skip mosaic as `mosaic:unavailable`, keep `upscale:2x`, record `upscale_engine=lanczos`, continue metadata.
+- Evidence: W0 review; `tests/test_post_pipeline.py::PostPipelineAnrOptionalTests`
+- Tests: missing ANR still writes `_up2x` and `_final`
+- Rollback: restore the RuntimeError on `mosaic_runtime_status.ok is False`
+- Layer: B
+
+## D-011 Skip account/Pixiv path this wave
+
+- Date: 2026-08-15
+- Capability: publish.pixiv_browser / credentials
+- Existing behavior: CRED-001 blocked on real NAI/Pixiv verification.
+- Chosen: user said Pixiv is not urgent and to continue the upgrade without account work. Do not persist any chat-provided token. Do not run paid NovelAI generation. Do not implement Pixiv login this wave.
+- Evidence: user instruction this turn
+- Tests: none
+- Rollback: n/a
+- Layer: B (scope), A (do not commit secrets or unpaid generation)

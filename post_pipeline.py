@@ -19,6 +19,8 @@ DATA_DIR = DeferredDataPath(lambda: data_dir())
 GENERATED_DIR = DeferredDataPath(lambda: data_dir() / "generated")
 CONFIG_PATH = DeferredDataPath(lambda: data_dir() / "post_pipeline.json")
 
+UPSCALE_ENGINE = "lanczos"
+
 DEFAULTS: dict[str, Any] = {
     "anr_root": "",
     "upscale": {"enabled": True, "scale": 2},
@@ -1051,6 +1053,7 @@ def _process_image_locked(
         current = _upscale_lanczos(current, scale)
         steps = [s for s in steps if not s.startswith("upscale:")]
         steps.append(f"upscale:{scale}x")
+        orig_meta["upscale_engine"] = UPSCALE_ENGINE
     elif only_missing and state.get("upscale") and not need_upscale:
         up = _find_artifact(stem, "upscale")
         if up and up.exists():
@@ -1059,20 +1062,28 @@ def _process_image_locked(
     if need_mosaic:
         runtime = mosaic_runtime_status(cfg)
         if not runtime.get("ok"):
-            raise RuntimeError(str(runtime.get("message") or "打码环境未就绪"))
-        try:
-            current = _mosaic_via_anr(current, cfg, work_dir)
+            # Missing ANR must not fail Lanczos upscale / metadata. Record a
+            # stable degraded step so only_missing will not retry forever.
             steps = [s for s in steps if not s.startswith("mosaic:")]
-            steps.append(f"mosaic:{mosaic_cfg.get('method', '像素')}")
-        except MosaicNoTarget as exc:
-            steps = [s for s in steps if not s.startswith("mosaic:")]
-            steps.append("mosaic:none")
-            orig_meta["mosaic_no_target"] = str(exc)
-        except Exception as exc:
-            reason = str(exc).strip() or "打码失败"
-            steps = [s for s in steps if not s.startswith("mosaic:")]
-            steps.append(f"mosaic:skip({reason})")
-            raise RuntimeError(f"打码失败: {reason}") from exc
+            steps.append("mosaic:unavailable")
+            orig_meta["mosaic_unavailable"] = str(
+                runtime.get("message") or "未找到 ANR 打码插件"
+            )
+            need_mosaic = False
+        else:
+            try:
+                current = _mosaic_via_anr(current, cfg, work_dir)
+                steps = [s for s in steps if not s.startswith("mosaic:")]
+                steps.append(f"mosaic:{mosaic_cfg.get('method', '像素')}")
+            except MosaicNoTarget as exc:
+                steps = [s for s in steps if not s.startswith("mosaic:")]
+                steps.append("mosaic:none")
+                orig_meta["mosaic_no_target"] = str(exc)
+            except Exception as exc:
+                reason = str(exc).strip() or "打码失败"
+                steps = [s for s in steps if not s.startswith("mosaic:")]
+                steps.append(f"mosaic:skip({reason})")
+                raise RuntimeError(f"打码失败: {reason}") from exc
     elif only_missing and state.get("mosaic") and not need_mosaic:
         mosaic_path = _find_artifact(stem, "mosaic")
         if mosaic_path and mosaic_path.exists():
@@ -1107,6 +1118,8 @@ def _process_image_locked(
             "pipeline_steps": steps,
             "processed_filename": final_path.name,
             "processed_url": f"/data/generated/{final_path.name}",
+            "upscale_engine": orig_meta.get("upscale_engine")
+            or (UPSCALE_ENGINE if any(s.startswith("upscale:") for s in steps) else ""),
         }
     )
     _write_meta(source, orig_meta)
@@ -1136,6 +1149,7 @@ def _process_image_locked(
         "final_url": f"/data/generated/{final_path.name}",
         "steps": steps,
         "ran_steps": ran,
+        "upscale_engine": orig_meta.get("upscale_engine") or "",
         "message": "流水线完成" if ran else "流水线完成（无新增步骤）",
     }
     invalidate_scan_cache()

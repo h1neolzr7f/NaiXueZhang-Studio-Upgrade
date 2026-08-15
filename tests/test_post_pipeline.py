@@ -232,5 +232,48 @@ class PostPipelineBacklogPerformanceTests(unittest.TestCase):
         self.assertTrue(post_pipeline._BACKLOG_CACHE["dirty"])
 
 
+class PostPipelineAnrOptionalTests(unittest.TestCase):
+    def test_missing_anr_still_upscales_and_declares_lanczos(self) -> None:
+        from PIL import Image
+
+        stem = "unit_no_anr_upscale"
+        with tempfile.TemporaryDirectory() as temp:
+            generated_dir = Path(temp)
+            source = generated_dir / f"{stem}.png"
+            Image.new("RGB", (8, 8), (12, 34, 56)).save(source)
+            cfg = {
+                "upscale": {"enabled": True, "scale": 2},
+                "mosaic": {"enabled": True, "method": "像素"},
+                "metadata": {"enabled": True},
+                "anr_root": "",
+            }
+            with (
+                patch.object(post_pipeline, "GENERATED_DIR", generated_dir),
+                patch.object(post_pipeline, "merge_pipeline_config", return_value=cfg),
+                patch.object(
+                    post_pipeline,
+                    "mosaic_runtime_status",
+                    return_value={"ok": False, "message": "未找到 ANR 打码插件"},
+                ),
+            ):
+                result = post_pipeline._process_image_locked(stem)
+                state = post_pipeline.pipeline_item_state(stem, overrides=cfg)
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["upscale_engine"], "lanczos")
+            self.assertIn("upscale:2x", result["steps"])
+            self.assertIn("mosaic:unavailable", result["steps"])
+            self.assertIn("metadata:clean", result["steps"])
+            upscaled = generated_dir / f"{stem}_up2x.png"
+            final = generated_dir / f"{stem}_final.png"
+            self.assertTrue(upscaled.exists())
+            self.assertTrue(final.exists())
+            with Image.open(upscaled) as img:
+                self.assertEqual(img.size, (16, 16))
+            self.assertTrue(state["upscale"])
+            self.assertTrue(state["mosaic"])
+            self.assertNotIn("mosaic", state["missing"])
+
+
 if __name__ == "__main__":
     unittest.main()
