@@ -44,7 +44,7 @@ Integration Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/p
 
 ## Tests this run (Linux Cloud VM)
 
-- `1145 passed, 68 skipped, 0 failed, 127 subtests`
+- `1155 passed, 68 skipped, 0 failed, 127 subtests`（阻断项反例已锁）
 - `product_quality_gate` p0=0 p1=0 p2=0; assertion `p1 == 0` unchanged
 - Windows-shell / DPAPI cases skipped on POSIX (D-003/D-007)
 

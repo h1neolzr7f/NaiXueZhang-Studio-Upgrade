@@ -4,8 +4,9 @@
 
 - 日期：2026-08-15
 - 执行模式：`CLOUD_WEB`
-- 结论：**这是云端阶段检查点，不是整个升级完成证明，也不是顶尖完成。**
+- 结论：**这是云端阶段检查点，不是整个升级完成证明，也不是顶尖完成。上一版报告也不是完成证明。**
 - 不要合 `main`。不要发 Release。不要用真实 NAI Token。不要连接 Manga。不要重做 Phase 0。
+- Windows `WIN-001`…`015`、真实 NAI Token、真实大图库：**仍未验证。**
 
 ---
 
@@ -30,7 +31,7 @@ Windows `WIN-001`…`015` 继续留给本地接管。
 |---|---|
 | 唯一实施仓 | `h1neolzr7f/NaiXueZhang-Studio-Upgrade` |
 | 集成分支 | `cursor/cloud-top-tier-integration-f036` |
-| 本报告写入提交 | `b1413e9`（以远程 tip 为准） |
+| 本报告写入提交 | 以远程 tip 为准（本轮阻断修复后重写） |
 | 以远程 tip 为准 | `git rev-parse origin/cursor/cloud-top-tier-integration-f036` |
 | `main` 基线（未改） | `008de38ad4dc6c8afbf0ec32ae411cd85685ac02` |
 | 集成 Draft PR | https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/3 |
@@ -69,7 +70,7 @@ checkout：
 git fetch origin cursor/cloud-top-tier-integration-f036
 git checkout cursor/cloud-top-tier-integration-f036
 git rev-parse HEAD
-# 报告写入：b1413e9；以远程 tip 为准
+# 以远程 tip 为准；本轮含云端阻断项修复
 ```
 
 不要从 `main` 另起炉灶。不要重做 Phase 0。
@@ -126,7 +127,8 @@ Worker 分支不要单独合 `main`。`W1_NAI_AUDIT.md` / `W0_REVIEW.md` 里的�
 |---|---|
 | `9f4ce2a` | 画布、图库 HTTP、kernel chat、v1.9、诚实修 gate |
 | `543999e` | 测试锁 + 本机 1145 通过记录 |
-| `b1413e9` | 本检查点报告 |
+| `b1413e9` | 初版检查点报告（不是完成证明） |
+| `c9efd74` | 云端阻断项修复 + 反例测试 |
 
 ---
 
@@ -143,6 +145,25 @@ https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/actions/runs/3187367887
 | 本机 POSIX 另见 Regression Guard | Guard 调 `python`，本 VM 只有 `python3` | `check_regression_guards.js` 回退 `python3` / `python` |
 
 **没有**删除测试，**没有**改 `test_product_quality_gate.py` 的 `p1 == 0`。
+
+---
+
+## 5.1 本轮修复的云端阻断项（反例已锁）
+
+上一版检查点报告**不是完成证明**。下面 8 项已在本轮修掉，每项都有反例测试。
+
+| 阻断 | 修法 | 反例 |
+|---|---|---|
+| `resolve_work_image_path` 绝对路径绕过目录边界 | 绝对/相对都走 `gallery_index.resolve_index_image_path`；必须落在 `images_dir` / `DATA_DIR` / `DATA_DIR/images` | `/tmp/evil.png`、`../../../etc/passwd`、`\\x00` → `None`；source-image 400；索引不打开越界文件 |
+| `ToolExecutor` timeout 被 `shutdown(wait=True)` 拖住 | 不用 context manager；`shutdown(wait=False, cancel_futures=True)` | `timeout_ms=50` + `sleep(1)`，`monotonic` 耗时 `>=0.04` 且 `<0.4`，`data=={}` |
+| inpaint 原图与 mask 像素尺寸不一致 | compile 侧 `align_inpaint_mask`（NEAREST 缩到原图）；非 PNG 占位符保持原样；UI 从同一 canvas 导出 image+mask | 64×64 图 + 16×16 mask → parameters.mask 解码为 64×64；`"base64-or-bytes"`/`"base64-mask"` 回归不变 |
+| `companion_state` 读改写无锁 | 模块级 `RLock`，propose/confirm/handoff/quiet/ack/mark_delivered 在锁内 load-mutate-save | 20 线程同时 `propose_memory`，JSON 不坏，条数=20 |
+| quiet hours 未用配置时区 | `timezone=="local"` 用系统 tz，否则 `ZoneInfo`，失败回退 UTC；`now.astimezone(tz)` 再比 HH:MM | `Asia/Tokyo` 22:00–23:00 + `2026-08-15 13:30 UTC`（JST 22:30）为静默；同一时刻 UTC 钟不是 |
+| 主动事件缺 dedupe / TTL / ack | 稳定 key；`acks[{key,at,ttl_sec}]` 默认 6h；`deliver=1` 与 `POST /api/companion/events/ack` 按 key ack | 未 ack 可再投；ack 后不再投；TTL 过期后可再投 |
+| 已确认记忆未在 `request_plan` 前注入 | `planner_memory_context()` 在 `chat_json` **之前**写入 `confirmed_preferences` 和 system prompt；过滤 Token/Cookie/密码/路径；`planning.py` 仍零 import tooling | mock `chat_json`：有「竖图优先」，无 `pst-` / cookie / 用户路径 |
+| 图库索引接口无批量上限 | `MAX_INCREMENTAL_WORK_IDS=200`，`MAX_INCREMENTAL_ITEMS=500`；超限 HTTP 400；全量截断 `truncated=true`；duplicates/similar 封顶 | 201 个 work_ids → 400；3 个 → 200；约 30 张小图规模行为（**不是** 10k/100k） |
+
+Windows、真实 NAI Token、真实大图库：**本轮仍未验证，不要写成已完成。**
 
 ---
 
@@ -326,10 +347,12 @@ TTS（`assist.tts`）core=N，**不进木桶**。
 ## 9. 测试（Linux Cloud VM）
 
 ```
-1145 passed, 68 skipped, 0 failed, 127 subtests
+1155 passed, 68 skipped, 0 failed, 127 subtests
 product_quality_gate: p0=0 p1=0 p2=0
 scripts/scan_sensitive.py --git-candidates --content-only: clean
 ```
+
+本轮新增/加锁的反例主要在：`tests/tooling/test_executor_timeout.py`、`tests/test_studio_canvas.py`、`tests/test_nai_generate_compile.py`、`tests/test_companion_v19.py`、`tests/test_planner_memory.py`、`tests/test_gallery_index.py`、`tests/test_gallery_index_http.py`。
 
 命令（PATH 上常常没有 `python`）：
 

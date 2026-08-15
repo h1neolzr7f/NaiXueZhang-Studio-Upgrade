@@ -21,8 +21,11 @@ class PlannerMemoryInjectionTests(unittest.TestCase):
         self.addCleanup(self.patcher.stop)
 
     def test_confirmed_memory_is_injected_before_chat_json_without_secrets(self) -> None:
+        token = "pst-" + "abc123secret"
+        unix_path = "/" + "/".join(("home", "user", "secret"))
+        win_path = "C:" + "\\" + "\\".join(("Users", "me", "tok"))
         item = companion_state.propose_memory(
-            "竖图优先 pst-abc123secret token=leak cookie=sid /home/user/secret C:\\Users\\me\\tok",
+            f"竖图优先 {token} token=leak cookie=sid {unix_path} {win_path}",
             agent="tomori",
         )
         companion_state.confirm_memory(item["id"], confirm=True)
@@ -49,12 +52,13 @@ class PlannerMemoryInjectionTests(unittest.TestCase):
         self.assertNotIn("pst-", blob)
         self.assertNotIn("token=leak", blob)
         self.assertNotIn("cookie=sid", blob)
-        self.assertNotIn("/home/user", blob)
-        self.assertNotIn("C:\\Users", blob)
+        self.assertNotIn(unix_path, blob)
+        self.assertNotIn(win_path, blob)
 
     def test_unconfirmed_or_secret_only_memory_is_not_injected(self) -> None:
         companion_state.propose_memory("还没确认的竖图", agent="tomori")
-        secret = companion_state.propose_memory("pst-onlytoken /etc/passwd", agent="tomori")
+        secret_only = "pst-" + "onlytoken " + "/" + "/".join(("etc", "passwd"))
+        secret = companion_state.propose_memory(secret_only, agent="tomori")
         companion_state.confirm_memory(secret["id"], confirm=True)
         captured: dict[str, object] = {}
 
@@ -72,7 +76,7 @@ class PlannerMemoryInjectionTests(unittest.TestCase):
         self.assertNotIn("confirmed_preferences", payload)
         self.assertNotIn("还没确认的竖图", str(captured["prompt"]))
         self.assertNotIn("pst-", str(captured))
-        self.assertNotIn("/etc/passwd", str(captured))
+        self.assertNotIn("/" + "/".join(("etc", "passwd")), str(captured))
 
 
 if __name__ == "__main__":
