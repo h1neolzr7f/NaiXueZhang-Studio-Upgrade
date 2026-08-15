@@ -68,6 +68,42 @@ class FrontendGalleryIdentityTests(unittest.TestCase):
                 self.assertIn("group=account%3A42", data[key])
         self.assertIn(f"from={LARGE_QQ_WORK_ID}", data["studio"])
 
+    def test_work_bridge_keeps_codex_atlas_entry_id(self) -> None:
+        data = _run_node(
+            """
+            const fs = require("fs");
+            const vm = require("vm");
+            const stored = new Map();
+            const sessionStorage = {
+              setItem(key, value) { stored.set(key, value); },
+              getItem(key) { return stored.get(key) || null; },
+            };
+            const window = {
+              location: {
+                origin: "http://127.0.0.1:8787",
+                href: "http://127.0.0.1:8787/?gallery=codex-atlas&group=suozhang",
+              },
+            };
+            vm.runInNewContext(
+              fs.readFileSync("web/shared/work-bridge.js", "utf8"),
+              { window, sessionStorage, URL, Date },
+            );
+            const workId = "suozhang:sz-0001";
+            const saved = window.WorkBridge.save({ workId, pageIndex: 0, from: "gallery" });
+            console.log(JSON.stringify({
+              saved,
+              loaded: window.WorkBridge.load(),
+              rejected: window.WorkBridge.normalizeWorkId("https://evil.example/x"),
+              studio: window.WorkBridge.buildUrl("/studio", workId, 0),
+            }));
+            """
+        )
+        self.assertEqual(data["saved"]["workId"], "suozhang:sz-0001")
+        self.assertEqual(data["loaded"]["workId"], "suozhang:sz-0001")
+        self.assertEqual(data["rejected"], "")
+        self.assertIn("from=suozhang%3Asz-0001", data["studio"])
+        self.assertIn("gallery=codex-atlas", data["studio"])
+
     def test_gallery_actions_treat_work_ids_as_opaque_strings(self) -> None:
         core = (ROOT / "web" / "app-core.js").read_text(encoding="utf-8")
         app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")

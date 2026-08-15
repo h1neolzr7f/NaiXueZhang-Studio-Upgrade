@@ -17,6 +17,7 @@ const GALLERY_ASSET_BASE_URLS = Object.freeze({
 });
 let galleryRequestGeneration = 0;
 const AITAG_GALLERY_ID = 'aitag-online';
+const CODEX_ATLAS_GALLERY_ID = 'codex-atlas';
 
 function currentGalleryId() {
   return (gallerySourceSel && gallerySourceSel.value) || 'site';
@@ -24,6 +25,14 @@ function currentGalleryId() {
 
 function isAitagGallery(galleryId = currentGalleryId()) {
   return String(galleryId || '') === AITAG_GALLERY_ID;
+}
+
+function isCodexAtlasGallery(galleryId = currentGalleryId()) {
+  return String(galleryId || '') === CODEX_ATLAS_GALLERY_ID;
+}
+
+function isRemoteDiscoveryGallery(galleryId = currentGalleryId()) {
+  return isAitagGallery(galleryId) || isCodexAtlasGallery(galleryId);
 }
 
 function currentGalleryGroup() {
@@ -55,6 +64,44 @@ function adaptAitagWork(item = {}) {
     cover_url: cover,
     source_gallery_id: AITAG_GALLERY_ID,
     external_url: String(item.external_url || ''),
+  };
+}
+
+function adaptCodexAtlasWork(item = {}) {
+  const cover = String(item.cover_url || item.thumbnail_url || '').trim();
+  return {
+    ...item,
+    id: String(item.id || item.work_id || ''),
+    AI_type: 'NAI',
+    creator: String(item.creator || item.userName || item.author || ''),
+    caption: String(item.caption || item.note || ''),
+    tags: item.tags || [],
+    prompt: String(item.prompt || ''),
+    negative: String(item.negative || ''),
+    image_count: Number(item.image_count || (cover ? 1 : 0)),
+    thumbnail_url: cover,
+    cover_url: cover,
+    source_gallery_id: CODEX_ATLAS_GALLERY_ID,
+    external_url: String(item.external_url || 'https://novelai.quicktagcloud.com/'),
+  };
+}
+
+function adaptCodexAtlasDetail(payload = {}) {
+  const work = adaptCodexAtlasWork(payload.work || payload);
+  const images = (Array.isArray(payload.images) ? payload.images : []).map((image, index) => ({
+    ...image,
+    id: image.id || image.image_id || `${work.id}_p${index}`,
+    page_index: Number.isInteger(Number(image.page_index)) ? Number(image.page_index) : index,
+    url: String(image.url || image.image_url || work.cover_url || ''),
+    thumbnail_url: String(image.thumbnail_url || image.thumb_url || image.url || work.cover_url || ''),
+    ai_json: image.ai_json || { prompt: work.prompt, uc: work.negative },
+  }));
+  return {
+    ...payload,
+    source: CODEX_ATLAS_GALLERY_ID,
+    generation_calls: 0,
+    work: { ...work, images, image_count: images.length || work.image_count },
+    images,
   };
 }
 
@@ -98,39 +145,48 @@ function syncGallerySourceSwitch() {
 
 function updateGallerySourceUi() {
   const online = isAitagGallery();
-  document.body.classList.toggle('aitag-gallery-active', online);
+  const atlas = isCodexAtlasGallery();
+  const remote = online || atlas;
+  document.body.classList.toggle('aitag-gallery-active', remote);
   const setText = (selector, value) => {
     const element = document.querySelector(selector);
     if (element) element.textContent = value;
   };
   const title = document.getElementById('gallerySearchTitle');
-  if (title) title.textContent = online ? '检索 AITag 在线库' : '检索本地图谱';
-  if (qInput) qInput.placeholder = online
-    ? '搜索 AITag 在线作品：角色 / 标签 / ID / 作者 / Prompt'
-    : '在本地已入库库内搜索：角色 / 标签 / ID / 作者 / 咒语';
+  if (title) title.textContent = atlas ? '检索法典图鉴' : (online ? '检索 AITag 在线库' : '检索本地图谱');
+  if (qInput) qInput.placeholder = atlas
+    ? '搜索词条：中文标题 / 英文 tag / 分类路径'
+    : (online
+      ? '搜索 AITag 在线作品：角色 / 标签 / ID / 作者 / Prompt'
+      : '在本地已入库库内搜索：角色 / 标签 / ID / 作者 / 咒语');
   const groupField = galleryGroupSel?.closest('.af-field');
   groupField?.toggleAttribute('hidden', online);
   groupField?.classList.toggle('hidden', online);
+  const groupLabel = document.querySelector('label[for="galleryGroup"]');
+  if (groupLabel) groupLabel.textContent = atlas ? '法典分册' : '图库分组';
+  if (galleryGroupSel) galleryGroupSel.setAttribute('aria-label', atlas ? '法典分册' : '图库分组');
   document.querySelectorAll('.aitag-only-filter').forEach((element) => {
     element.classList.toggle('hidden', !online);
     element.toggleAttribute('hidden', !online);
   });
-  document.getElementById('localBanner')?.classList.toggle('hidden', online);
-  document.getElementById('setupBanner')?.classList.toggle('hidden', online);
+  document.getElementById('localBanner')?.classList.toggle('hidden', remote);
+  document.getElementById('setupBanner')?.classList.toggle('hidden', remote);
   const storage = document.getElementById('storagePathFooter');
-  if (storage) storage.classList.toggle('hidden', online);
-  document.getElementById('galleryFooter')?.classList.toggle('hidden', online);
+  if (storage) storage.classList.toggle('hidden', remote);
+  document.getElementById('galleryFooter')?.classList.toggle('hidden', remote);
 
-  setText('#galleryHeroEyebrow', online ? 'AITag online · NAI works' : 'NAI verified · PIXIV intake');
-  setText('#galleryHeroAccent', online ? '下一次创作' : '可检索的图谱');
-  setText('#galleryHeroLead', online
-    ? '搜索 AITag 在线作品、角色与 Prompt；先浏览完整作品，再建立零生成草稿或进入在线换角。'
-    : '搜索作品、画师、Pixiv 标签和原图里的 NAI Prompt；从浏览直接进入小镜、生成、换角与队列。');
-  setText('#galleryNoteIndex', online ? 'ONLINE / AITAG' : 'LOCAL / 01');
-  setText('#galleryAboutTitle', online ? '关于在线库' : '关于图库');
-  setText('#galleryAboutSummary', online ? '在线来源、NAI 准入与再创作' : '来源、准入与本地存储');
-  setText('#galleryResultsLabel', online ? 'Online stream / AITag index' : 'Archive stream / local index');
-  setText('#galleryResultsTitle', online ? '在线作品流' : '作品流');
+  setText('#galleryHeroEyebrow', atlas ? 'Codex atlas · prompt books' : (online ? 'AITag online · NAI works' : 'NAI verified · PIXIV intake'));
+  setText('#galleryHeroAccent', remote ? '下一次创作' : '可检索的图谱');
+  setText('#galleryHeroLead', atlas
+    ? '只读浏览 法典图鉴 公开发布的词条与例图；点一下复制 Prompt，或做成零生成 Studio 草稿。不会写入本地主库。'
+    : (online
+      ? '搜索 AITag 在线作品、角色与 Prompt；先浏览完整作品，再建立零生成草稿或进入在线换角。'
+      : '搜索作品、画师、Pixiv 标签和原图里的 NAI Prompt；从浏览直接进入小镜、生成、换角与队列。'));
+  setText('#galleryNoteIndex', atlas ? 'ONLINE / CODEX' : (online ? 'ONLINE / AITAG' : 'LOCAL / 01'));
+  setText('#galleryAboutTitle', remote ? '关于在线库' : '关于图库');
+  setText('#galleryAboutSummary', atlas ? '社区法典、只读发现与 Prompt 草稿' : (online ? '在线来源、NAI 准入与再创作' : '来源、准入与本地存储'));
+  setText('#galleryResultsLabel', atlas ? 'Online stream / 法典图鉴' : (online ? 'Online stream / AITag index' : 'Archive stream / local index'));
+  setText('#galleryResultsTitle', remote ? '在线作品流' : '作品流');
 
   // 收藏 / 待生成模式：检索台与结果区语义对齐
   if (state.favoritesMode || state.queueMode) {
@@ -140,23 +196,30 @@ function updateGallerySourceUi() {
     setText('#gallerySearchTitle', isFav ? '检索我的收藏' : '检索待生成队列');
     setText('#galleryResultsTitle', isFav ? '收藏作品' : '待生成作品');
   }
-  setText('#galleryResultsHelp', online
-    ? '单击打开详情与全部图片；可在同一详情页建立草稿、识别角色槽并换角。'
-    : (window.GalleryDropFolders && window.GalleryDropFolders.isDropGallery()
-      ? '把图片拖进下方区域解析入库；每次拖入收成一个文件夹，可折叠、合并，并一键加入批量换角。'
-      : '单击打开详情与全部图片；右侧灵感栏可直接送去生成、换角或队列。排序选「随机刷新」后点「换一批」，每次都能看到不同的图。'));
-  setText('#searchStatus span', online ? '正在读取 AITag 在线库…' : '正在读取本地图谱…');
-  setText('#inspirationEmpty', online
-    ? '单击在线作品查看详情与全部图片；在同一页面完成角色槽识别与换角'
-    : '单击查看详情与全部图片；侧边栏可预览咒语并送去生成或洗稿');
-  setText('#inspirationToStudio', online ? '建立原图草稿 →' : '用此图生成 →');
+  setText('#galleryResultsHelp', atlas
+    ? '单击打开词条与例图；可复制 Prompt，或做成零生成 Studio 草稿。词条归原编纂者，本应用不转授、不入库。'
+    : (online
+      ? '单击打开详情与全部图片；可在同一详情页建立草稿、识别角色槽并换角。'
+      : (window.GalleryDropFolders && window.GalleryDropFolders.isDropGallery()
+        ? '把图片拖进下方区域解析入库；每次拖入收成一个文件夹，可折叠、合并，并一键加入批量换角。'
+        : '单击打开详情与全部图片；右侧灵感栏可直接送去生成、换角或队列。排序选「随机刷新」后点「换一批」，每次都能看到不同的图。')));
+  setText('#searchStatus span', atlas ? '正在读取法典图鉴…' : (online ? '正在读取 AITag 在线库…' : '正在读取本地图谱…'));
+  setText('#inspirationEmpty', atlas
+    ? '单击词条查看例图与 Prompt；可复制或送去 Studio，不会自动出图'
+    : (online
+      ? '单击在线作品查看详情与全部图片；在同一页面完成角色槽识别与换角'
+      : '单击查看详情与全部图片；侧边栏可预览咒语并送去生成或洗稿'));
+  setText('#inspirationToStudio', atlas ? '用此词条生成 →' : (online ? '建立原图草稿 →' : '用此图生成 →'));
   setText('#inspirationToRemix', '角色换角 →');
-  document.getElementById('inspirationToQueue')?.classList.toggle('hidden', online);
+  document.getElementById('inspirationToQueue')?.classList.toggle('hidden', remote);
+  document.getElementById('inspirationToRemix')?.classList.toggle('hidden', atlas);
 
   const signals = document.querySelectorAll('#galleryHeroSignals span');
-  const signalText = online
-    ? ['01 在线作品即搜即看', '02 NAI 元数据准入', '03 零生成草稿换角']
-    : ['01 Pixiv 直连发现', '02 NAI 元数据准入', '03 原图本地保存'];
+  const signalText = atlas
+    ? ['01 看图选词即复制', '02 只读官方发布层', '03 零生成 Prompt 草稿']
+    : (online
+      ? ['01 在线作品即搜即看', '02 NAI 元数据准入', '03 零生成草稿换角']
+      : ['01 Pixiv 直连发现', '02 NAI 元数据准入', '03 原图本地保存']);
   signals.forEach((element, index) => {
     const parts = signalText[index]?.split(' ');
     if (!parts) return;
@@ -175,6 +238,11 @@ function updateGallerySourceUi() {
       ? '你收藏的作品都在这里；可直接送去生成、换角或加入队列。'
       : '排队等待生成的作品；确认后可送去生成或继续编辑。';
     if (descEn) descEn.textContent = isFav ? 'Your bookmarked works.' : 'Works queued for generation.';
+  } else if (atlas) {
+    if (titleZh) titleZh.textContent = '从法典图鉴里选词';
+    if (titleEn) titleEn.textContent = 'Browse the public prompt atlas';
+    if (descZh) descZh.textContent = '只读检索 novelai.quicktagcloud.com 公开发布的词条。默认只开 SFW 法典；复制或做成 Studio 草稿都不会写入本地主库，也不会自动出图。';
+    if (descEn) descEn.textContent = 'Read-only browse of the public 法典图鉴 release. SFW books only by default; copy or draft into Studio without saving into the local gallery.';
   } else if (online) {
     if (titleZh) titleZh.textContent = '从在线作品里找到';
     if (titleEn) titleEn.textContent = 'Browse the AITag collection';
@@ -196,6 +264,7 @@ function updateAdvancedFilterSummary() {
   const sort = selectedOptionLabel(sortModeSel, '最新');
   const time = selectedOptionLabel(timeRangeSel, '全部时间');
   const online = isAitagGallery();
+  const atlas = isCodexAtlasGallery();
   const extras = online ? [
     aitagCreatorInput?.value ? `作者:${aitagCreatorInput.value.trim()}` : '',
     aitagTagsInput?.value ? `标签:${aitagTagsInput.value.trim()}` : '',
@@ -241,9 +310,10 @@ function renderGalleryGroups(items) {
   const folders = rows.filter((it) => it.kind === 'folder');
   const groups = rows.filter((it) => it.kind === 'group');
   const accounts = rows.filter((it) => it.kind === 'account');
+  const books = rows.filter((it) => it.kind === 'book');
   const allLabel = folders.length && groups.length
     ? '全部文件夹、群组和账号'
-    : (folders.length ? '全部文件夹' : '全部群组和账号');
+    : (folders.length ? '全部文件夹' : (books.length ? '全部分册' : '全部群组和账号'));
   const html = [`<option value="">${allLabel}</option>`];
   if (folders.length && !groups.length) {
     folders.forEach((folder) => {
@@ -305,6 +375,11 @@ const GALLERY_SORT_OPTIONS = {
     { value: 'recent', label: '最新收录 (Recent)' },
     { value: 'relevance', label: '相关优先 (Relevance)' },
   ],
+  'codex-atlas': [
+    { value: 'relevance', label: '相关优先 (Relevance)' },
+    { value: 'recent', label: '更新词条 (Updated)' },
+    { value: 'title', label: '标题 (Title)' },
+  ],
 };
 
 // Hero 折叠：首次访问展示完整介绍；之后默认收起（localStorage 记忆），
@@ -348,7 +423,7 @@ function updateShuffleButton(mode) {
   const btn = document.getElementById('shuffleBtn');
   if (!btn) return;
   const show = mode === 'random'
-    && !isAitagGallery()
+    && !isRemoteDiscoveryGallery()
     && !state.favoritesMode
     && !state.queueMode;
   btn.classList.toggle('hidden', !show);
@@ -377,6 +452,18 @@ async function loadGalleryHierarchy(
   updateGallerySortOptions(selected);
   if (isAitagGallery(selected)) {
     renderGalleryGroups([]);
+    return true;
+  }
+  if (isCodexAtlasGallery(selected)) {
+    const response = await window.ApiClient.raw('/api/nai/codex-atlas/books?safe_only=true');
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`);
+    if (requestGeneration !== galleryRequestGeneration || selected !== currentGalleryId()) return false;
+    renderGalleryGroups(data.items || []);
+    if (galleryGroupSel && !galleryGroupSel.value) {
+      const defaultBook = (data.items || []).find((item) => item.default) || (data.items || [])[0];
+      if (defaultBook) galleryGroupSel.value = defaultBook.key || defaultBook.id || '';
+    }
     return true;
   }
   const response = await window.ApiClient.raw(`/api/galleries/${encodeURIComponent(selected)}/groups`);
@@ -513,11 +600,15 @@ async function fetchWorks(
   loadingEl.style.display = 'block';
   const mode = (sortModeSel && sortModeSel.value) || 'new';
   const onlineGallery = isAitagGallery(requestedGallery);
-  const isRank = !onlineGallery && !state.favoritesMode && !state.queueMode && mode === 'monthly';
+  const atlasGallery = isCodexAtlasGallery(requestedGallery);
+  const remoteGallery = onlineGallery || atlasGallery;
+  const isRank = !remoteGallery && !state.favoritesMode && !state.queueMode && mode === 'monthly';
   updateShuffleButton(mode);
   let url;
   if (onlineGallery && state.favoritesMode) {
     url = new URL('/api/nai/aitag/favorites/works', API_BASE);
+  } else if (atlasGallery) {
+    url = new URL('/api/nai/codex-atlas/search', API_BASE);
   } else if (onlineGallery) {
     url = new URL('/api/nai/aitag/search', API_BASE);
   } else if (state.queueMode) {
@@ -538,11 +629,11 @@ async function fetchWorks(
   }
   url.searchParams.set('page', state.page);
   url.searchParams.set('page_size', state.pageSize);
-  if (!onlineGallery) applyGalleryParams(url);
+  if (!remoteGallery) applyGalleryParams(url);
   if (
     !state.favoritesMode
     && !state.queueMode
-    && !onlineGallery
+    && !remoteGallery
     && (state.page > 1 || state.q || state.prompt || state.listMode === 'infinite')
   ) {
     url.searchParams.set('skip_total', '1');
@@ -551,7 +642,12 @@ async function fetchWorks(
   if (!state.favoritesMode && !state.queueMode && state.q) url.searchParams.set('q', state.q);
   if (!state.favoritesMode && !state.queueMode && state.prompt) url.searchParams.set('prompt', state.prompt);
   const tr = (timeRangeSel && timeRangeSel.value) || (isRank ? 'current' : 'all');
-  if (onlineGallery) {
+  if (atlasGallery) {
+    url.searchParams.set('sort', ['relevance', 'recent', 'title'].includes(mode) ? mode : 'relevance');
+    url.searchParams.set('safe_only', 'true');
+    const bookId = currentGalleryGroup();
+    if (bookId) url.searchParams.set('book_id', bookId);
+  } else if (onlineGallery) {
     url.searchParams.set('sort', ['popular', 'recent', 'relevance'].includes(mode) ? mode : 'popular');
     url.searchParams.set('time_range', tr || 'all');
     url.searchParams.set('nai_only', 'true');
@@ -677,8 +773,9 @@ async function fetchWorks(
     }
 	    // 保留接口原始结果，具体隐藏规则统一在前端渲染时应用，方便开关即时恢复。
 	    let incoming = Array.isArray(data.items) ? data.items : [];
-            if (onlineGallery) incoming = incoming.map(adaptAitagWork);
-		    if (!onlineGallery && !state.favoritesMode && !state.queueMode && !isRank) {
+            if (atlasGallery) incoming = incoming.map(adaptCodexAtlasWork);
+            else if (onlineGallery) incoming = incoming.map(adaptAitagWork);
+		    if (!remoteGallery && !state.favoritesMode && !state.queueMode && !isRank) {
 		      incoming = sortWorkItems(incoming, mode);
 		    }
 		    lastPageCount = incoming.length;
@@ -706,7 +803,7 @@ async function fetchWorks(
         seen.add(id);
         merged.push(w);
       }
-	      state.items = (!onlineGallery && !state.favoritesMode && !state.queueMode && !isRank) ? sortWorkItems(merged, mode) : merged;
+	      state.items = (!remoteGallery && !state.favoritesMode && !state.queueMode && !isRank) ? sortWorkItems(merged, mode) : merged;
 	    } else {
 	      state.items = incoming;
 	    }
@@ -721,7 +818,7 @@ async function fetchWorks(
 	            textEl.textContent = t('rank_snapshot_hint');
 	            searchStatusEl.classList.add('visible', 'notice');
 	            keepSearchNotice = true;
-	          } else if (onlineGallery || state.q || state.prompt) {
+	          } else if (remoteGallery || state.q || state.prompt) {
 	            if (state.total > 0) {
 	              textEl.textContent = CURRENT_LANG === 'zh'
 	                ? `共 ${state.total.toLocaleString('zh-CN')} 条 · 第 ${state.page} 页`
@@ -854,9 +951,11 @@ function renderGallery(opts = {}) {
       ? `共 ${imageCount || 0} 张图`
       : `${imageCount || 0} image(s)`);
     topRight.appendChild(pageBadge);
-    const favBtn = createFavoriteButton(w.id);
-    favBtn.classList.add('fav-btn-card');
-    topRight.appendChild(favBtn);
+    if (!isCodexAtlasGallery()) {
+      const favBtn = createFavoriteButton(w.id);
+      favBtn.classList.add('fav-btn-card');
+      topRight.appendChild(favBtn);
+    }
     card.appendChild(topRight);
 
     try {
@@ -909,14 +1008,14 @@ function renderGallery(opts = {}) {
     } catch { }
     card.appendChild(meta);
 
-    if (!isAitagGallery() && shouldEnableHoverPreview()) {
+    if (!isRemoteDiscoveryGallery() && shouldEnableHoverPreview()) {
       card.addEventListener('mouseenter', () => scheduleHoverPreview(w.id, card));
       card.addEventListener('mouseleave', () => cancelHoverPreview());
     }
     card.addEventListener('click', (ev) => handleGalleryCardActivate(w, ev));
 
     try {
-      if (!isAitagGallery() && window.CharSwapPlugin && typeof window.CharSwapPlugin.decorateGalleryCard === 'function') {
+      if (!isRemoteDiscoveryGallery() && window.CharSwapPlugin && typeof window.CharSwapPlugin.decorateGalleryCard === 'function') {
         window.CharSwapPlugin.decorateGalleryCard(card, w);
       }
     } catch { }
@@ -939,7 +1038,7 @@ function renderGallery(opts = {}) {
   }
 
   try {
-    if (!isAitagGallery() && window.CharSwapPlugin && typeof window.CharSwapPlugin.onGalleryUpdated === 'function') {
+    if (!isRemoteDiscoveryGallery() && window.CharSwapPlugin && typeof window.CharSwapPlugin.onGalleryUpdated === 'function') {
       window.CharSwapPlugin.onGalleryUpdated();
     }
   } catch { }
@@ -1061,7 +1160,7 @@ if (clearFiltersBtn) {
   clearFiltersBtn.addEventListener('click', () => {
     qInput.value = '';
     promptInput.value = '';
-    const resetSort = isAitagGallery() ? 'popular' : 'new';
+    const resetSort = isCodexAtlasGallery() ? 'relevance' : (isAitagGallery() ? 'popular' : 'new');
     if (sortModeSel) sortModeSel.value = resetSort;
     if (sortModeSel2) sortModeSel2.value = resetSort;
     if (timeRangeSel) timeRangeSel.value = 'all';
@@ -1078,7 +1177,7 @@ if (clearFiltersPanelBtn) {
   clearFiltersPanelBtn.addEventListener('click', () => {
     qInput.value = '';
     promptInput.value = '';
-    const resetSort = isAitagGallery() ? 'popular' : 'new';
+    const resetSort = isCodexAtlasGallery() ? 'relevance' : (isAitagGallery() ? 'popular' : 'new');
     if (sortModeSel) sortModeSel.value = resetSort;
     if (sortModeSel2) sortModeSel2.value = resetSort;
     if (timeRangeSel) timeRangeSel.value = 'all';
@@ -1269,7 +1368,7 @@ function initFromQuery() {
   const q = url.searchParams.get('q') ?? '';
   const prompt = url.searchParams.get('prompt') || '';
   const pageStr = url.searchParams.get('page');
-  const sortModeQ = url.searchParams.get('sort') || (isAitagGallery() ? 'popular' : 'new');
+  const sortModeQ = url.searchParams.get('sort') || (isCodexAtlasGallery() ? 'relevance' : (isAitagGallery() ? 'popular' : 'new'));
   const timeRangeQ = url.searchParams.get('time_range') || (sortModeQ === 'monthly' ? 'current' : 'all');
   if (aitagCreatorInput) aitagCreatorInput.value = url.searchParams.get('creator') || '';
   if (aitagTagsInput) aitagTagsInput.value = url.searchParams.get('tags') || '';
@@ -1335,11 +1434,11 @@ async function initRouter() {
     }, 5000);
   }
   scheduleIdleTask(() => {
-    if (!isAitagGallery() && window.GalleryBootstrap && typeof window.GalleryBootstrap.refreshSetupBanner === 'function') {
+    if (!isRemoteDiscoveryGallery() && window.GalleryBootstrap && typeof window.GalleryBootstrap.refreshSetupBanner === 'function') {
       window.GalleryBootstrap.refreshSetupBanner(API_BASE)
         .catch(() => {})
         .finally(() => {
-          if (isAitagGallery()) document.getElementById('setupBanner')?.classList.add('hidden');
+          if (isRemoteDiscoveryGallery()) document.getElementById('setupBanner')?.classList.add('hidden');
         });
     }
   }, 6000);
@@ -1603,7 +1702,10 @@ const galleryListRuntime = window.GalleryListRuntime.create({
   apiBase: API_BASE,
   applyGalleryParams,
   isAitagGallery,
+  isCodexAtlasGallery,
   adaptAitagWork,
+  adaptCodexAtlasWork,
+  currentGalleryGroup,
   getSortMode: () => (sortModeSel && sortModeSel.value) || (sortModeSel2 && sortModeSel2.value) || 'new',
   getTimeRange: () => (timeRangeSel && timeRangeSel.value) || (timeRangeSel2 && timeRangeSel2.value) || 'all',
   translate: t,
@@ -1624,6 +1726,9 @@ async function fetchWorksListPage(page = state.page) {
 galleryListRuntime.mount();
 
 window.currentGalleryId = currentGalleryId;
+window.isAitagGallery = isAitagGallery;
+window.isCodexAtlasGallery = isCodexAtlasGallery;
+window.isRemoteDiscoveryGallery = isRemoteDiscoveryGallery;
 window.loadGalleryHierarchy = loadGalleryHierarchy;
 window.triggerSearch = triggerSearch;
 window.fetchWorks = fetchWorks;

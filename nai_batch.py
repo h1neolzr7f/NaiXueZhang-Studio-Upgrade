@@ -838,7 +838,7 @@ def start_studio_generate(
     if policy not in {"random", "increment", "fixed"}:
         policy = "random" if seed_num is None else "increment"
     gallery_id = str(source_gallery_id or "site").strip() or "site"
-    if gallery_id not in {"site", "aitag-online", "codex", "qqgroup"}:
+    if gallery_id not in {"site", "aitag-online", "codex", "qqgroup", "codex-atlas"}:
         gallery_id = "site"
     targets: list[dict[str, Any]] = []
     for index in range(copies):

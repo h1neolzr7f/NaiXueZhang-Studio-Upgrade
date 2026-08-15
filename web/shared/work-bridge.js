@@ -4,7 +4,10 @@
 
   function normalizeWorkId(value) {
     const id = String(value == null ? "" : value).trim();
-    return /^\d+$/.test(id) && id !== "0" ? id : "";
+    if (/^\d+$/.test(id) && id !== "0") return id;
+    // 法典图鉴词条：book_id:entry_id，例如 suozhang:sz-0001
+    if (/^[a-z0-9_]{1,64}:[A-Za-z0-9._-]{1,180}$/.test(id)) return id;
+    return "";
   }
 
   function activeGalleryId() {

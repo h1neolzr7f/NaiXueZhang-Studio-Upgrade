@@ -7,7 +7,7 @@ async function fetchWorkLite(workId) {
   if (cachedMeta && Date.now() - cachedMeta.at < WORK_CACHE_TTL_MS) {
     return cachedMeta.data;
   }
-  if (isAitagGallery()) return fetchWork(workId);
+  if (isRemoteDiscoveryGallery()) return fetchWork(workId);
   const detailUrl = applyGalleryParams(new URL(`/api/work/${workId}/lite`, API_BASE));
   const res = await window.ApiClient.raw(detailUrl);
   let data = {};
@@ -31,7 +31,9 @@ async function fetchWork(workId) {
     state.cache.workMeta.set(workId, { at: Date.now(), data: legacy });
     return legacy;
   }
-	  const detailUrl = isAitagGallery()
+	  const detailUrl = isCodexAtlasGallery()
+      ? new URL(`/api/nai/codex-atlas/entry/${encodeURIComponent(String(workId))}`, API_BASE)
+      : isAitagGallery()
       ? new URL(`/api/nai/aitag/work/${encodeURIComponent(String(workId))}`, API_BASE)
       : applyGalleryParams(new URL(`/api/work/${workId}`, API_BASE));
 	  const res = await window.ApiClient.raw(detailUrl);
@@ -51,7 +53,8 @@ async function fetchWork(workId) {
 	    throw err;
 	  }
 	  if (!res.ok) throw new Error(data.detail || t('err_network'));
-      if (isAitagGallery()) data = adaptAitagDetail(data);
+      if (isCodexAtlasGallery()) data = adaptCodexAtlasDetail(data);
+      else if (isAitagGallery()) data = adaptAitagDetail(data);
 	  state.cache.works.set(workId, data);
 	  if (state.cache.workMeta.size >= WORK_CACHE_MAX) {
 	    const oldest = state.cache.workMeta.keys().next().value;
@@ -463,6 +466,7 @@ async function openDetail(workId, options = {}) {
           toggleFavorite(workId);
         };
       }
+      if (favDetailBtn) favDetailBtn.classList.toggle('hidden', isCodexAtlasGallery());
     } catch { }
     try {
       const homeLink = document.getElementById('detailHomeLink');
@@ -487,26 +491,30 @@ async function openDetail(workId, options = {}) {
     const localCount = sortedDetailImages.filter((img) => !!(img && img.local_path)).length;
     const detailImageSummaryHtml = `
       <div class="detail-image-summary" id="detailImageSummary">
-        ${isAitagGallery()
+        ${isCodexAtlasGallery()
+          ? `词条例图 ${imageTotal} 张 · 只读发现，不会写入本地主库或自动出图`
+          : (isAitagGallery()
           ? `共 ${imageTotal} 张在线图片 · 按需读取，不会自动保存或生成`
-          : `共 ${imageTotal} 张图片 · 单击作品进入本页即可查看全部图片 · 本地缓存 ${localCount}/${imageTotal}`}
+          : `共 ${imageTotal} 张图片 · 单击作品进入本页即可查看全部图片 · 本地缓存 ${localCount}/${imageTotal}`)}
       </div>`;
     const canProduce = (wtypeLower === 'nai' || wtypeLower === 'nai_x');
     const queued = typeof isQueued === 'function' ? isQueued(workId) : false;
     const sendRowHtml = `
       <div class="detail-send-row" id="detailAssetActions">
         <div class="detail-primary-actions">
-          ${canProduce ? `<button type="button" class="primary" id="detailToStudioBtn">${isAitagGallery() ? '建立原图草稿' : '用此图生成'}</button>` : ''}
-          ${canProduce ? `<button type="button" id="detailToRemixBtn">角色换角</button>` : ''}
+          ${canProduce ? `<button type="button" class="primary" id="detailToStudioBtn">${isCodexAtlasGallery() ? '用此词条生成' : (isAitagGallery() ? '建立原图草稿' : '用此图生成')}</button>` : ''}
+          ${canProduce && !isCodexAtlasGallery() ? `<button type="button" id="detailToRemixBtn">角色换角</button>` : ''}
         </div>
         <details class="detail-more-actions">
           <summary>更多操作</summary>
           <div class="detail-secondary-actions">
-            ${isAitagGallery() ? '' : `<button type="button" class="queue-btn${queued ? ' is-on' : ''}" id="detailQueueBtn" data-work-id="${workId}" aria-pressed="${queued ? 'true' : 'false'}">${queued ? '已入队' : '加入待生成'}</button>`}
+            ${isRemoteDiscoveryGallery() ? '' : `<button type="button" class="queue-btn${queued ? ' is-on' : ''}" id="detailQueueBtn" data-work-id="${workId}" aria-pressed="${queued ? 'true' : 'false'}">${queued ? '已入队' : '加入待生成'}</button>`}
             <button type="button" id="detailCopyPromptBtn">复制 Prompt 资产</button>
-            ${isAitagGallery()
+            ${isCodexAtlasGallery()
+              ? `<a class="ghost" href="${escapeHtml(safeHttpUrl(w.external_url, 'https://novelai.quicktagcloud.com/'))}" target="_blank" rel="noopener noreferrer">打开法典图鉴原页</a>`
+              : (isAitagGallery()
               ? `<a class="ghost" href="${escapeHtml(safeHttpUrl(w.external_url, `https://aitag.win/i/${workId}`))}" target="_blank" rel="noopener noreferrer">打开 AITag 原页</a>`
-              : `<a class="ghost" href="/generated?g=${encodeURIComponent((() => { const g = currentGalleryId(); return (g && g !== 'site') ? `gallery:${g}:${workId}` : String(workId); })())}" target="_blank" rel="noopener">相关生成结果</a>`}
+              : `<a class="ghost" href="/generated?g=${encodeURIComponent((() => { const g = currentGalleryId(); return (g && g !== 'site') ? `gallery:${g}:${workId}` : String(workId); })())}" target="_blank" rel="noopener">相关生成结果</a>`)}
           </div>
         </details>
       </div>`;
@@ -550,6 +558,10 @@ async function openDetail(workId, options = {}) {
     `;
     try {
       document.getElementById('detailToStudioBtn')?.addEventListener('click', () => {
+        if (isCodexAtlasGallery()) {
+          createCodexAtlasStudioDraft(workId);
+          return;
+        }
         if (isAitagGallery()) {
           createOnlineStudioDraft({ replaceCharacter: false });
           return;
@@ -558,6 +570,7 @@ async function openDetail(workId, options = {}) {
         if (window.WorkBridge) window.WorkBridge.go('/studio', workId, 0, gid);
       });
       document.getElementById('detailToRemixBtn')?.addEventListener('click', async () => {
+        if (isCodexAtlasGallery()) return;
         if (isAitagGallery()) {
           openOnlineRemixPanel(workId, 'remix');
           return;
@@ -605,7 +618,10 @@ async function openDetail(workId, options = {}) {
       document.getElementById('detailCopyPromptBtn')?.addEventListener('click', async () => {
         try {
           let text = '';
-          if (!isAitagGallery() && window.PromptPreview && typeof window.PromptPreview.fetchSnippet === 'function') {
+          if (isCodexAtlasGallery()) {
+            text = String(w.prompt || data.work?.prompt || '').trim();
+          }
+          if (!text && !isRemoteDiscoveryGallery() && window.PromptPreview && typeof window.PromptPreview.fetchSnippet === 'function') {
             text = await window.PromptPreview.fetchSnippet(workId, 0, API_BASE);
           }
           if (!text) {
@@ -615,7 +631,7 @@ async function openDetail(workId, options = {}) {
             const comment = first.comment || aiJson.Comment || aiJson.comment || first.ai || first.metadata || {};
             text = comment.prompt || comment.base_caption
               || (comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.base_caption)
-              || w.caption || '';
+              || w.prompt || w.caption || '';
           }
           if (!text) throw new Error('无 Prompt 可复制');
           await navigator.clipboard.writeText(String(text));
@@ -1034,7 +1050,7 @@ async function openDetail(workId, options = {}) {
         window.WorkBridge.save({
           workId,
           pageIndex: 0,
-          galleryId: isAitagGallery() ? 'aitag-online' : currentGalleryId(),
+          galleryId: currentGalleryId(),
           from: 'detail',
         });
       }
@@ -1042,7 +1058,7 @@ async function openDetail(workId, options = {}) {
         detail: {
           workId,
           data,
-          source: isAitagGallery() ? AITAG_GALLERY_ID : currentGalleryId(),
+          source: currentGalleryId(),
         },
       }));
     } catch { }
