@@ -30,7 +30,7 @@ Windows `WIN-001`…`015` 继续留给本地接管。
 |---|---|
 | 唯一实施仓 | `h1neolzr7f/NaiXueZhang-Studio-Upgrade` |
 | 集成分支 | `cursor/cloud-top-tier-integration-f036` |
-| 本报告写入时的 tip | `543999ebca85d8982385ea1011e8a9c299a75dbb` |
+| 本报告写入提交 | `b1413e9`（以远程 tip 为准） |
 | 以远程 tip 为准 | `git rev-parse origin/cursor/cloud-top-tier-integration-f036` |
 | `main` 基线（未改） | `008de38ad4dc6c8afbf0ec32ae411cd85685ac02` |
 | 集成 Draft PR | https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/3 |
@@ -69,7 +69,7 @@ checkout：
 git fetch origin cursor/cloud-top-tier-integration-f036
 git checkout cursor/cloud-top-tier-integration-f036
 git rev-parse HEAD
-# 本报告写入时：543999ebca85d8982385ea1011e8a9c299a75dbb；以远程 tip 为准
+# 报告写入：b1413e9；以远程 tip 为准
 ```
 
 不要从 `main` 另起炉灶。不要重做 Phase 0。
@@ -126,6 +126,7 @@ Worker 分支不要单独合 `main`。`W1_NAI_AUDIT.md` / `W0_REVIEW.md` 里的�
 |---|---|
 | `9f4ce2a` | 画布、图库 HTTP、kernel chat、v1.9、诚实修 gate |
 | `543999e` | 测试锁 + 本机 1145 通过记录 |
+| `b1413e9` | 本检查点报告 |
 
 ---
 
