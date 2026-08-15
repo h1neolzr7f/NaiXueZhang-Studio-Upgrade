@@ -7,7 +7,7 @@ Upgrade Nai学长工作室 to a first-tier NovelAI production OS. Current phase:
 ## 2. Branches and SHAs
 
 - Studio-Upgrade base: `main` `008de38ad4dc6c8afbf0ec32ae411cd85685ac02`
-- Integration: `cursor/cloud-top-tier-integration-f036` (continues `cursor/cloud-top-tier-integration-6d7e`)
+- Integration: `cursor/cloud-top-tier-integration-f036` @ `76a8c6162cdde8af24d458b2b5663b7890323ab9` (continues `cursor/cloud-top-tier-integration-6d7e`)
 - Manga-Editor-Desu-NAI: OUT_OF_SCOPE, not connected
 
 ## 3. Worker branches / PRs
