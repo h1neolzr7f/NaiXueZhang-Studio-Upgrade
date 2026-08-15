@@ -31,7 +31,7 @@ Windows `WIN-001`…`015` 继续留给本地接管。
 |---|---|
 | 唯一实施仓 | `h1neolzr7f/NaiXueZhang-Studio-Upgrade` |
 | 集成分支 | `cursor/cloud-top-tier-integration-f036` |
-| 本报告写入提交 | 以远程 tip 为准（本轮阻断修复后重写） |
+| 本报告写入提交 | `2abe9ad`（以远程 tip 为准） |
 | 以远程 tip 为准 | `git rev-parse origin/cursor/cloud-top-tier-integration-f036` |
 | `main` 基线（未改） | `008de38ad4dc6c8afbf0ec32ae411cd85685ac02` |
 | 集成 Draft PR | https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/3 |
@@ -389,6 +389,7 @@ Windows 全量：`scripts/verify.ps1` 或 `scripts/run_tests_windows.ps1`。诊�
 8. 统一配方对象 `lineage.recipe_object`
 9. 合 `main`、发 Release、顶尖声明
 10. 10k / 100k 图库成绩
+11. **Windows 真机、真实 NAI Token、真实大图库：本轮明确未验证**
 
 ---
 
