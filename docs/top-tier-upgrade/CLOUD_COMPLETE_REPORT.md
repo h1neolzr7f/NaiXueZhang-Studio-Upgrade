@@ -1,10 +1,12 @@
 # Nai学长工作室 · 云端升级完整交接报告
 
-**给后续 AI / Lead / Reviewer 的只读交接。先读本文件和同目录状态文档，再改代码。不要凭聊天记录单独开工。**
+**上一波（v1.6 compile / v1.7 库级索引 / v1.8 kernel）交接。后半节过期。**
 
-- 日期：2026-08-15
+当前权威报告：`docs/top-tier-upgrade/CLOUD_CHECKPOINT_REPORT.md`。以远程分支 tip 为准。
+
+- 日期：2026-08-15（本文件写入提交 `0c46e12`）
 - 执行模式：`CLOUD_WEB`
-- 结论：**这是云端阶段检查点，不是整个升级完成证明。** 本波继续做了画布 / 图库 HTTP / 门槛审查 / Kernel 聊天接入 / v1.9。
+- 结论：**这是历史交接，不是当前完成证明。**
 - 不要声称顶尖完成。不要合 `main`。不要发 Release。不要用真实 NAI Token。
 
 ---
@@ -48,8 +50,9 @@ Pixiv `WIN-013` 用户已要求跳过。窥屏 / 键鼠钩子 / God Agent 仍然
 
 权威状态在仓库文档，聊天不是唯一来源。
 
-1. `docs/top-tier-upgrade/CLOUD_COMPLETE_REPORT.md`（本文件）
-2. `docs/top-tier-upgrade/RUN_STATE.json`
+1. `docs/top-tier-upgrade/CLOUD_CHECKPOINT_REPORT.md`（当前权威）
+2. `docs/top-tier-upgrade/CLOUD_COMPLETE_REPORT.md`（本文件，历史）
+3. `docs/top-tier-upgrade/RUN_STATE.json`
 3. `docs/top-tier-upgrade/STATUS.md`
 4. `docs/top-tier-upgrade/OWNERSHIP.md`
 5. `docs/top-tier-upgrade/DECISIONS.md`

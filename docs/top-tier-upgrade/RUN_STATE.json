@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "execution_mode": "CLOUD_WEB",
-  "updated_at": "2026-08-15T09:20:00Z",
+  "updated_at": "2026-08-15T10:40:00Z",
   "studio": {
     "repository": "h1neolzr7f/NaiXueZhang-Studio-Upgrade",
     "base_branch": "main",
     "base_sha": "008de38ad4dc6c8afbf0ec32ae411cd85685ac02",
     "integration_branch": "cursor/cloud-top-tier-integration-f036",
-    "integration_sha": "ad8317391276c2dd3ba4df865079c036272dc893"
+    "integration_sha": "543999ebca85d8982385ea1011e8a9c299a75dbb"
   },
   "out_of_scope_repositories": [
     "h1neolzr7f/Manga-Editor-Desu-NAI",
@@ -157,7 +157,7 @@
   ],
   "tests": {
     "cloud_pytest": "1145 passed, 68 skipped, 0 failed",
-    "sensitive_scan": "pending this commit",
+    "sensitive_scan": "clean",
     "bench_gallery": "synthetic only; not a 10k claim"
   },
   "next_action": "Cloud checkpoint: canvas + gallery HTTP + GATE_REVIEW + kernel chat + v1.9 memory. Remaining: Windows WIN-001..015, paid NAI (WIN-012), Pixiv (WIN-013 deferred). Do not merge main. Do not persist chat secrets. TTS is not a barrel item."

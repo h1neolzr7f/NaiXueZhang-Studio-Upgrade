@@ -56,4 +56,5 @@ Integration Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/p
 
 ## Next
 
+Full checkpoint report: `docs/top-tier-upgrade/CLOUD_CHECKPOINT_REPORT.md`.  
 Windows WIN-001..015 local takeover. Do not merge `main`.
