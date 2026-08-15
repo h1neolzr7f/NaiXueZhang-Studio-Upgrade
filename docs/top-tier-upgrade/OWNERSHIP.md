@@ -6,7 +6,9 @@ Base SHA: `008de38ad4dc6c8afbf0ec32ae411cd85685ac02`
 |---|---|---|---|---|---|
 | butler/store.py | Lead | durable tasks/events/receipts | 2026-08-15 | after v1.8 gate | receipts, unknown isolation |
 | butler/workflow_runtime.py | Lead | LangGraph runtime | 2026-08-15 | after v1.8 gate | confirm/interrupt |
-| butler/planning.py | Lead | one-shot planner | 2026-08-15 | after v1.8 gate | plan JSON |
+| butler/planning.py | Lead | one-shot planner; still no tooling import | 2026-08-15 | after v1.8 gate | plan JSON |
+| butler/tool_loop_bridge.py | Lead | safe chat adapter after GATE_REVIEW | 2026-08-15 | standing | WorkflowRequest |
+| butler/companion_state.py | Lead | v1.9 confirmed memory / quiet / handoff | 2026-08-15 | standing | /api/companion |
 | butler/agents.py | Lead | desk allow-lists | 2026-08-15 | after v1.8 gate | reject_foreign_tool |
 | data/butler_catalog.json | Lead | tool catalog | 2026-08-15 | after v1.8 gate | risk labels |
 | LICENSE / VERSION / release scripts | Lead | license and release | 2026-08-15 | standing | none |

@@ -46,6 +46,7 @@ from butler_gallery_operations import (
     resolve_work_selection,
 )
 from butler.service_api import api
+from butler.tool_loop_bridge import KERNEL_READ_TOOLS, execute_chat_action
 
 
 def run_chat(
@@ -80,6 +81,23 @@ def run_chat(
             if tool in {"start_crawler", "configure_crawler"} and api._main_gallery_empty():
                 rejected.append({"tool": tool, "reason": api.EMPTY_GALLERY_CRAWL_MSG})
                 continue
+            if tool in KERNEL_READ_TOOLS:
+                from butler.agents import current_agent
+
+                handled = execute_chat_action(action, agent_id=current_agent() or "shared")
+                if handled and handled.get("status") == "succeeded":
+                    data = handled.get("data") if isinstance(handled.get("data"), dict) else {}
+                    results.append({"ok": True, "tool": tool, "kernel": True, **data})
+                elif handled and handled.get("status") == "workflow_requested":
+                    pending.append(api._stage_confirmation(action))
+                else:
+                    rejected.append(
+                        {
+                            "tool": tool,
+                            "reason": str((handled or {}).get("error") or handled or "kernel preview failed"),
+                        }
+                    )
+                continue
             if tool in api._AUTO_TOOLS:
                 results.append(api._execute_auto(action))
             elif tool in api._REPAIR_TOOLS and auto_repair:
@@ -98,6 +116,21 @@ def run_chat(
                     "reason": api._clean_text(exc, limit=300),
                 }
             )
+    from butler.companion_state import confirmed_lines, consume_handoff
+    from butler.agents import current_agent
+
+    extras: list[str] = []
+    handoff = consume_handoff(current_agent())
+    if handoff:
+        extras.append(
+            f"交接自{handoff.get('from_agent') or '另一位助手'}："
+            f"{handoff.get('note') or '请接着刚才的上下文。'}"
+        )
+    remembered = confirmed_lines(5)
+    if remembered:
+        extras.append("已确认偏好：" + "；".join(remembered))
+    if extras:
+        reply = f"{reply}\n" + "\n".join(extras)
     return {
         "ok": True,
         "reply": reply,
@@ -105,6 +138,7 @@ def run_chat(
         "tool_results": results,
         "pending_actions": pending,
         "rejected_actions": rejected,
+        "companion": {"handoff": handoff, "memories": remembered},
     }
 
 

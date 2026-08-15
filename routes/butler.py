@@ -316,3 +316,116 @@ async def api_butler_task_resume(workflow_id: str) -> dict:
         return await resume_butler_task(workflow_id)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+def _companion_signals() -> dict[str, Any]:
+    token_ok = False
+    queue_count = 0
+    dirty = 0
+    try:
+        from nai_api import token_status
+
+        token_ok = bool(token_status().get("has_token"))
+    except Exception:
+        token_ok = False
+    try:
+        from production_queue import list_ids
+
+        queue_count = len(list_ids() or [])
+    except Exception:
+        queue_count = 0
+    try:
+        from gallery_index import index_status
+        from server_shared import DB
+
+        dirty = int(index_status(DB.conn, "site").get("text_dirty") or 0)
+    except Exception:
+        dirty = 0
+    return {"token_ok": token_ok, "queue_count": queue_count, "dirty": dirty}
+
+
+@router.get("/api/companion/state")
+def api_companion_state() -> dict:
+    from butler.companion_state import public_state
+
+    return public_state()
+
+
+@router.post("/api/companion/memory/propose")
+def api_companion_memory_propose(payload: dict = Body(default_factory=dict)) -> dict:
+    from butler.companion_state import propose_memory
+
+    try:
+        item = propose_memory(
+            str(payload.get("text") or ""),
+            agent=str(payload.get("agent") or ""),
+            source=str(payload.get("source") or "user"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "memory": item}
+
+
+@router.post("/api/companion/memory/confirm")
+def api_companion_memory_confirm(payload: dict = Body(default_factory=dict)) -> dict:
+    from butler.companion_state import confirm_memory
+
+    try:
+        item = confirm_memory(str(payload.get("id") or ""), confirm=bool(payload.get("confirm", True)))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "memory": item}
+
+
+@router.post("/api/companion/memory/forget")
+def api_companion_memory_forget(payload: dict = Body(default_factory=dict)) -> dict:
+    from butler.companion_state import forget_memory
+
+    try:
+        item = forget_memory(str(payload.get("id") or ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "memory": item}
+
+
+@router.post("/api/companion/handoff")
+def api_companion_handoff(payload: dict = Body(default_factory=dict)) -> dict:
+    from butler.companion_state import record_handoff
+
+    try:
+        item = record_handoff(
+            from_agent=str(payload.get("from_agent") or ""),
+            to_agent=str(payload.get("to_agent") or ""),
+            note=str(payload.get("note") or ""),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "handoff": item}
+
+
+@router.post("/api/companion/quiet")
+def api_companion_quiet(payload: dict = Body(default_factory=dict)) -> dict:
+    from butler.companion_state import update_quiet
+
+    return {"ok": True, "quiet": update_quiet(payload)}
+
+
+@router.get("/api/companion/events")
+def api_companion_events(agent: str = Query(""), deliver: bool = Query(False)) -> dict:
+    from butler.companion_state import collect_local_events, delivery_allowed, mark_delivered
+
+    signals = _companion_signals()
+    events = collect_local_events(**signals)
+    if agent:
+        events = [item for item in events if not item.get("agent") or item.get("agent") == agent]
+    allowed = delivery_allowed()
+    chosen = events[0] if events and allowed.get("ok") else None
+    if chosen and deliver:
+        mark_delivered(str(chosen.get("id") or ""))
+    return {
+        "ok": True,
+        "tts": {"enabled": False, "core": False},
+        "delivery": allowed,
+        "events": events,
+        "event": chosen,
+    }

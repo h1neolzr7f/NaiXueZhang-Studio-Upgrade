@@ -135,3 +135,47 @@
 - Tests: compile preview, idempotency, in-memory dups, planning import lock
 - Rollback: revert `butler/tooling/kernel_tools.py` and executor cache
 - Layer: B
+
+## D-015 Additive gallery index HTTP
+
+- Date: 2026-08-15
+- Capability: search.fts_works_prompt / search.visual_similar
+- Existing behavior: D-013 library only, no HTTP.
+- Chosen: add the four reserved routes. Do not change `/api/ai_works_search` JSON. Incremental entry is `gallery_index.run_incremental` so `db.py` stays ≤1000 lines.
+- Evidence: `tests/test_gallery_index_http.py`
+- Tests: status / incremental / duplicates / similar + search-source freeze
+- Rollback: delete the four routes
+- Layer: B (extends D-013)
+
+## D-016 Studio img2img / inpaint canvas
+
+- Date: 2026-08-15
+- Capability: gen.img2img_inpaint_canvas
+- Existing behavior: compile existed; Studio was txt2img only.
+- Chosen: `GET /api/studio/source-image` plus canvas on `/app` Studio and classic `/studio`. Same `/api/nai/generate` client. No paid call.
+- Evidence: `tests/test_studio_canvas.py`
+- Tests: encode, route, UI markers
+- Rollback: remove source-image route and canvas UI
+- Layer: B
+
+## D-017 Kernel into chat after v1.6/v1.7 pass
+
+- Date: 2026-08-15
+- Capability: assist.tool_loop
+- Existing behavior: D-014 forbade planning.py imports.
+- Chosen: wire via `butler/tool_loop_bridge.py` + `butler/chat.py` / `auto_exec.py`. Keep the planning.py import lock. Cost/destructive still WorkflowRequest / confirm tickets.
+- Evidence: `docs/top-tier-upgrade/GATE_REVIEW.md`, `tests/test_companion_v19.py`, `tests/tooling/test_kernel_tools.py`
+- Tests: generate_image → workflow_requested; compile preview succeeds; planning import lock
+- Rollback: stop calling `execute_chat_action` from chat
+- Layer: B (extends D-014)
+
+## D-018 v1.9 memory without TTS barrel
+
+- Date: 2026-08-15
+- Capability: assist.memory_confirmed / assist.proactive_events / assist.tts
+- Existing behavior: one deferred row `assist.memory_tts_emotion` at 4.0.
+- Chosen: implement confirmed memory, handoff, local proactive events, quiet hours. Split TTS into a non-core row. Do not cancel v1.9. Forbid screen/hooks/God Agent.
+- Evidence: `butler/companion_state.py`, `tests/test_companion_v19.py`
+- Tests: unconfirmed not recalled; quiet/rate; handoff desks only; tts.core=false
+- Rollback: stop serving `/api/companion/*`
+- Layer: B

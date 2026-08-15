@@ -2,12 +2,12 @@
 
 ## 1. Product and phase
 
-Upgrade Nai学长工作室 to a first-tier NovelAI production OS. Current phase: **cloud-completable v1.6–v1.8 landed**. Barrel lowest core is 4.0 (`assist.memory_tts_emotion`, v1.9 deferred). Next implementable lowest is 6.0 (img2img compile without Studio canvas). Do not claim top-tier.
+Upgrade Nai学长工作室 to a first-tier NovelAI production OS. Current phase: **cloud checkpoint after canvas / gallery HTTP / kernel chat / v1.9**. Barrel lowest core is 6.0 (`post.pipeline`). TTS is not a core barrel item. Do not claim top-tier. Do not merge `main`.
 
 ## 2. Branches and SHAs
 
 - Studio-Upgrade base: `main` `008de38ad4dc6c8afbf0ec32ae411cd85685ac02`
-- Integration: `cursor/cloud-top-tier-integration-f036` @ `76a8c6162cdde8af24d458b2b5663b7890323ab9` (continues `cursor/cloud-top-tier-integration-6d7e`)
+- Integration: `cursor/cloud-top-tier-integration-f036` — use `git rev-parse origin/cursor/cloud-top-tier-integration-f036` (continues `cursor/cloud-top-tier-integration-6d7e`)
 - Manga-Editor-Desu-NAI: OUT_OF_SCOPE, not connected
 
 ## 3. Worker branches / PRs

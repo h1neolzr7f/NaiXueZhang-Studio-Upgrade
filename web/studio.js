@@ -24,6 +24,9 @@
     onlineSourceThumb: "",
     /** @type {Array<{image_index:number, draft:object, slot_indexes?:number[]}>} */
     aitagPages: [],
+    action: "generate",
+    sourceImage: "",
+    painting: false,
   };
 
   async function api(path, opts) {
@@ -393,7 +396,81 @@
     } else if (!base.reference_image_multiple) {
       delete base.reference_strength_multiple;
     }
+    const action = (($("studioAction") || {}).value || state.action || "generate").trim();
+    state.action = action;
+    if (action === "img2img" || action === "inpaint") {
+      base.action = action;
+      base.requested_action = action;
+      base.strength = parseFloat($("studioImg2ImgStrength")?.value || "0.55");
+      if (state.sourceImage) base.image = state.sourceImage;
+      if (action === "inpaint") {
+        const mask = exportMaskBase64();
+        if (mask) base.mask = mask;
+      }
+    } else {
+      delete base.action;
+      delete base.requested_action;
+      delete base.image;
+      delete base.mask;
+      delete base.strength;
+    }
     return base;
+  }
+
+  function exportMaskBase64() {
+    const canvas = $("studioMaskCanvas");
+    if (!canvas || !canvas.width) return "";
+    const raw = canvas.toDataURL("image/png");
+    const comma = raw.indexOf(",");
+    return comma >= 0 ? raw.slice(comma + 1) : raw;
+  }
+
+  function drawStudioSource(dataUrl) {
+    const imageCanvas = $("studioImgCanvas");
+    const maskCanvas = $("studioMaskCanvas");
+    if (!imageCanvas || !maskCanvas) return;
+    const image = new Image();
+    image.onload = () => {
+      const width = Math.max(1, image.naturalWidth || image.width);
+      const height = Math.max(1, image.naturalHeight || image.height);
+      const scale = Math.min(1, 640 / Math.max(width, height));
+      imageCanvas.width = Math.max(1, Math.round(width * scale));
+      imageCanvas.height = Math.max(1, Math.round(height * scale));
+      maskCanvas.width = imageCanvas.width;
+      maskCanvas.height = imageCanvas.height;
+      const ctx = imageCanvas.getContext("2d");
+      ctx && ctx.drawImage(image, 0, 0, imageCanvas.width, imageCanvas.height);
+      const maskCtx = maskCanvas.getContext("2d");
+      if (maskCtx) {
+        maskCtx.fillStyle = "#000000";
+        maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+      }
+    };
+    image.src = dataUrl;
+  }
+
+  function syncStudioActionUi() {
+    const action = (($("studioAction") || {}).value || "generate").trim();
+    state.action = action;
+    const panel = $("studioCanvasPanel");
+    const strengthField = $("studioStrengthField");
+    const mask = $("studioMaskCanvas");
+    if (panel) panel.classList.toggle("hidden", action === "generate");
+    if (strengthField) strengthField.classList.toggle("hidden", action === "generate");
+    if (mask) mask.classList.toggle("active", action === "inpaint");
+  }
+
+  async function loadStudioSourceImage() {
+    if (!state.workId) {
+      setStatus("先导入作品，才能加载 img2img / inpaint 原图", false, true);
+      return;
+    }
+    const data = await api(`/api/studio/source-image?work_id=${encodeURIComponent(state.workId)}&page_index=${state.pageIndex || 0}`);
+    const encoded = String(data.image || "");
+    if (!encoded) throw new Error("作品没有本地原图");
+    state.sourceImage = encoded;
+    drawStudioSource("data:image/png;base64," + encoded);
+    setStatus("已加载本地原图，可切换 img2img / inpaint", true);
   }
 
   function copyComment(c) {
@@ -992,6 +1069,56 @@
       if ($("studioStrengthVal")) $("studioStrengthVal").textContent = v.toFixed(2);
       saveDraftLocal();
     });
+    $("studioAction")?.addEventListener("change", () => {
+      syncStudioActionUi();
+      saveDraftLocal();
+    });
+    $("studioImg2ImgStrength")?.addEventListener("input", () => {
+      const v = Number($("studioImg2ImgStrength").value || 0.55);
+      if ($("studioImg2ImgStrengthVal")) $("studioImg2ImgStrengthVal").textContent = v.toFixed(2);
+    });
+    $("studioLoadSourceImage")?.addEventListener("click", () => {
+      loadStudioSourceImage().catch((err) => setStatus(String(err.message || err), false));
+    });
+    $("studioSourceFile")?.addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = String(reader.result || "");
+        const comma = dataUrl.indexOf(",");
+        state.sourceImage = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+        drawStudioSource(dataUrl);
+        setStatus("已从本地文件加载原图", true);
+      };
+      reader.readAsDataURL(file);
+    });
+    $("studioBrush")?.addEventListener("input", () => {
+      if ($("studioBrushVal")) $("studioBrushVal").textContent = String($("studioBrush").value || "22");
+    });
+    const mask = $("studioMaskCanvas");
+    if (mask) {
+      const paint = (event) => {
+        if (!state.painting || (($("studioAction") || {}).value || "") !== "inpaint") return;
+        const ctx = mask.getContext("2d");
+        if (!ctx) return;
+        const rect = mask.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * mask.width;
+        const y = ((event.clientY - rect.top) / rect.height) * mask.height;
+        const brush = Number($("studioBrush")?.value || 22);
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(x, y, brush, 0, Math.PI * 2);
+        ctx.fill();
+      };
+      mask.addEventListener("pointerdown", (event) => {
+        state.painting = true;
+        paint(event);
+      });
+      mask.addEventListener("pointermove", paint);
+      mask.addEventListener("pointerup", () => { state.painting = false; });
+      mask.addEventListener("pointerleave", () => { state.painting = false; });
+    }
     ["studioPrompt", "studioBase", "studioCharCaptions", "studioUc", "studioWidth", "studioHeight", "studioSteps", "studioScale", "studioSeed", "studioSampler", "studioBatchCount"].forEach((id) => {
       $(id)?.addEventListener("input", () => {
         refreshReady();
@@ -1068,6 +1195,7 @@
     if ($("studioVibeStrength") && $("studioStrengthVal")) {
       $("studioStrengthVal").textContent = Number($("studioVibeStrength").value || 0.6).toFixed(2);
     }
+    syncStudioActionUi();
   }
 
   if (document.readyState === "loading") {

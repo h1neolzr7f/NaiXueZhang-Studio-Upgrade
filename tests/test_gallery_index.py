@@ -22,6 +22,7 @@ from gallery_index import (
     index_images,
     index_status,
     is_dirty,
+    run_incremental,
     sha256_bytes,
 )
 
@@ -167,34 +168,36 @@ class DatabaseIncrementalIndexTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             db = Database(root / "gallery.db")
-            self.addCleanup(db.close)
-            db.conn.execute(
-                "INSERT INTO works(id, title, caption, tags, ai_type) VALUES (1, 'amiya', '', 'arknights', 'nai')"
-            )
-            png = root / "a.png"
-            _solid((30, 40, 50)).save(png)
-            digest = sha256_bytes(png.read_bytes())
-            db.conn.execute(
-                """
-                INSERT INTO work_images(work_id, page_index, local_path, source_sha256, downloaded, prompt_text)
-                VALUES (1, 0, ?, ?, 1, '1girl, amiya')
-                """,
-                (str(png), digest),
-            )
-            db.conn.commit()
-            first = db.incremental_index([1], images_dir=root)
-            self.assertEqual(first["text_dirty"], 1)
-            second = db.incremental_index([1], images_dir=root)
-            self.assertEqual(second["text_dirty"], 0)
-            fts = db.conn.execute("SELECT work_id FROM works_fts WHERE works_fts MATCH 'amiya'").fetchall()
-            self.assertEqual([int(row["work_id"]) for row in fts], [1])
-            tables = {
-                row[0]
-                for row in db.conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
-            }
-            self.assertIn("gallery_index_files", tables)
-            self.assertIn("gallery_image_hashes", tables)
-            self.assertNotIn("tasks", tables)
-            self.assertNotIn("workflow_events", tables)
+            try:
+                db.conn.execute(
+                    "INSERT INTO works(id, title, caption, tags, ai_type) VALUES (1, 'amiya', '', 'arknights', 'nai')"
+                )
+                png = root / "a.png"
+                _solid((30, 40, 50)).save(png)
+                digest = sha256_bytes(png.read_bytes())
+                db.conn.execute(
+                    """
+                    INSERT INTO work_images(work_id, page_index, local_path, source_sha256, downloaded, prompt_text)
+                    VALUES (1, 0, ?, ?, 1, '1girl, amiya')
+                    """,
+                    (str(png), digest),
+                )
+                db.conn.commit()
+                first = run_incremental(db, [1], images_dir=root)
+                self.assertEqual(first["text_dirty"], 1)
+                second = run_incremental(db, [1], images_dir=root)
+                self.assertEqual(second["text_dirty"], 0)
+                fts = db.conn.execute("SELECT work_id FROM works_fts WHERE works_fts MATCH 'amiya'").fetchall()
+                self.assertEqual([int(row["work_id"]) for row in fts], [1])
+                tables = {
+                    row[0]
+                    for row in db.conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    ).fetchall()
+                }
+                self.assertIn("gallery_index_files", tables)
+                self.assertIn("gallery_image_hashes", tables)
+                self.assertNotIn("tasks", tables)
+                self.assertNotIn("workflow_events", tables)
+            finally:
+                db.close()

@@ -31,17 +31,23 @@ const charSwapPanel = read("web/plugins/char-swap/panel.js");
 const charSwapPlugin = read("web/plugins/char-swap/plugin.js");
 
 // Cache-bust stamps are content-hashed and machine-maintained:
-// `python scripts/asset_versions.py --check` fails when any ?v= drifted.
+// `python3 scripts/asset_versions.py --check` fails when any ?v= drifted.
 {
-  const res = require("child_process").spawnSync(
-    "python",
-    ["scripts/asset_versions.py", "--check"],
-    { cwd: root, encoding: "utf8" },
-  );
+  const spawn = require("child_process").spawnSync;
+  const args = ["scripts/asset_versions.py", "--check"];
+  const candidates = process.platform === "win32"
+    ? ["python", "py", "python3"]
+    : ["python3", "python"];
+  let res;
+  for (const cmd of candidates) {
+    res = spawn(cmd, args, { cwd: root, encoding: "utf8" });
+    if (res.error && res.error.code === "ENOENT") continue;
+    break;
+  }
   expect(
     "asset cache-bust stamps match content hashes",
-    res.status === 0,
-    `stale ?v= stamps; run python scripts/asset_versions.py\n${res.stdout || ""}${res.stderr || ""}`,
+    Boolean(res) && res.status === 0,
+    `stale ?v= stamps; run python3 scripts/asset_versions.py\n${(res && res.stdout) || ""}${(res && res.stderr) || ""}`,
   );
 }
 

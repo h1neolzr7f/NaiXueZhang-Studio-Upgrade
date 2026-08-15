@@ -28,6 +28,8 @@ def test_workspace_bundle_freezes_generation_comment() -> None:
         "frozen_comment",
         "/api/nai/generate",
         "/api/studio/import",
+        "/api/studio/source-image",
+        "/api/companion/state",
         "/api/butler/chat",
         "/api/butler/confirm",
         "/api/generated/group/",

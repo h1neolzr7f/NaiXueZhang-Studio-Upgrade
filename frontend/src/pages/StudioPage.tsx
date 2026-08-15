@@ -1,7 +1,9 @@
-import { KeyboardEvent, useEffect, useState } from "react";
+import { ChangeEvent, KeyboardEvent, PointerEvent, useEffect, useRef, useState } from "react";
 import { get, pollJob, post } from "../api";
 import { commentFromTexts, textsFromComment, type CommentMap } from "../comment";
 import { generatedPath, navigate, remixPath, studioPath } from "../routes";
+
+type StudioMode = "generate" | "img2img" | "inpaint";
 
 type StudioImport = {
   ok?: boolean;
@@ -66,6 +68,15 @@ export function StudioPage({ search }: { search: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [undo, setUndo] = useState<string[]>([]);
+  const [mode, setMode] = useState<StudioMode>("generate");
+  const [strength, setStrength] = useState(0.55);
+  const [noise, setNoise] = useState(0);
+  const [brush, setBrush] = useState(22);
+  const [sourceImage, setSourceImage] = useState("");
+  const [sourcePreview, setSourcePreview] = useState("");
+  const imageCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const paintingRef = useRef(false);
 
   useEffect(() => {
     get<TokenStatus>("/api/nai/status").then(setToken).catch(() => setToken(null));
@@ -210,7 +221,117 @@ export function StudioPage({ search }: { search: string }) {
       comment.reference_image_multiple = [charRefUrl.trim()];
       comment.reference_strength_multiple = [0.6];
     }
+    if (mode === "img2img" || mode === "inpaint") {
+      comment.action = mode;
+      comment.requested_action = mode;
+      comment.strength = strength;
+      comment.noise = noise;
+      if (sourceImage) comment.image = sourceImage;
+      if (mode === "inpaint") {
+        const mask = exportMask();
+        if (mask) comment.mask = mask;
+      }
+    } else {
+      delete comment.action;
+      delete comment.requested_action;
+      delete comment.image;
+      delete comment.mask;
+      delete comment.strength;
+      delete comment.noise;
+    }
     return comment;
+  }
+
+  function drawSource(dataUrl: string) {
+    const canvas = imageCanvasRef.current;
+    const mask = maskCanvasRef.current;
+    if (!canvas || !mask) return;
+    const image = new Image();
+    image.onload = () => {
+      const width = Math.max(1, image.naturalWidth || image.width);
+      const height = Math.max(1, image.naturalHeight || image.height);
+      const scale = Math.min(1, 640 / Math.max(width, height));
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      mask.width = canvas.width;
+      mask.height = canvas.height;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const maskCtx = mask.getContext("2d");
+      if (maskCtx) {
+        maskCtx.fillStyle = "#000000";
+        maskCtx.fillRect(0, 0, mask.width, mask.height);
+      }
+    };
+    image.src = dataUrl;
+  }
+
+  function exportMask(): string {
+    const mask = maskCanvasRef.current;
+    if (!mask) return "";
+    const raw = mask.toDataURL("image/png");
+    const comma = raw.indexOf(",");
+    return comma >= 0 ? raw.slice(comma + 1) : raw;
+  }
+
+  function paintMask(event: PointerEvent<HTMLCanvasElement>) {
+    if (mode !== "inpaint" || !paintingRef.current) return;
+    const canvas = maskCanvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(x, y, brush, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  async function loadSourceFromWork() {
+    if (!workId) {
+      setError("先导入作品，才能加载 img2img / inpaint 原图");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const query = new URLSearchParams({
+        work_id: workId,
+        page_index: String(pageIndex),
+        gallery_id: galleryId,
+      });
+      const payload = await get<{ image?: string; mime?: string; thumb?: string }>(
+        "/api/studio/source-image?" + query.toString(),
+      );
+      const encoded = String(payload.image || "");
+      if (!encoded) throw new Error("作品没有本地原图");
+      setSourceImage(encoded);
+      const preview = payload.thumb || `data:image/png;base64,${encoded}`;
+      setSourcePreview(preview);
+      drawSource(`data:image/png;base64,${encoded}`);
+      setStatus("已加载本地原图，可切换 img2img / inpaint");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function onPickSource(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      const comma = dataUrl.indexOf(",");
+      const encoded = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+      setSourceImage(encoded);
+      setSourcePreview(dataUrl);
+      drawSource(dataUrl);
+      setStatus("已从本地文件加载原图");
+    };
+    reader.readAsDataURL(file);
   }
 
   async function applySanitize() {
@@ -419,6 +540,90 @@ export function StudioPage({ search }: { search: string }) {
             />
           </label>
         </div>
+        <div className="ws-mode">
+          {(["generate", "img2img", "inpaint"] as StudioMode[]).map((item) => (
+            <button
+              key={item}
+              className={"ws-chip" + (mode === item ? " active" : "")}
+              type="button"
+              onClick={() => setMode(item)}
+            >
+              {item === "generate" ? "txt2img" : item}
+            </button>
+          ))}
+        </div>
+        {mode !== "generate" ? (
+          <div className="ws-canvas-panel">
+            <p className="ws-status warn">
+              {mode} 需要原图；有图输入时 compile 会标 free_eligible=false，可能消耗 Anlas。
+            </p>
+            <div className="ws-inline">
+              <button className="ws-btn ghost" type="button" disabled={busy} onClick={() => void loadSourceFromWork()}>
+                从作品加载原图
+              </button>
+              <label className="ws-btn ghost">
+                本地文件
+                <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={onPickSource} />
+              </label>
+            </div>
+            <div className="ws-canvas-wrap">
+              <canvas ref={imageCanvasRef} className="ws-canvas-image" />
+              <canvas
+                ref={maskCanvasRef}
+                className={"ws-canvas-mask" + (mode === "inpaint" ? " active" : "")}
+                onPointerDown={(event) => {
+                  paintingRef.current = true;
+                  paintMask(event);
+                }}
+                onPointerMove={paintMask}
+                onPointerUp={() => {
+                  paintingRef.current = false;
+                }}
+                onPointerLeave={() => {
+                  paintingRef.current = false;
+                }}
+              />
+            </div>
+            {sourcePreview && !imageCanvasRef.current ? <img className="ws-thumb" src={sourcePreview} alt="" /> : null}
+            <div className="ws-params">
+              <label>
+                Strength
+                <input
+                  type="range"
+                  min={0.01}
+                  max={1}
+                  step={0.05}
+                  value={strength}
+                  onChange={(event) => setStrength(asNumber(event.target.value, strength))}
+                />
+              </label>
+              <label>
+                Noise
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={noise}
+                  onChange={(event) => setNoise(asNumber(event.target.value, noise))}
+                />
+              </label>
+              {mode === "inpaint" ? (
+                <label>
+                  笔刷
+                  <input
+                    type="range"
+                    min={4}
+                    max={64}
+                    step={2}
+                    value={brush}
+                    onChange={(event) => setBrush(asNumber(event.target.value, brush))}
+                  />
+                </label>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         <label htmlFor="ws-vibe">Vibe URL（可选）</label>
         <input id="ws-vibe" value={vibeUrl} onChange={(event) => setVibeUrl(event.target.value)} placeholder="https://… 或 /data/images/…" />
         <label htmlFor="ws-charref">角色参考 URL（可选）</label>

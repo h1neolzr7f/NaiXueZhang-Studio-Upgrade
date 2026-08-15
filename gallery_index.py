@@ -567,3 +567,36 @@ def index_status(conn: sqlite3.Connection, gallery_id: str = "") -> dict[str, An
         "hashed": _count("SELECT COUNT(*) FROM gallery_image_hashes"),
         "notes": "Counts are SQLite metadata, not a Windows 10k/100k bench.",
     }
+
+
+def run_incremental(
+    db: Any,
+    work_ids: list[int] | None = None,
+    *,
+    visual: bool = True,
+    images_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Dirty-set index on an existing ``Database``. ``rebuild_fts`` stays the repair path.
+
+    Lives here so ``db.py`` does not grow past the quality-gate line budget.
+    """
+
+    def action() -> dict[str, Any]:
+        items = collect_work_image_items(
+            db.conn, work_ids=work_ids, images_dir=images_dir
+        )
+
+        def sync_text(work_id: int) -> None:
+            db._sync_work_fts(work_id)
+            db._sync_prompt_fts(work_id)
+
+        result = index_images(
+            db.conn,
+            items,
+            visual_enabled=visual,
+            sync_text=sync_text,
+        )
+        db.conn.commit()
+        return result
+
+    return db._run(action)

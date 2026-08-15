@@ -362,37 +362,6 @@ class Database:
         self.conn.commit()
         self.rebuild_prompt_work_fts()
 
-    def incremental_index(
-        self,
-        work_ids: list[int] | None = None,
-        *,
-        visual: bool = True,
-        images_dir: Path | None = None,
-    ) -> dict[str, Any]:
-        """Dirty-set index. ``rebuild_fts`` remains the repair path."""
-
-        from gallery_index import collect_work_image_items, index_images
-
-        def action() -> dict[str, Any]:
-            items = collect_work_image_items(
-                self.conn, work_ids=work_ids, images_dir=images_dir
-            )
-
-            def sync_text(work_id: int) -> None:
-                self._sync_work_fts(work_id)
-                self._sync_prompt_fts(work_id)
-
-            result = index_images(
-                self.conn,
-                items,
-                visual_enabled=visual,
-                sync_text=sync_text,
-            )
-            self.conn.commit()
-            return result
-
-        return self._run(action)
-
     def upsert_list_item(self, item: dict[str, Any], crawled_at: str) -> None:
         def action():
             self._upsert_list_item_impl(item, crawled_at)

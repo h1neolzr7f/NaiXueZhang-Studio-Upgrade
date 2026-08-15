@@ -7,7 +7,7 @@
     "base_branch": "main",
     "base_sha": "008de38ad4dc6c8afbf0ec32ae411cd85685ac02",
     "integration_branch": "cursor/cloud-top-tier-integration-f036",
-    "integration_sha": "0c46e12edf4d36aa12e28cb1de1bb9d831d138f0"
+    "integration_sha": "ad8317391276c2dd3ba4df865079c036272dc893"
   },
   "out_of_scope_repositories": [
     "h1neolzr7f/Manga-Editor-Desu-NAI",
@@ -25,10 +25,10 @@
       "status": "SUPERSEDED_OUT_OF_SCOPE"
     }
   ],
-  "active_phase": "WAVE_3_CLOUD_COMPLETE",
-  "active_wave": "WAVE_3",
-  "barrel_lowest_capability": "assist.memory_tts_emotion",
-  "barrel_lowest_score": 4.0,
+  "active_phase": "WAVE_4_CLOUD_CHECKPOINT",
+  "active_wave": "WAVE_4",
+  "barrel_lowest_capability": "post.pipeline",
+  "barrel_lowest_score": 6.0,
   "cloud_build": {
     "status": "READY",
     "reference": "bld-20260815-c10799be-3d0d-41bd-8535-6eaedb553274",
@@ -49,10 +49,10 @@
     {
       "role": "Lead",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "Cloud Lead: v1.6 compile, v1.7 gallery index, v1.8 kernel expansion",
+      "task": "Cloud Lead: canvas, gallery HTTP, gate review, kernel chat, v1.9",
       "status": "RUNNING",
       "branch": "cursor/cloud-top-tier-integration-f036",
-      "updated_at": "2026-08-15T09:20:00Z"
+      "updated_at": "2026-08-15T10:30:00Z"
     },
     {
       "role": "W0",
@@ -137,7 +137,7 @@
       "depends_on": []
     }
   ],
-  "decisions": ["D-001", "D-002", "D-003", "D-004", "D-005", "D-006", "D-007", "D-008", "D-009", "D-010", "D-011", "D-012", "D-013", "D-014"],
+  "decisions": ["D-001", "D-002", "D-003", "D-004", "D-005", "D-006", "D-007", "D-008", "D-009", "D-010", "D-011", "D-012", "D-013", "D-014", "D-015", "D-016", "D-017", "D-018"],
   "pending_local_windows": [
     "WIN-001", "WIN-002", "WIN-003", "WIN-004", "WIN-005",
     "WIN-006", "WIN-007", "WIN-008", "WIN-009", "WIN-010",
@@ -156,9 +156,9 @@
     }
   ],
   "tests": {
-    "cloud_pytest": "1132 passed, 68 skipped, 1 failed (pre-existing product_quality_gate P1)",
-    "sensitive_scan": "clean",
-    "bench_gallery": "synthetic 1000/20 hits=200; not a 10k claim"
+    "cloud_pytest": "pending this wave after canvas/HTTP/v1.9",
+    "sensitive_scan": "pending",
+    "bench_gallery": "synthetic only; not a 10k claim"
   },
-  "next_action": "Cloud-completable v1.6-v1.8 is in. Remaining: Windows WIN-001..015, paid NAI (WIN-012), Pixiv (WIN-013 deferred), Studio img2img canvas UI, tooling→planning.py after v1.6/v1.7 gate review, v1.9 memory/TTS. Do not merge main. Do not persist chat secrets."
+  "next_action": "Cloud checkpoint: canvas + gallery HTTP + GATE_REVIEW + kernel chat + v1.9 memory. Remaining: Windows WIN-001..015, paid NAI (WIN-012), Pixiv (WIN-013 deferred). Do not merge main. Do not persist chat secrets. TTS is not a barrel item."
 }

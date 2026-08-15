@@ -4,24 +4,23 @@
 
 - 日期：2026-08-15
 - 执行模式：`CLOUD_WEB`
-- 结论：**云端能做、且按计划该做的，已经做完。**
+- 结论：**这是云端阶段检查点，不是整个升级完成证明。** 本波继续做了画布 / 图库 HTTP / 门槛审查 / Kernel 聊天接入 / v1.9。
 - 不要声称顶尖完成。不要合 `main`。不要发 Release。不要用真实 NAI Token。
 
 ---
 
 ## 0. 一句话结论
 
-云端可完成的 Phase 0 + v1.6 compile + v1.7 gallery index + v1.8 tooling kernel **已落地**。
+云端可完成的 Phase 0 + v1.6 compile/canvas + v1.7 gallery index/HTTP + v1.8 kernel→chat + v1.9 记忆/交接/防打扰 **已落地（检查点）**。
 
-剩下的要么要 Windows 真机，要么要用户授权付费/Pixiv，要么是故意没做的 UI / 聊天接入 / v1.9。
+剩下的要 Windows 真机，或用户授权付费/Pixiv。TTS 不是核心木桶项。v1.9 没有永久取消。
 
-下一刀不在云端 CI 里：
+下一刀主要在本地：
 
 1. Windows `WIN-001`…`WIN-015`
-2. Studio img2img 画布 UI
-3. 用户书面授权后的受控 NAI（`WIN-012`）
+2. 用户书面授权后的受控 NAI（`WIN-012`）
 
-Pixiv `WIN-013` 用户已要求跳过。v1.9 记忆/TTS 按计划不做。
+Pixiv `WIN-013` 用户已要求跳过。窥屏 / 键鼠钩子 / God Agent 仍然禁止。
 
 ---
 
@@ -141,7 +140,7 @@ Lead 独占，未到门槛不要改：
 | `tests/` `scripts/*windows*.ps1` `scripts/bench_gallery.py` `docs/top-tier-upgrade/` | W4 / Lead | 质量与交接 |
 | `frontend/` `web/` | 共享读；改 UI 需单独租约 | 双 UI |
 
-**禁止在 v1.6/v1.7 门槛评审前把 tooling 接入 `planning.py`。**
+**禁止把 tooling 接入 `planning.py`。门槛通过后只经 `tool_loop_bridge` / `chat.py` 接入。**
 
 ---
 

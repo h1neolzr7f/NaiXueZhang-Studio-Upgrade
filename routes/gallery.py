@@ -529,6 +529,74 @@ def _merge_gallery_folders(gid: str, source_keys: list[str], target_key: str) ->
     }
 
 
+@router.get("/api/gallery/{gallery_id}/index/status")
+def api_gallery_index_status(gallery_id: str) -> dict:
+    from gallery_index import index_status
+
+    gid = normalize_gallery_id(gallery_id)
+    db = _gallery_db(gid)
+    return index_status(db.conn, gid)
+
+
+@router.post("/api/gallery/{gallery_id}/index/incremental")
+def api_gallery_index_incremental(
+    gallery_id: str,
+    payload: dict = Body(default_factory=dict),
+) -> dict:
+    from gallery_index import run_incremental
+
+    gid = normalize_gallery_id(gallery_id)
+    spec = get_gallery_spec(gid)
+    db = _gallery_db(gid)
+    raw_ids = payload.get("work_ids") if isinstance(payload, dict) else None
+    work_ids: list[int] | None = None
+    if isinstance(raw_ids, list):
+        work_ids = [int(item) for item in raw_ids if str(item).strip().lstrip("-").isdigit()]
+    visual = True if not isinstance(payload, dict) else bool(payload.get("visual", True))
+    result = run_incremental(db, work_ids, visual=visual, images_dir=spec.images_dir)
+    result["gallery_id"] = gid
+    return result
+
+
+@router.get("/api/gallery/{gallery_id}/duplicates")
+def api_gallery_duplicates(
+    gallery_id: str,
+    kind: str = Query("exact"),
+) -> dict:
+    from gallery_index import find_exact_duplicates, find_near_duplicates
+
+    gid = normalize_gallery_id(gallery_id)
+    db = _gallery_db(gid)
+    mode = str(kind or "exact").strip().lower()
+    if mode == "near":
+        groups = find_near_duplicates(db.conn)
+    else:
+        groups = find_exact_duplicates(db.conn)
+    return {"ok": True, "gallery_id": gid, "kind": mode, "groups": groups}
+
+
+@router.get("/api/gallery/{gallery_id}/similar")
+def api_gallery_similar(
+    gallery_id: str,
+    work_id: int = Query(..., ge=1),
+    page_index: int = Query(0, ge=0),
+    limit: int = Query(24, ge=1, le=80),
+) -> dict:
+    from gallery_index import find_similar
+
+    gid = normalize_gallery_id(gallery_id)
+    db = _gallery_db(gid)
+    payload = find_similar(
+        db.conn,
+        work_id=int(work_id),
+        page_index=int(page_index),
+        limit=int(limit),
+    )
+    payload["ok"] = True
+    payload["gallery_id"] = gid
+    return payload
+
+
 @router.post("/api/gallery/{gallery_id}/folders/merge")
 async def api_gallery_merge_folders(gallery_id: str, payload: dict = Body(default_factory=dict)) -> dict:
     gid = normalize_gallery_id(gallery_id)

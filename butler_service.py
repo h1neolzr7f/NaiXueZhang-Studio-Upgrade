@@ -201,6 +201,8 @@ _AUTO_TOOLS = {
     "diagnose_error",
     "product_guide",
     "inspect_config",
+    "compile_nai_preview",
+    "gallery_index_preview",
 } | set(GALLERY_READ_OPERATIONS)
 _REPAIR_TOOLS = {
     "rebuild_knowledge_catalog",
