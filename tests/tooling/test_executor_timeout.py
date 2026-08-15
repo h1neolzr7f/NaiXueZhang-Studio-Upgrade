@@ -27,10 +27,14 @@ class ExecutorTimeoutCancelTests(unittest.TestCase):
 
         executor.bind("slow_search", slow)
         context = ToolContext.build(registry, agent_id="tomori", source="chat", round_index=1)
+        started = time.monotonic()
         result = executor.execute(name="slow_search", arguments={}, context=context)
+        elapsed = time.monotonic() - started
         self.assertEqual(result["status"], "timeout")
         self.assertEqual(result["error"]["code"], "timeout")
         self.assertEqual(result["data"], {})
+        self.assertGreaterEqual(elapsed, 0.04)
+        self.assertLess(elapsed, 0.4)
 
     def test_cancelled_context_is_fail_closed(self) -> None:
         registry = ToolRegistry()

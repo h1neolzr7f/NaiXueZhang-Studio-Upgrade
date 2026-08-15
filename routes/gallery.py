@@ -543,7 +543,7 @@ def api_gallery_index_incremental(
     gallery_id: str,
     payload: dict = Body(default_factory=dict),
 ) -> dict:
-    from gallery_index import run_incremental
+    from gallery_index import MAX_INCREMENTAL_WORK_IDS, run_incremental
 
     gid = normalize_gallery_id(gallery_id)
     spec = get_gallery_spec(gid)
@@ -552,8 +552,16 @@ def api_gallery_index_incremental(
     work_ids: list[int] | None = None
     if isinstance(raw_ids, list):
         work_ids = [int(item) for item in raw_ids if str(item).strip().lstrip("-").isdigit()]
+        if len(work_ids) > MAX_INCREMENTAL_WORK_IDS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"work_ids exceeds {MAX_INCREMENTAL_WORK_IDS}",
+            )
     visual = True if not isinstance(payload, dict) else bool(payload.get("visual", True))
-    result = run_incremental(db, work_ids, visual=visual, images_dir=spec.images_dir)
+    try:
+        result = run_incremental(db, work_ids, visual=visual, images_dir=spec.images_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     result["gallery_id"] = gid
     return result
 
@@ -563,7 +571,7 @@ def api_gallery_duplicates(
     gallery_id: str,
     kind: str = Query("exact"),
 ) -> dict:
-    from gallery_index import find_exact_duplicates, find_near_duplicates
+    from gallery_index import MAX_DUPLICATE_GROUPS, find_exact_duplicates, find_near_duplicates
 
     gid = normalize_gallery_id(gallery_id)
     db = _gallery_db(gid)
@@ -572,7 +580,15 @@ def api_gallery_duplicates(
         groups = find_near_duplicates(db.conn)
     else:
         groups = find_exact_duplicates(db.conn)
-    return {"ok": True, "gallery_id": gid, "kind": mode, "groups": groups}
+    truncated = len(groups) > MAX_DUPLICATE_GROUPS
+    return {
+        "ok": True,
+        "gallery_id": gid,
+        "kind": mode,
+        "groups": groups[:MAX_DUPLICATE_GROUPS],
+        "truncated": truncated,
+        "group_limit": MAX_DUPLICATE_GROUPS,
+    }
 
 
 @router.get("/api/gallery/{gallery_id}/similar")

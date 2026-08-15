@@ -10,9 +10,11 @@ from PIL import Image
 
 from db import Database
 from gallery_index import (
+    MAX_INCREMENTAL_WORK_IDS,
     TEXT_INDEX_REV,
     VISUAL_INDEX_REV,
     IndexImage,
+    collect_work_image_items,
     compute_dhash,
     find_exact_duplicates,
     find_near_duplicates,
@@ -22,6 +24,7 @@ from gallery_index import (
     index_images,
     index_status,
     is_dirty,
+    resolve_index_image_path,
     run_incremental,
     sha256_bytes,
 )
@@ -199,5 +202,70 @@ class DatabaseIncrementalIndexTests(unittest.TestCase):
                 self.assertIn("gallery_image_hashes", tables)
                 self.assertNotIn("tasks", tables)
                 self.assertNotIn("workflow_events", tables)
+            finally:
+                db.close()
+
+    def test_out_of_bound_paths_are_not_indexed(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as gallery_raw, tempfile.TemporaryDirectory() as evil_raw:
+            root = Path(gallery_raw)
+            db = Database(root / "gallery.db")
+            try:
+                db.conn.execute(
+                    "INSERT INTO works(id, title, caption, tags, ai_type) VALUES (1, 'safe', '', 'arknights', 'nai')"
+                )
+                db.conn.execute(
+                    "INSERT INTO works(id, title, caption, tags, ai_type) VALUES (2, 'evil', '', 'arknights', 'nai')"
+                )
+                inside = root / "ok.png"
+                _solid((30, 40, 50)).save(inside)
+                evil = Path(evil_raw) / "evil.png"
+                _solid((200, 10, 10)).save(evil)
+                db.conn.execute(
+                    """
+                    INSERT INTO work_images(work_id, page_index, local_path, source_sha256, downloaded, prompt_text)
+                    VALUES (1, 0, ?, '', 1, 'safe'), (2, 0, ?, '', 1, 'evil')
+                    """,
+                    (inside.name, str(evil)),
+                )
+                db.conn.commit()
+                items = collect_work_image_items(db.conn, images_dir=root)
+                by_id = {item.work_id: item for item in items}
+                self.assertIsNotNone(by_id[1].path)
+                self.assertIsNone(by_id[2].path)
+                self.assertIsNone(resolve_index_image_path(str(evil), root))
+                self.assertIsNone(resolve_index_image_path("../" + evil.name, root))
+            finally:
+                db.close()
+
+    def test_incremental_scale_stays_under_batch_cap(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            db = Database(root / "gallery.db")
+            try:
+                for index in range(1, 31):
+                    db.conn.execute(
+                        "INSERT INTO works(id, title, caption, tags, ai_type) VALUES (?, ?, '', 'arknights', 'nai')",
+                        (index, f"w{index}"),
+                    )
+                    png = root / f"{index}.png"
+                    _solid((index * 7 % 255, 40, 80)).save(png)
+                    db.conn.execute(
+                        """
+                        INSERT INTO work_images(work_id, page_index, local_path, source_sha256, downloaded, prompt_text)
+                        VALUES (?, 0, ?, '', 1, '1girl')
+                        """,
+                        (index, png.name),
+                    )
+                db.conn.commit()
+                result = run_incremental(db, list(range(1, 31)), images_dir=root)
+                self.assertLessEqual(result["scanned"], 30)
+                self.assertFalse(result["truncated"])
+                self.assertLessEqual(result["scanned"], result["item_limit"])
+                with self.assertRaises(ValueError):
+                    run_incremental(db, list(range(1, MAX_INCREMENTAL_WORK_IDS + 2)), images_dir=root)
             finally:
                 db.close()

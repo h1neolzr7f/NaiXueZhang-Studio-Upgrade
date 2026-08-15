@@ -123,25 +123,15 @@ def resolve_work_image_path(
     relative = str(row["local_path"] or "").strip()
     if not relative:
         return None
-    path = Path(relative)
-    if path.is_absolute() and path.exists():
-        return path
     from gallery_catalog import get_spec
-    from paths import canonical_path, path_is_within
+    from gallery_index import resolve_index_image_path
 
     spec = get_spec(gallery_id)
-    candidates = [
-        spec.images_dir / relative,
-        DATA_DIR / relative,
-        DATA_DIR / "images" / relative,
-    ]
-    for candidate in candidates:
-        resolved = canonical_path(candidate)
-        if not resolved.exists() or not resolved.is_file():
-            continue
-        if path_is_within(resolved, spec.images_dir) or path_is_within(resolved, DATA_DIR):
-            return resolved
-    return None
+    return resolve_index_image_path(
+        relative,
+        spec.images_dir,
+        extra_roots=(DATA_DIR, DATA_DIR / "images"),
+    )
 
 
 def encode_local_source_image(path: Path) -> dict[str, Any]:

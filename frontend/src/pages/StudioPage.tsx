@@ -226,7 +226,9 @@ export function StudioPage({ search }: { search: string }) {
       comment.requested_action = mode;
       comment.strength = strength;
       comment.noise = noise;
-      if (sourceImage) comment.image = sourceImage;
+      const canvasImage = exportCanvasBase64(imageCanvasRef.current);
+      if (canvasImage) comment.image = canvasImage;
+      else if (sourceImage) comment.image = sourceImage;
       if (mode === "inpaint") {
         const mask = exportMask();
         if (mask) comment.mask = mask;
@@ -266,12 +268,15 @@ export function StudioPage({ search }: { search: string }) {
     image.src = dataUrl;
   }
 
-  function exportMask(): string {
-    const mask = maskCanvasRef.current;
-    if (!mask) return "";
-    const raw = mask.toDataURL("image/png");
+  function exportCanvasBase64(canvas: HTMLCanvasElement | null): string {
+    if (!canvas || !canvas.width) return "";
+    const raw = canvas.toDataURL("image/png");
     const comma = raw.indexOf(",");
     return comma >= 0 ? raw.slice(comma + 1) : raw;
+  }
+
+  function exportMask(): string {
+    return exportCanvasBase64(maskCanvasRef.current);
   }
 
   function paintMask(event: PointerEvent<HTMLCanvasElement>) {

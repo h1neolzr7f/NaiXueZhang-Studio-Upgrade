@@ -402,7 +402,9 @@
       base.action = action;
       base.requested_action = action;
       base.strength = parseFloat($("studioImg2ImgStrength")?.value || "0.55");
-      if (state.sourceImage) base.image = state.sourceImage;
+      const canvasImage = exportCanvasBase64($("studioImgCanvas"));
+      if (canvasImage) base.image = canvasImage;
+      else if (state.sourceImage) base.image = state.sourceImage;
       if (action === "inpaint") {
         const mask = exportMaskBase64();
         if (mask) base.mask = mask;
@@ -417,12 +419,15 @@
     return base;
   }
 
-  function exportMaskBase64() {
-    const canvas = $("studioMaskCanvas");
+  function exportCanvasBase64(canvas) {
     if (!canvas || !canvas.width) return "";
     const raw = canvas.toDataURL("image/png");
     const comma = raw.indexOf(",");
     return comma >= 0 ? raw.slice(comma + 1) : raw;
+  }
+
+  function exportMaskBase64() {
+    return exportCanvasBase64($("studioMaskCanvas"));
   }
 
   function drawStudioSource(dataUrl) {

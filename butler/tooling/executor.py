@@ -224,7 +224,11 @@ class ToolExecutor:
         spec: ToolSpec,
     ) -> dict[str, Any]:
         timeout_s = max(0.001, float(spec.timeout_ms) / 1000.0)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        # Do not use the executor as a context manager: its shutdown(wait=True)
+        # would block until a timed-out handler finishes. Callers must return
+        # as soon as the budget expires.
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
             future = pool.submit(handler, arguments, context)
             try:
                 raw = future.result(timeout=timeout_s)
@@ -237,6 +241,8 @@ class ToolExecutor:
                         tool_name=spec.name,
                     )
                 ) from exc
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
         if not isinstance(raw, dict):
             raise ToolingError(
                 ErrorEnvelope(

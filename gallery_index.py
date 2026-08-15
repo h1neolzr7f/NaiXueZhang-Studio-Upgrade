@@ -17,6 +17,7 @@ from typing import Any, Callable, Iterable
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from nai_image_metadata import PARSER_VERSION
+from paths import canonical_path, normalize_image_relative, path_is_within
 
 TEXT_INDEX_REV = 1
 VISUAL_INDEX_REV = 1
@@ -24,6 +25,10 @@ EMBED_INDEX_REV = 1
 DEFAULT_DHASH_NEAR = 4
 DEFAULT_PHASH_NEAR = 8
 DEFAULT_PHASH_SIMILAR = 12
+MAX_INCREMENTAL_WORK_IDS = 200
+MAX_INCREMENTAL_ITEMS = 500
+MAX_DUPLICATE_GROUPS = 200
+MAX_SIMILAR_LIMIT = 80
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS gallery_index_files (
@@ -69,6 +74,58 @@ def utc_now() -> str:
 
 def image_key(work_id: int, page_index: int) -> str:
     return f"{int(work_id)}:{int(page_index)}"
+
+
+def resolve_index_image_path(
+    relative: str,
+    images_dir: Path | None,
+    extra_roots: Iterable[Path] | None = None,
+) -> Path | None:
+    """Resolve a work image only when it stays inside an allowed gallery root.
+
+    Absolute paths that exist outside ``images_dir`` / extra roots are rejected.
+    ``..`` traversal and NUL bytes are discarded.
+    """
+
+    raw = str(relative or "").strip()
+    if not raw or "\x00" in raw:
+        return None
+    roots: list[Path] = []
+    if images_dir is not None:
+        roots.append(Path(images_dir))
+    for extra in extra_roots or ():
+        if extra is None:
+            continue
+        roots.append(Path(extra))
+    if not roots:
+        return None
+    candidates: list[Path] = []
+    incoming = Path(raw)
+    if incoming.is_absolute():
+        candidates.append(incoming)
+    else:
+        normalized = normalize_image_relative(raw)
+        for root in roots:
+            candidates.append(root / raw)
+            if normalized and normalized != raw:
+                candidates.append(root / normalized)
+    seen: set[Path] = set()
+    for candidate in candidates:
+        try:
+            resolved = canonical_path(candidate)
+        except OSError:
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        try:
+            if not resolved.exists() or not resolved.is_file():
+                continue
+        except OSError:
+            continue
+        if any(path_is_within(resolved, root) for root in roots):
+            return resolved
+    return None
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
@@ -392,16 +449,14 @@ def collect_work_image_items(
     items: list[IndexImage] = []
     for row in rows:
         relative = str(row["local_path"] or "")
-        path = Path(relative) if relative else None
-        if path is not None and not path.is_absolute() and images_dir is not None:
-            path = images_dir / relative
+        path = resolve_index_image_path(relative, images_dir)
         items.append(
             IndexImage(
                 work_id=int(row["work_id"]),
                 page_index=int(row["page_index"] or 0),
                 relative_path=relative,
                 source_sha256=str(row["source_sha256"] or ""),
-                path=path if path and path.exists() else None,
+                path=path,
             )
         )
     return items
@@ -426,11 +481,12 @@ def find_exact_duplicates(conn: sqlite3.Connection) -> list[dict[str, Any]]:
                 "page_index": int(row["page_index"]),
             }
         )
-    return [
+    groups = [
         {"kind": "exact", "sha256": sha, "items": items}
         for sha, items in grouped.items()
         if len(items) > 1
     ]
+    return groups[:MAX_DUPLICATE_GROUPS]
 
 
 def find_near_duplicates(
@@ -483,7 +539,9 @@ def find_near_duplicates(
                     )
             if len(members) > 1:
                 groups.append({"kind": "near", "items": members})
-    return groups
+            if len(groups) >= MAX_DUPLICATE_GROUPS:
+                return groups[:MAX_DUPLICATE_GROUPS]
+    return groups[:MAX_DUPLICATE_GROUPS]
 
 
 def find_similar(
@@ -531,9 +589,11 @@ def find_similar(
             }
         )
     scored.sort(key=lambda item: (item["distance"], item["work_id"], item["page_index"]))
+    capped = min(max(0, int(limit)), MAX_SIMILAR_LIMIT)
     return {
         "query": {"work_id": work_id, "page_index": page_index},
-        "items": scored[: max(0, int(limit))],
+        "items": scored[:capped],
+        "limit": capped,
     }
 
 
@@ -581,10 +641,17 @@ def run_incremental(
     Lives here so ``db.py`` does not grow past the quality-gate line budget.
     """
 
+    ids = [int(item) for item in work_ids] if work_ids is not None else None
+    if ids is not None and len(ids) > MAX_INCREMENTAL_WORK_IDS:
+        raise ValueError(f"work_ids exceeds {MAX_INCREMENTAL_WORK_IDS}")
+
     def action() -> dict[str, Any]:
         items = collect_work_image_items(
-            db.conn, work_ids=work_ids, images_dir=images_dir
+            db.conn, work_ids=ids, images_dir=images_dir
         )
+        truncated = len(items) > MAX_INCREMENTAL_ITEMS
+        if truncated:
+            items = items[:MAX_INCREMENTAL_ITEMS]
 
         def sync_text(work_id: int) -> None:
             db._sync_work_fts(work_id)
@@ -596,6 +663,8 @@ def run_incremental(
             visual_enabled=visual,
             sync_text=sync_text,
         )
+        result["truncated"] = truncated
+        result["item_limit"] = MAX_INCREMENTAL_ITEMS
         db.conn.commit()
         return result
 

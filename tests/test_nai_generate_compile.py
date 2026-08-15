@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import ast
+import base64
+import io
 import unittest
 from pathlib import Path
+
+from PIL import Image
 
 import nai_api
 import nai_char
@@ -87,6 +91,29 @@ class NaiGenerateCompileLockTests(unittest.TestCase):
         self.assertEqual(payload["parameters"]["strength"], 0.55)
         self.assertNotIn("image", payload["unsupported_fields"])
         self.assertNotIn("mask", payload["unsupported_fields"])
+
+    def test_inpaint_mask_is_resized_to_image_pixels(self) -> None:
+        def _png(width: int, height: int, mode: str = "RGB", color=0) -> str:
+            buffer = io.BytesIO()
+            Image.new(mode, (width, height), color).save(buffer, format="PNG")
+            return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+        image = _png(64, 64, "RGB", (12, 34, 56))
+        mask = _png(16, 16, "L", 255)
+        payload = generation.build_generate_payload(
+            {
+                "prompt": "1girl",
+                "width": 64,
+                "height": 64,
+                "steps": 28,
+                "image": image,
+                "mask": mask,
+            }
+        )
+        self.assertEqual(payload["action"], "infill")
+        decoded = Image.open(io.BytesIO(base64.b64decode(payload["parameters"]["mask"])))
+        self.assertEqual(decoded.size, (64, 64))
+        self.assertEqual(generation.align_inpaint_mask("base64-or-bytes", "base64-mask"), "base64-mask")
 
     def test_force_free_resizes_and_caps_steps(self) -> None:
         comment = {

@@ -116,7 +116,7 @@ def run_chat(
                     "reason": api._clean_text(exc, limit=300),
                 }
             )
-    from butler.companion_state import confirmed_lines, consume_handoff
+    from butler.companion_state import consume_handoff, planner_memory_context
     from butler.agents import current_agent
 
     extras: list[str] = []
@@ -126,7 +126,7 @@ def run_chat(
             f"交接自{handoff.get('from_agent') or '另一位助手'}："
             f"{handoff.get('note') or '请接着刚才的上下文。'}"
         )
-    remembered = confirmed_lines(5)
+    remembered = planner_memory_context(5)
     if remembered:
         extras.append("已确认偏好：" + "；".join(remembered))
     if extras:

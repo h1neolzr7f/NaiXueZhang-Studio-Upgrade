@@ -74,6 +74,43 @@ class GalleryIndexHttpTests(unittest.TestCase):
         self.assertEqual(similar.status_code, 200)
         self.assertEqual(similar.json().get("query", {}).get("work_id"), 1)
 
+    def test_incremental_work_id_batch_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            db = Database(root / "gallery.db")
+            try:
+                db.conn.execute(
+                    "INSERT INTO works(id, title, caption, tags, ai_type) VALUES (1, 'amiya', '', 'arknights', 'nai')"
+                )
+                png = root / "a.png"
+                _solid((30, 40, 50)).save(png)
+                db.conn.execute(
+                    """
+                    INSERT INTO work_images(work_id, page_index, local_path, source_sha256, downloaded, prompt_text)
+                    VALUES (1, 0, ?, ?, 1, '1girl')
+                    """,
+                    (png.name, sha256_bytes(png.read_bytes())),
+                )
+                db.conn.commit()
+                client = TestClient(server.app)
+                with patch("routes.gallery._gallery_db", return_value=db), patch(
+                    "routes.gallery.get_gallery_spec"
+                ) as spec:
+                    spec.return_value.images_dir = root
+                    over = client.post(
+                        "/api/gallery/codex/index/incremental",
+                        json={"work_ids": list(range(1, 202))},
+                    )
+                    ok = client.post(
+                        "/api/gallery/codex/index/incremental",
+                        json={"work_ids": [1, 2, 3]},
+                    )
+            finally:
+                db.close()
+        self.assertEqual(over.status_code, 400)
+        self.assertIn("work_ids", str(over.json().get("detail") or over.text))
+        self.assertEqual(ok.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

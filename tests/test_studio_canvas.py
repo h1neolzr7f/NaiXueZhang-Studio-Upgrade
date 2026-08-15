@@ -9,7 +9,8 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from studio_service import encode_local_source_image
+from gallery_index import resolve_index_image_path
+from studio_service import encode_local_source_image, resolve_work_image_path
 from tests.asgi_client import TestClient
 
 import server
@@ -65,7 +66,48 @@ class StudioCanvasTests(unittest.TestCase):
         self.assertIn("studioLoadSourceImage", html)
         self.assertIn("requested_action", js)
         self.assertIn("exportMaskBase64", js)
+        self.assertIn("exportCanvasBase64", js)
+        self.assertIn("exportCanvasBase64", page)
         self.assertIn("/api/studio/source-image", js)
+
+    def test_absolute_and_traversal_paths_cannot_leave_gallery(self) -> None:
+        with tempfile.TemporaryDirectory() as gallery_raw, tempfile.TemporaryDirectory() as evil_raw:
+            images = Path(gallery_raw) / "images"
+            images.mkdir()
+            inside = images / "ok.png"
+            Image.new("RGB", (8, 8), (1, 2, 3)).save(inside)
+            evil = Path(evil_raw) / "evil.png"
+            Image.new("RGB", (8, 8), (9, 9, 9)).save(evil)
+            self.assertIsNone(resolve_index_image_path(str(evil), images))
+            self.assertIsNone(resolve_index_image_path("../../../etc/passwd", images))
+            self.assertIsNone(resolve_index_image_path("ok.png\x00.png", images))
+            self.assertEqual(resolve_index_image_path("ok.png", images), inside.resolve())
+            self.assertEqual(resolve_index_image_path(str(inside), images), inside.resolve())
+
+            class _Result:
+                def __init__(self, path: str) -> None:
+                    self._path = path
+
+                def fetchone(self):
+                    return {"local_path": self._path}
+
+            class _DB:
+                def __init__(self, path: str) -> None:
+                    self.conn = self
+
+                def execute(self, *_args, **_kwargs):
+                    return _Result(str(evil))
+
+            with patch("studio_service._gallery_db", return_value=_DB(str(evil))), patch(
+                "gallery_catalog.get_spec"
+            ) as spec:
+                spec.return_value.images_dir = images
+                with patch("studio_service.DATA_DIR", Path(gallery_raw)):
+                    self.assertIsNone(resolve_work_image_path(99))
+            client = TestClient(server.app)
+            with patch("studio_service.resolve_work_image_path", return_value=None):
+                response = client.get("/api/studio/source-image?work_id=99")
+            self.assertEqual(response.status_code, 400)
 
 
 if __name__ == "__main__":

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
+import threading
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -38,7 +40,14 @@ class CompanionV19Tests(unittest.TestCase):
 
     def test_quiet_hours_and_rate_limit_block_delivery(self) -> None:
         companion_state.update_quiet(
-            {"enabled": True, "start": "22:00", "end": "08:00", "max_events_per_hour": 1, "min_interval_seconds": 1800}
+            {
+                "enabled": True,
+                "start": "22:00",
+                "end": "08:00",
+                "timezone": "UTC",
+                "max_events_per_hour": 1,
+                "min_interval_seconds": 1800,
+            }
         )
         night = datetime(2026, 8, 15, 23, 0, tzinfo=timezone.utc)
         self.assertTrue(companion_state.in_quiet_hours(night))
@@ -73,6 +82,51 @@ class CompanionV19Tests(unittest.TestCase):
         events = client.get("/api/companion/events")
         self.assertEqual(events.status_code, 200)
         self.assertFalse(events.json().get("tts", {}).get("enabled"))
+        ack = client.post("/api/companion/events/ack", json={"key": "token_missing"})
+        self.assertEqual(ack.status_code, 200)
+        self.assertEqual(ack.json().get("ack", {}).get("key"), "token_missing")
+
+    def test_quiet_hours_use_configured_non_utc_timezone(self) -> None:
+        companion_state.update_quiet(
+            {"enabled": True, "start": "22:00", "end": "23:00", "timezone": "Asia/Tokyo"}
+        )
+        stamp = datetime(2026, 8, 15, 13, 30, tzinfo=timezone.utc)
+        self.assertTrue(companion_state.in_quiet_hours(stamp))
+        utc_settings = {**companion_state.load_state()["quiet"], "timezone": "UTC"}
+        self.assertFalse(companion_state.in_quiet_hours(stamp, utc_settings))
+
+    def test_concurrent_memory_writes_are_serialized(self) -> None:
+        errors: list[BaseException] = []
+
+        def worker(index: int) -> None:
+            try:
+                companion_state.propose_memory(f"pref-{index}", agent="tomori")
+            except BaseException as exc:  # pragma: no cover - surfaced below
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=(index,)) for index in range(20)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(errors, [])
+        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        texts = [item["text"] for item in payload["memories"]]
+        self.assertEqual(len(texts), 20)
+        self.assertEqual(len(set(texts)), 20)
+        self.assertLessEqual(len(payload["memories"]), companion_state.MAX_MEMORIES)
+
+    def test_proactive_events_dedupe_ttl_and_ack(self) -> None:
+        first = companion_state.collect_local_events(token_ok=False)
+        second = companion_state.collect_local_events(token_ok=False)
+        self.assertTrue(any(item["key"] == "token_missing" for item in first))
+        self.assertTrue(any(item["key"] == "token_missing" for item in second))
+        start = datetime(2026, 8, 15, 12, 0, tzinfo=timezone.utc)
+        companion_state.ack_event("token_missing", ttl_sec=3600, at=start)
+        acked = companion_state.collect_local_events(token_ok=False, now=start + timedelta(minutes=10))
+        self.assertFalse(any(item["key"] == "token_missing" for item in acked))
+        expired = companion_state.collect_local_events(token_ok=False, now=start + timedelta(hours=2))
+        self.assertTrue(any(item["key"] == "token_missing" for item in expired))
 
     def test_kernel_bridge_does_not_execute_generate(self) -> None:
         self.assertIn("generate_image", COST_OR_DESTRUCTIVE)

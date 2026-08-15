@@ -421,7 +421,10 @@ def api_companion_events(agent: str = Query(""), deliver: bool = Query(False)) -
     allowed = delivery_allowed()
     chosen = events[0] if events and allowed.get("ok") else None
     if chosen and deliver:
-        mark_delivered(str(chosen.get("id") or ""))
+        mark_delivered(
+            str(chosen.get("id") or ""),
+            key=str(chosen.get("key") or chosen.get("id") or ""),
+        )
     return {
         "ok": True,
         "tts": {"enabled": False, "core": False},
@@ -429,3 +432,15 @@ def api_companion_events(agent: str = Query(""), deliver: bool = Query(False)) -
         "events": events,
         "event": chosen,
     }
+
+
+@router.post("/api/companion/events/ack")
+def api_companion_events_ack(payload: dict = Body(default_factory=dict)) -> dict:
+    from butler.companion_state import ack_event
+
+    key = str(payload.get("key") or payload.get("id") or "").strip()
+    try:
+        item = ack_event(key, ttl_sec=payload.get("ttl_sec"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "ack": item}

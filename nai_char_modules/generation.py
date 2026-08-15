@@ -7,8 +7,12 @@ provider request shape used by ``nai_api``.
 
 from __future__ import annotations
 
+import base64
 import copy
+import io
 from typing import Any
+
+from PIL import Image, UnidentifiedImageError
 
 MAX_FREE_LONG_EDGE = 1216
 MAX_FREE_STEPS = 28
@@ -205,6 +209,43 @@ def _optional_int(value: Any) -> int | None:
         return None
 
 
+def _decode_png_b64(value: Any) -> Image.Image | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = value.strip()
+    if raw.startswith("data:") and "," in raw:
+        raw = raw.split(",", 1)[1]
+    try:
+        data = base64.b64decode(raw, validate=False)
+    except (ValueError, TypeError):
+        return None
+    try:
+        image = Image.open(io.BytesIO(data))
+        image.load()
+        return image
+    except (UnidentifiedImageError, OSError, ValueError):
+        return None
+
+
+def align_inpaint_mask(image_b64: Any, mask_b64: Any) -> Any:
+    """Resize a PNG mask to the source image size. Non-PNG placeholders stay as-is."""
+
+    if not mask_b64:
+        return mask_b64
+    image = _decode_png_b64(image_b64)
+    mask = _decode_png_b64(mask_b64)
+    if image is None or mask is None:
+        return mask_b64 if image is None else None
+    if image.size == mask.size:
+        return mask_b64
+    aligned = mask.resize(image.size, Image.Resampling.NEAREST)
+    if aligned.mode not in {"L", "RGB", "RGBA"}:
+        aligned = aligned.convert("L")
+    buffer = io.BytesIO()
+    aligned.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
 def _apply_image_action_parameters(
     parameters: dict[str, Any],
     patched_comment: dict,
@@ -215,7 +256,9 @@ def _apply_image_action_parameters(
         return
     parameters["image"] = patched_comment.get("image")
     if http_action == "infill" and patched_comment.get("mask"):
-        parameters["mask"] = patched_comment.get("mask")
+        aligned = align_inpaint_mask(patched_comment.get("image"), patched_comment.get("mask"))
+        if aligned:
+            parameters["mask"] = aligned
     strength = _optional_float(patched_comment.get("strength"))
     if strength is None:
         strength = _optional_float(patched_comment.get("inpaintImg2ImgStrength"))
