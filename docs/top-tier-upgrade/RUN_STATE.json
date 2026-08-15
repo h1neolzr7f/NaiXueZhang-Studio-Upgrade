@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "execution_mode": "CLOUD_WEB",
-  "updated_at": "2026-08-15T08:10:00Z",
+  "updated_at": "2026-08-15T09:20:00Z",
   "studio": {
     "repository": "h1neolzr7f/NaiXueZhang-Studio-Upgrade",
     "base_branch": "main",
@@ -25,10 +25,10 @@
       "status": "SUPERSEDED_OUT_OF_SCOPE"
     }
   ],
-  "active_phase": "PHASE_0",
-  "active_wave": "WAVE_2",
-  "barrel_lowest_capability": "gen.img2img_inpaint_canvas",
-  "barrel_lowest_score": 3.0,
+  "active_phase": "WAVE_3_CLOUD_COMPLETE",
+  "active_wave": "WAVE_3",
+  "barrel_lowest_capability": "assist.memory_tts_emotion",
+  "barrel_lowest_score": 4.0,
   "cloud_build": {
     "status": "READY",
     "reference": "bld-20260815-c10799be-3d0d-41bd-8535-6eaedb553274",
@@ -49,10 +49,10 @@
     {
       "role": "Lead",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "Cloud Lead on Upgrade repo: environment build, integration, Wave 2 review",
+      "task": "Cloud Lead: v1.6 compile, v1.7 gallery index, v1.8 kernel expansion",
       "status": "RUNNING",
       "branch": "cursor/cloud-top-tier-integration-f036",
-      "updated_at": "2026-08-15T08:10:00Z"
+      "updated_at": "2026-08-15T09:20:00Z"
     },
     {
       "role": "W0",
@@ -137,7 +137,7 @@
       "depends_on": []
     }
   ],
-  "decisions": ["D-001", "D-002", "D-003", "D-004", "D-005", "D-006", "D-007", "D-008", "D-009", "D-010", "D-011"],
+  "decisions": ["D-001", "D-002", "D-003", "D-004", "D-005", "D-006", "D-007", "D-008", "D-009", "D-010", "D-011", "D-012", "D-013", "D-014"],
   "pending_local_windows": [
     "WIN-001", "WIN-002", "WIN-003", "WIN-004", "WIN-005",
     "WIN-006", "WIN-007", "WIN-008", "WIN-009", "WIN-010",
@@ -156,9 +156,9 @@
     }
   ],
   "tests": {
-    "cloud_pytest": "1116 passed, 68 skipped, 1 failed (pre-existing product_quality_gate P1)",
-    "sensitive_scan": "clean",
-    "bench_gallery": "synthetic 1000/20 hits=200"
+    "cloud_pytest": "targeted v1.6-v1.8 green; broader suite recorded after commit",
+    "sensitive_scan": "pending_this_revision",
+    "bench_gallery": "synthetic 1000/20; not a 10k claim"
   },
-  "next_action": "Continue Wave 2 without Pixiv/account work. Do not persist chat secrets or run paid NAI. Next shortest board is gen.img2img_inpaint_canvas compile/UI after tests stay green."
+  "next_action": "Cloud-completable v1.6-v1.8 is in. Remaining: Windows WIN-001..015, paid NAI (WIN-012), Pixiv (WIN-013 deferred), Studio img2img canvas UI, tooling→planning.py after v1.6/v1.7 gate review, v1.9 memory/TTS. Do not merge main. Do not persist chat secrets."
 }

@@ -8,8 +8,8 @@
 - Base: main @ 008de38ad4dc6c8afbf0ec32ae411cd85685ac02
 - Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/3
 - Worker: Lead
-- Scope: Phase 0 continuation, Cloud Build, NAI field reporting, tooling timeout/cancel, catalog projection, gallery design, benches, POSIX skips, handoff
-- Tests: 1116 passed / 68 skipped / 1 pre-existing P1 quality-gate failure
+- Scope: Phase 0 continuation plus D-012 img2img/infill compile, PNG restore tests, additive gallery_index, kernel compile/index preview
+- Tests: targeted v1.6–v1.8 green; pre-existing P1 quality-gate must stay
 - Benchmarks: synthetic in-memory only
 - Depends on: worker branches listed below (files already reviewed onto this branch)
 - Windows pending: PENDING_LOCAL_WINDOWS.md

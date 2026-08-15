@@ -17,9 +17,9 @@ No second NovelAI client.
 | characterPrompts / v4 char slots | comment | yes | negative captions padded | implement |
 | Precise Reference | `reference_image_multiple*` | yes as reference arrays | still `action=generate` | implement |
 | Vibe Transfer | `xianyun_vibe` / `vibe*` | no official compile | reported in `unsupported_fields` | implement |
-| img2img / inpaint | `image` / `mask` / `action` | no | `requested_action` recorded; HTTP stays generate | implement |
+| img2img / inpaint | `image` / `mask` / `action` | yes when compile rules met | explicit img2img+image → `img2img`; mask+image or inpaint+image → `infill`; lone image stays generate | implement |
 | Enhance / Director | `nai/director.py` | separate path | not txt2img compile | defer |
 | Anlas estimate | ledger / work order | not in compile | `unknown` until provider returns | implement |
 | unknown vendor keys | any other comment key | no | listed in `unknown_fields` | implement |
 
-Production HTTP `action` remains `generate` until a dedicated img2img/inpaint compile is accepted after tests lock the current payload.
+HTTP `action` is `generate` unless D-012 compile rules are met. Vibe Transfer remains unsupported. Studio still has no inpaint canvas (UI is a later lease).

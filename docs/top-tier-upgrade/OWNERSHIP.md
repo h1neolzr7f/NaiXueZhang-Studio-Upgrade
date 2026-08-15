@@ -11,7 +11,7 @@ Base SHA: `008de38ad4dc6c8afbf0ec32ae411cd85685ac02`
 | data/butler_catalog.json | Lead | tool catalog | 2026-08-15 | after v1.8 gate | risk labels |
 | LICENSE / VERSION / release scripts | Lead | license and release | 2026-08-15 | standing | none |
 | nai/ nai_api.py nai_char_modules/ | W1 | NAI compile/transport | 2026-08-15 | v1.6 | generate_image |
-| gallery_*.py db.py db_queries.py search.py generated_gallery.py | W2 | gallery assets | 2026-08-15 | v1.7 | WorkRef, search_works |
+| gallery_*.py gallery_index.py db.py db_queries.py search.py generated_gallery.py | W2 | gallery assets + additive index | 2026-08-15 | v1.7 | WorkRef, search_works |
 | butler/tooling/ tests/tooling/ | W3 | independent kernel | 2026-08-15 | v1.8 integration | WorkflowRequest |
 | butler/tooling/catalog_projection.py | W3 | read-only catalog projection | 2026-08-15 | v1.8 integration | ToolSpec |
 | tests/ scripts/*windows*.ps1 scripts/bench_gallery.py scripts/check_windows_scripts.py docs/top-tier-upgrade/ | W4 / Lead | quality and handoff | 2026-08-15 | standing | doctor/verify |

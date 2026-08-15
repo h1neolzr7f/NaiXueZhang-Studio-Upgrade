@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import json
 import re
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -77,6 +78,7 @@ class ToolExecutor:
         self.registry = registry
         self._handlers: dict[str, Handler] = {}
         self.events: list[EventEnvelope] = []
+        self._idempotent: dict[str, dict[str, Any]] = {}
 
     def bind(self, name: str, handler: Handler, version: str = "1") -> None:
         self._handlers[f"{name}@{version}"] = handler
@@ -106,6 +108,14 @@ class ToolExecutor:
             spec = self.registry.get(name)
             context.authorize(spec)
             _validate_object(arguments, dict(spec.input_schema), spec.name)
+            cache_key = self._idempotency_key(spec, arguments)
+            if cache_key and cache_key in self._idempotent:
+                cached = dict(self._idempotent[cache_key])
+                cached["call_id"] = call_id
+                cached["started_at"] = started
+                cached["finished_at"] = _now()
+                self._record("tool.succeeded", spec, call_id, context)
+                return cached
             if not spec.interactive_executable:
                 request = WorkflowRequest(
                     requested_by_agent=context.agent_id,
@@ -137,6 +147,7 @@ class ToolExecutor:
                     ErrorEnvelope(code="unknown_tool", message=f"no handler bound for {spec.name}", tool_name=spec.name)
                 )
             raw = self._run_handler(handler, dict(arguments), context, spec)
+            _validate_object(raw, dict(spec.output_schema), spec.name)
             data, truncated, redactions = self._limit_and_redact(raw, spec)
             result = {
                 "call_id": call_id,
@@ -153,6 +164,8 @@ class ToolExecutor:
                 "workflow_request": None,
             }
             self._record("tool.succeeded", spec, call_id, context)
+            if cache_key:
+                self._idempotent[cache_key] = dict(result)
             return result
         except ToolingError as exc:
             envelope = exc.envelope
@@ -196,6 +209,12 @@ class ToolExecutor:
                 "next_cursor": None,
                 "workflow_request": None,
             }
+
+    def _idempotency_key(self, spec: ToolSpec, arguments: dict[str, Any]) -> str:
+        if spec.idempotency in {"", "none"}:
+            return ""
+        payload = json.dumps(arguments, sort_keys=True, default=str)
+        return f"{spec.key}:{payload}"
 
     def _run_handler(
         self,

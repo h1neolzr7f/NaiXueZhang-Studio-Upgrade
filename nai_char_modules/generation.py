@@ -14,8 +14,8 @@ MAX_FREE_LONG_EDGE = 1216
 MAX_FREE_STEPS = 28
 MAX_FREE_PIXELS = 1024 * 1024
 
-# Keys consumed by the current txt2img compile path. Anything else is reported,
-# not silently dropped, and is not sent as a second NovelAI client.
+# Keys consumed by the txt2img / img2img / infill compile path. Anything else
+# is reported, not silently dropped, and is not sent as a second NovelAI client.
 KNOWN_COMMENT_KEYS = frozenset(
     {
         "prompt",
@@ -54,6 +54,11 @@ KNOWN_COMMENT_KEYS = frozenset(
         "request_type",
         "image",
         "mask",
+        "strength",
+        "noise",
+        "extra_noise_seed",
+        "extraNoiseSeed",
+        "add_original_image",
         "action",
         "requested_action",
         "xianyun_vibe",
@@ -63,7 +68,7 @@ KNOWN_COMMENT_KEYS = frozenset(
     }
 )
 SUPPORTED_ACTIONS = frozenset({"generate", "img2img", "inpaint", "infill"})
-UNCOMPILED_INPUT_KEYS = ("image", "mask")
+COMPILED_IMAGE_ACTIONS = frozenset({"img2img", "infill"})
 UNCOMPILED_VIBE_KEYS = ("xianyun_vibe", "vibe_transfer", "vibeTransfer", "vibe")
 
 
@@ -126,7 +131,7 @@ def _normalized_v4_payloads(
 
 
 def requested_action(patched_comment: dict) -> str:
-    """Return the action the comment asked for. Compile still defaults to generate."""
+    """Return the action the comment asked for, before compile rules."""
 
     raw = str(
         patched_comment.get("requested_action") or patched_comment.get("action") or "generate"
@@ -136,24 +141,98 @@ def requested_action(patched_comment: dict) -> str:
     return "generate"
 
 
+def compiled_action(patched_comment: dict) -> str:
+    """HTTP action after img2img / infill compile rules.
+
+    Precise Reference arrays stay on ``generate``. A lone ``image`` without an
+    explicit img2img/inpaint request is not compiled. ``inpaint`` is sent as
+    NovelAI ``infill``.
+    """
+
+    requested = requested_action(patched_comment)
+    has_image = bool(patched_comment.get("image"))
+    has_mask = bool(patched_comment.get("mask"))
+    if has_image and has_mask:
+        return "infill"
+    if requested in {"inpaint", "infill"} and has_image:
+        return "infill"
+    if requested == "img2img" and has_image:
+        return "img2img"
+    return "generate"
+
+
 def collect_unknown_fields(patched_comment: dict) -> list[str]:
     return sorted(str(key) for key in patched_comment if str(key) not in KNOWN_COMMENT_KEYS)
 
 
-def collect_unsupported_fields(patched_comment: dict) -> list[str]:
+def collect_unsupported_fields(
+    patched_comment: dict,
+    *,
+    http_action: str | None = None,
+) -> list[str]:
     """Fields that exist on the comment but are not compiled into the HTTP action."""
 
     unsupported: list[str] = []
-    action = requested_action(patched_comment)
-    if action != "generate":
-        unsupported.append(f"action:{action}")
-    for key in UNCOMPILED_INPUT_KEYS:
-        if patched_comment.get(key):
-            unsupported.append(key)
+    requested = requested_action(patched_comment)
+    action = http_action or compiled_action(patched_comment)
+    if requested != "generate" and action == "generate":
+        unsupported.append(f"action:{requested}")
+    if patched_comment.get("image") and action not in COMPILED_IMAGE_ACTIONS:
+        unsupported.append("image")
+    if patched_comment.get("mask") and action != "infill":
+        unsupported.append("mask")
     for key in UNCOMPILED_VIBE_KEYS:
         if patched_comment.get(key):
             unsupported.append(key)
     return unsupported
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _apply_image_action_parameters(
+    parameters: dict[str, Any],
+    patched_comment: dict,
+    *,
+    http_action: str,
+) -> None:
+    if http_action not in COMPILED_IMAGE_ACTIONS:
+        return
+    parameters["image"] = patched_comment.get("image")
+    if http_action == "infill" and patched_comment.get("mask"):
+        parameters["mask"] = patched_comment.get("mask")
+    strength = _optional_float(patched_comment.get("strength"))
+    if strength is None:
+        strength = _optional_float(patched_comment.get("inpaintImg2ImgStrength"))
+    if strength is not None:
+        parameters["strength"] = strength
+    noise = _optional_float(patched_comment.get("noise"))
+    if noise is not None:
+        parameters["noise"] = noise
+    extra_seed = _optional_int(
+        patched_comment.get("extra_noise_seed")
+        if patched_comment.get("extra_noise_seed") not in (None, "")
+        else patched_comment.get("extraNoiseSeed")
+    )
+    if extra_seed is not None:
+        parameters["extra_noise_seed"] = extra_seed
+    if "add_original_image" in patched_comment:
+        parameters["add_original_image"] = bool(patched_comment.get("add_original_image"))
 
 
 def fit_opus_free_size(width: int, height: int) -> tuple[int, int, bool]:
@@ -270,11 +349,14 @@ def build_generate_payload(
         except (TypeError, ValueError):
             pass
 
+    http_action = compiled_action(patched_comment)
+    _apply_image_action_parameters(parameters, patched_comment, http_action=http_action)
     has_image_input = bool(
         patched_comment.get("reference_image_multiple")
         or patched_comment.get("reference_information_extracted_multiple")
         or patched_comment.get("image")
         or patched_comment.get("mask")
+        or http_action in COMPILED_IMAGE_ACTIONS
     )
     free_eligible = (
         force_free
@@ -286,11 +368,11 @@ def build_generate_payload(
     return {
         "input": base,
         "model": model,
-        # Production HTTP path stays txt2img until a dedicated img2img/inpaint
-        # compile lands. Requested/unsupported fields are reported, not dropped.
-        "action": "generate",
+        "action": http_action,
         "requested_action": requested_action(patched_comment),
-        "unsupported_fields": collect_unsupported_fields(patched_comment),
+        "unsupported_fields": collect_unsupported_fields(
+            patched_comment, http_action=http_action
+        ),
         "unknown_fields": collect_unknown_fields(patched_comment),
         "request_type": patched_comment.get("request_type") or "PromptGenerateRequest",
         "parameters": parameters,

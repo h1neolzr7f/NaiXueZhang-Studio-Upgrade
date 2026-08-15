@@ -2,7 +2,7 @@
 
 ## 1. Product and phase
 
-Upgrade Nai学长工作室 to a first-tier NovelAI production OS. Current phase: **Phase 0 complete enough to continue Wave 2 on independent files**. Barrel lowest is 3.0 (img2img/inpaint canvas and ANR-dependent post). Do not claim top-tier.
+Upgrade Nai学长工作室 to a first-tier NovelAI production OS. Current phase: **cloud-completable v1.6–v1.8 landed**. Barrel lowest core is 4.0 (`assist.memory_tts_emotion`, v1.9 deferred). Next implementable lowest is 6.0 (img2img compile without Studio canvas). Do not claim top-tier.
 
 ## 2. Branches and SHAs
 
@@ -42,15 +42,15 @@ None applied. v1.4→v1.5 data move remains a Windows item (WIN-014).
 ## 9. Public interface versions
 
 WorkflowRequest / ErrorEnvelope / EventEnvelope / ToolSpec v1 in `butler/tooling`. Not wired to HTTP or LangGraph.  
-NAI compile now also returns `requested_action`, `unsupported_fields`, `unknown_fields`. HTTP `action` remains `generate`.
+NAI compile returns `requested_action`, `unsupported_fields`, `unknown_fields`. HTTP `action` is `generate` unless D-012 img2img/infill rules are met. Gallery additive index lives in the same SQLite file. Tooling kernel is still not wired to `planning.py`.
 
 ## 10. Three shortest boards
 
-1. `gen.img2img_inpaint_canvas` 3.0
-2. `assist.memory_tts_emotion` 4.0 (defer to v1.9)
-3. `assist.tool_loop` 5.0 (kernel exists, not wired to chat)
+1. `assist.memory_tts_emotion` 4.0 (defer to v1.9)
+2. `gen.img2img_inpaint_canvas` 6.0 (compile yes, Studio canvas no)
+3. `assist.tool_loop` 6.0 (kernel expanded, not wired to chat)
 
-`post.pipeline` is now 6.0. Pixiv account work is deferred this wave.
+`post.pipeline` is 6.0. Pixiv account work is deferred this wave.
 
 ## 11. PENDING_LOCAL_WINDOWS
 
@@ -58,13 +58,14 @@ See PENDING_LOCAL_WINDOWS.md WIN-001..015.
 
 ## 12. Known bugs / gaps
 
-- Official generate path is txt2img only; img2img/inpaint are reported, not compiled
+- Official generate path compiles img2img/infill; Studio has no mask canvas
 - Studio UI has no cancel button
 - `/app` gallery lacks drop-folder
 - ANR path hardcoded to Windows personal directories
 - Dual classic/`/app` UI drift
 - Catalog vs gallery crawler tool dual definition
 - Tooling kernel is not wired into `planning.py` / chat
+- Gallery similar/dup is library-only; no additive HTTP routes this wave
 
 ## 13. Blockers
 
@@ -94,7 +95,7 @@ Lead + W1 NAI compile + W4 Windows verify. W2/W3 stay on independent files.
 
 ## 18. Next
 
-Continue Wave 2 on this branch. Do not start v1.6 UI/inpaint until compile tests lock current payload behavior. Do not integrate tooling into planning.py.
+Cloud compile/index/kernel work is in. Next local work: Windows WIN-* plus Studio img2img canvas. Do not integrate tooling into planning.py until a Lead review of this wave. Do not merge main.
 
 ## 19. Still-running cloud agents
 

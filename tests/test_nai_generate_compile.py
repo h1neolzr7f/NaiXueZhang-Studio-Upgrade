@@ -67,7 +67,7 @@ class NaiGenerateCompileLockTests(unittest.TestCase):
         self.assertEqual(info["action"], "generate")
         self.assertFalse(info["free_eligible"])
 
-    def test_mask_and_image_keep_txt2img_action_until_img2img_lands(self) -> None:
+    def test_mask_and_image_compile_to_infill(self) -> None:
         comment = {
             "prompt": "1girl",
             "width": 832,
@@ -78,11 +78,15 @@ class NaiGenerateCompileLockTests(unittest.TestCase):
             "inpaintImg2ImgStrength": 0.55,
         }
         payload = generation.build_generate_payload(comment)
-        self.assertEqual(payload["action"], "generate")
+        self.assertEqual(payload["action"], "infill")
+        self.assertEqual(payload["requested_action"], "generate")
         self.assertFalse(payload["free_eligible"])
-        self.assertNotIn("image", payload["parameters"])
-        self.assertNotIn("mask", payload["parameters"])
+        self.assertEqual(payload["parameters"]["image"], "base64-or-bytes")
+        self.assertEqual(payload["parameters"]["mask"], "base64-mask")
         self.assertEqual(payload["parameters"]["inpaintImg2ImgStrength"], 0.55)
+        self.assertEqual(payload["parameters"]["strength"], 0.55)
+        self.assertNotIn("image", payload["unsupported_fields"])
+        self.assertNotIn("mask", payload["unsupported_fields"])
 
     def test_force_free_resizes_and_caps_steps(self) -> None:
         comment = {
@@ -173,16 +177,53 @@ class NaiGenerateCompileLockTests(unittest.TestCase):
             "future_vendor_field": {"keep": True},
         }
         payload = generation.build_generate_payload(comment)
-        self.assertEqual(payload["action"], "generate")
+        self.assertEqual(payload["action"], "infill")
         self.assertEqual(payload["requested_action"], "img2img")
-        self.assertIn("image", payload["unsupported_fields"])
-        self.assertIn("mask", payload["unsupported_fields"])
+        self.assertEqual(payload["parameters"]["image"], "base64-or-bytes")
+        self.assertEqual(payload["parameters"]["mask"], "base64-mask")
+        self.assertNotIn("image", payload["unsupported_fields"])
+        self.assertNotIn("mask", payload["unsupported_fields"])
+        self.assertNotIn("action:img2img", payload["unsupported_fields"])
         self.assertIn("xianyun_vibe", payload["unsupported_fields"])
-        self.assertIn("action:img2img", payload["unsupported_fields"])
         self.assertIn("future_vendor_field", payload["unknown_fields"])
-        self.assertNotIn("image", payload["parameters"])
-        self.assertNotIn("mask", payload["parameters"])
         self.assertNotIn("future_vendor_field", payload["parameters"])
+        self.assertNotIn("xianyun_vibe", payload["parameters"])
+
+    def test_explicit_img2img_without_mask_compiles_image(self) -> None:
+        comment = {
+            "prompt": "1girl",
+            "width": 832,
+            "height": 1216,
+            "steps": 28,
+            "action": "img2img",
+            "image": "base64-or-bytes",
+            "strength": 0.42,
+            "noise": 0.05,
+            "extra_noise_seed": 99,
+        }
+        payload = generation.build_generate_payload(comment)
+        self.assertEqual(payload["action"], "img2img")
+        self.assertEqual(payload["requested_action"], "img2img")
+        self.assertEqual(payload["unsupported_fields"], [])
+        self.assertEqual(payload["parameters"]["image"], "base64-or-bytes")
+        self.assertNotIn("mask", payload["parameters"])
+        self.assertEqual(payload["parameters"]["strength"], 0.42)
+        self.assertEqual(payload["parameters"]["noise"], 0.05)
+        self.assertEqual(payload["parameters"]["extra_noise_seed"], 99)
+        self.assertFalse(payload["free_eligible"])
+
+    def test_image_alone_stays_txt2img_and_is_reported(self) -> None:
+        comment = {
+            "prompt": "1girl",
+            "width": 832,
+            "height": 1216,
+            "steps": 28,
+            "image": "raw-bytes-or-url",
+        }
+        payload = generation.build_generate_payload(comment)
+        self.assertEqual(payload["action"], "generate")
+        self.assertIn("image", payload["unsupported_fields"])
+        self.assertNotIn("image", payload["parameters"])
 
     def test_generate_image_does_not_define_a_second_http_client(self) -> None:
         source = ast.parse((ROOT / "nai_api.py").read_text(encoding="utf-8"))

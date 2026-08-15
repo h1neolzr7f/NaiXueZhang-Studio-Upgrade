@@ -1,7 +1,8 @@
 """NAI compile-layer parameter snapshots and boundaries.
 
 Read-only lock for ``nai_char_modules.generation.build_generate_payload``.
-Does not call NovelAI, change ``force_free`` defaults, or compile img2img.
+Does not call NovelAI or change ``force_free`` defaults. img2img/infill
+compile is locked here once image/mask rules are met.
 """
 
 from __future__ import annotations
@@ -218,7 +219,7 @@ class NaiParamSnapshotTests(unittest.TestCase):
         self.assertEqual(parameters["reference_strength_multiple"], [0.6])
         self.assertNotIn("image", parameters)
 
-    def test_img2img_inpaint_and_vibe_are_reported_not_compiled(self) -> None:
+    def test_img2img_inpaint_compile_while_vibe_stays_unsupported(self) -> None:
         payload = generation.build_generate_payload(
             _txt2img_comment(
                 action="inpaint",
@@ -231,14 +232,11 @@ class NaiParamSnapshotTests(unittest.TestCase):
                 vibe={"enabled": True},
             )
         )
-        self.assertEqual(payload["action"], "generate")
+        self.assertEqual(payload["action"], "infill")
         self.assertEqual(payload["requested_action"], "inpaint")
         self.assertEqual(
             payload["unsupported_fields"],
             [
-                "action:inpaint",
-                "image",
-                "mask",
                 "xianyun_vibe",
                 "vibe_transfer",
                 "vibeTransfer",
@@ -248,8 +246,9 @@ class NaiParamSnapshotTests(unittest.TestCase):
         self.assertEqual(payload["unknown_fields"], [])
         self.assertFalse(payload["free_eligible"])
         self.assertEqual(payload["parameters"]["inpaintImg2ImgStrength"], 0.42)
-        self.assertNotIn("image", payload["parameters"])
-        self.assertNotIn("mask", payload["parameters"])
+        self.assertEqual(payload["parameters"]["image"], "base64-or-bytes")
+        self.assertEqual(payload["parameters"]["mask"], "base64-mask")
+        self.assertEqual(payload["parameters"]["strength"], 0.42)
         self.assertNotIn("xianyun_vibe", payload["parameters"])
         self.assertNotIn("vibe_transfer", payload["parameters"])
         self.assertNotIn("vibeTransfer", payload["parameters"])
@@ -271,7 +270,16 @@ class NaiParamSnapshotTests(unittest.TestCase):
 
         infill = generation.build_generate_payload(_txt2img_comment(action="INFILL"))
         self.assertEqual(infill["requested_action"], "infill")
+        self.assertEqual(infill["action"], "generate")
         self.assertIn("action:infill", infill["unsupported_fields"])
+
+        compiled = generation.build_generate_payload(
+            _txt2img_comment(action="img2img", image="raw")
+        )
+        self.assertEqual(compiled["action"], "img2img")
+        self.assertEqual(compiled["requested_action"], "img2img")
+        self.assertNotIn("action:img2img", compiled["unsupported_fields"])
+        self.assertEqual(compiled["parameters"]["image"], "raw")
 
     def test_unknown_vendor_keys_are_listed_and_not_sent(self) -> None:
         payload = generation.build_generate_payload(
@@ -292,15 +300,16 @@ class NaiParamSnapshotTests(unittest.TestCase):
         )
         body = _http_body_from_compile(payload)
         self.assertEqual(set(body), set(HTTP_BODY_KEYS))
-        self.assertEqual(body["action"], "generate")
+        self.assertEqual(body["action"], "img2img")
         self.assertFalse(body["use_new_shared_trial"])
         for key in COMPILE_META_KEYS:
             self.assertIn(key, payload)
             self.assertNotIn(key, body)
             self.assertNotIn(key, body["parameters"])
-        self.assertNotIn("image", body["parameters"])
+        self.assertEqual(body["parameters"]["image"], "raw")
         self.assertNotIn("controlnet_model", body["parameters"])
         self.assertNotIn("anlas_spent", body)
+        self.assertNotIn("future_vendor_field", body["parameters"])
 
     def test_generate_py_body_literal_only_has_official_keys(self) -> None:
         tree = ast.parse((ROOT / "nai" / "generate.py").read_text(encoding="utf-8"))

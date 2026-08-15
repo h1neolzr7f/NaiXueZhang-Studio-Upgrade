@@ -101,3 +101,37 @@
 - Tests: none
 - Rollback: n/a
 - Layer: B (scope), A (do not commit secrets or unpaid generation)
+
+## D-012 Compile img2img / infill on the existing client
+
+- Date: 2026-08-15
+- Capability: gen.img2img_inpaint_canvas
+- Existing behavior: D-009 reported `requested_action` / `unsupported_fields` and kept HTTP `action=generate`.
+- Options: keep reporting-only; add a second client; compile on `nai_char.build_generate_payload` / `nai_api.generate_image`.
+- Chosen: compile on the existing client. Precise Reference stays `generate`. A lone `image` without an explicit img2img/inpaint request stays `generate` and is listed in `unsupported_fields`. Explicit `img2img` + `image` → HTTP `img2img`. `mask`+`image`, or explicit inpaint/infill + `image` → HTTP `infill`. Vibe keys stay unsupported. No paid NovelAI call.
+- Evidence: `tests/test_nai_generate_compile.py`, `tests/test_nai_param_snapshots.py`
+- Tests: those files plus `tests/test_nai_png_restore.py`
+- Rollback: revert `nai_char_modules/generation.py` and the lock tests
+- Layer: B (supersedes D-009 HTTP freeze once compile rules are met)
+
+## D-013 Additive gallery index, no second store
+
+- Date: 2026-08-15
+- Capability: search.fts_works_prompt / search.visual_similar
+- Existing behavior: design-only `GALLERY_INDEX_DESIGN.md`; production search still full `rebuild_fts`.
+- Chosen: add `gallery_index.py` tables in the existing per-gallery SQLite. Dirty-set incremental FTS via existing `_sync_*`. Exact sha256 groups and local dHash/pHash similar. No butler task DB. No `/api/ai_works_search` JSON change. No HTTP routes this wave (library + `Database.incremental_index` only). Embed stays `local_none`.
+- Evidence: `tests/test_gallery_index.py`
+- Tests: dirty predicate, incremental skip, exact/near/similar, Database hook
+- Rollback: stop calling `incremental_index`; `DROP TABLE` of the two new tables
+- Layer: B
+
+## D-014 Expand tooling kernel without planning.py
+
+- Date: 2026-08-15
+- Capability: assist.tool_loop
+- Existing behavior: kernel exists; chat/planner not wired.
+- Chosen: add `compile_nai_preview` and `gallery_index_preview` as kernel-only read tools. Add keyed idempotency and output-schema checks on the executor. Do not import tooling from `butler/planning.py`. Cost/destructive tools still only emit WorkflowRequest.
+- Evidence: `tests/tooling/test_kernel_tools.py`
+- Tests: compile preview, idempotency, in-memory dups, planning import lock
+- Rollback: revert `butler/tooling/kernel_tools.py` and executor cache
+- Layer: B
