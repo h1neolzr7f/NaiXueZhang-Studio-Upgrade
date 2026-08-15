@@ -179,3 +179,22 @@
 - Tests: unconfirmed not recalled; quiet/rate; handoff desks only; tts.core=false
 - Rollback: stop serving `/api/companion/*`
 - Layer: B
+
+## D-019 Online-first data pipeline: Acquire → Curate → Transform → Library
+
+- Date: 2026-08-16
+- Capability: gallery/provider architecture / data acquisition / online knowledge sources
+- Existing behavior: gallery, crawlers, imports, search and processors exist as capabilities, but acquisition sources can be perceived as separate product features and the local gallery can become the conceptual center.
+- Chosen: adopt an explicit four-stage product/data architecture: **Acquire → Curate → Transform → Library**. Crawlers are one acquisition adapter under Acquire, not a top-level product architecture of their own.
+- Acquire includes remote APIs, online galleries/databases, crawler adapters, browser/plugin acquisition, and local import. The application ships without third-party content databases; users obtain/select their own data from configured sources.
+- Curate owns remote/local search, filtering, favorites, dedupe, similarity, ratings, collections, prompt/tag/artist discovery and explicit selection sets.
+- Transform owns batch character replacement, prompt/tag transforms, metadata processing, post-processing and generation workflows. Costly/side-effecting transforms remain on durable Butler/LangGraph workflows per D-004/D-017.
+- Library is the user's durable local asset store. Remote browsing does not imply local materialization. A remote asset crosses into the local library only through an explicit user action such as download/import/save-for-processing. Favorites should support lightweight remote references where source terms permit it.
+- Provider boundary: external sources are adapters behind a common remote-asset contract; provider-specific crawling/API details must not leak into Library or Processor interfaces. Providers do not write directly to the local gallery database.
+- Provenance: materialized assets retain provider/source URL/remote ID/author/license-or-rights metadata where available plus transform lineage. This is required for traceability and future source policy changes.
+- Third-party data: do not bundle or mirror a third-party database merely because it is technically reachable. Provider integration must respect the source's license/terms/authorization. For sources without clear reuse permission, prefer linking/lightweight remote access or obtain permission rather than shipping a mirror.
+- Target UX: clearly separate **Online** discovery from **My Library**. The explicit bridge is `Add to My Library` / download/import. Batch operations may materialize only the selected assets needed for the requested workflow.
+- Architecture goal: make acquisition, curation and processing independently extensible so a new source is a Provider, a new acquisition mechanism (including a crawler) is an Acquire adapter, and a new transformation is a Processor/workflow rather than a cross-cutting gallery rewrite.
+- Tests/acceptance for implementation wave: provider contract tests; no-provider-direct-DB-write guard; remote-reference vs materialized-asset tests; provenance persistence; selected-only materialization; crawler-as-Acquire-adapter contract; existing gallery/search APIs remain backward compatible unless separately versioned.
+- Rollback: remove provider orchestration and retain existing local gallery/crawler entry points; do not migrate/destructively rewrite existing user libraries in the first implementation wave.
+- Layer: A (product/data boundary and rights/provenance), B (provider/asset contracts), C (UI naming/navigation).
