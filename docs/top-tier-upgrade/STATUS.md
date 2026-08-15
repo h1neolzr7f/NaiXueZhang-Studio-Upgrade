@@ -41,6 +41,7 @@ Integration Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/p
 - Additive gallery index HTTP
 - Formal `GATE_REVIEW.md` then kernel → chat (not planning.py)
 - v1.9 confirmed memory / handoff / anti-disturbance
+- Cloud blockers closed: path containment, real tool timeout, inpaint mask size, companion lock, quiet-hour timezone, event dedupe/TTL/ack, planner memory injection + redaction, gallery batch caps. Not a completion proof.
 
 ## Tests this run (Linux Cloud VM)
 
