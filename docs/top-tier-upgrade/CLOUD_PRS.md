@@ -5,7 +5,7 @@
 - Repository: h1neolzr7f/NaiXueZhang-Studio-Upgrade
 - Branch: cursor/cloud-top-tier-integration-6d7e
 - Base: main @ 008de38ad4dc6c8afbf0ec32ae411cd85685ac02
-- Head: 35e7d3c1aafa98e1ca81f1e44c7bad750e9c839d
+- Head: published via GitHub MCP; Draft PR https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/2
 - Worker: Lead
 - Scope: Phase 0 state, AGENTS.md, Windows doctor aliases, POSIX skips (D-003/D-007), butler/tooling skeleton, NAI compile lock tests
 - Tests: cloud-safe pytest + scan_sensitive
