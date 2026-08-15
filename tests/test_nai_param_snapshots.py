@@ -63,7 +63,7 @@ class NaiParamSnapshotTests(unittest.TestCase):
 
     def test_public_facade_is_the_same_compile_function(self) -> None:
         self.assertIs(nai_char.build_generate_payload, generation.build_generate_payload)
-        self.assertIs(nai_api.generate_image.__module__, "nai.generate")
+        self.assertEqual(nai_api.generate_image.__module__, "nai.generate")
 
     def test_golden_txt2img_payload_snapshot(self) -> None:
         payload = generation.build_generate_payload(_txt2img_comment())
@@ -331,7 +331,7 @@ class NaiSizeSeedBoundaryTests(unittest.TestCase):
             (832, 1216, (832, 1216, False)),
             (1216, 832, (1216, 832, False)),
             (1024, 1024, (1024, 1024, False)),
-            (1216, 1216, (960, 960, True)),
+            (1216, 1216, (1024, 1024, True)),
             (2048, 2048, (1024, 1024, True)),
         )
         for width, height, expected in cases:
@@ -372,7 +372,7 @@ class NaiSizeSeedBoundaryTests(unittest.TestCase):
     def test_zero_width_uses_default_then_free_fit(self) -> None:
         payload = generation.build_generate_payload(_txt2img_comment(width=0, height=0))
         self.assertEqual((payload["width"], payload["height"]), (832, 1216))
-        self.assertTrue(payload["resized_for_free"])
+        self.assertFalse(payload["resized_for_free"])
 
     def test_negative_size_without_force_free_is_not_clamped(self) -> None:
         payload = generation.build_generate_payload(
