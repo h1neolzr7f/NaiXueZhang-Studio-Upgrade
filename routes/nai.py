@@ -184,7 +184,7 @@ async def api_nai_generate(payload: NaiGenerateRequest) -> dict:
         work_id=work_id,
         page_index=page_index,
         copies=copies,
-        source_gallery_id=source_gallery_id if source_gallery_id in {"site", "aitag-online", "codex", "qqgroup"} else "site",
+        source_gallery_id=source_gallery_id if source_gallery_id in {"site", "aitag-online", "codex", "qqgroup", "codex-atlas"} else "site",
         seed_policy=str(data.get("seed_policy") or ""),
         force_free=bool(data.get("force_free", True)),
         prompt_profile=str(data.get("prompt_profile") or "native"),
@@ -217,7 +217,7 @@ def api_generated_list() -> dict:
             continue
         gallery_id = str(g.get("source_gallery_id") or "site")
         # Online AITag sources are not in the local site/codex DBs.
-        if gallery_id in {"aitag-online", "aitag"}:
+        if gallery_id in {"aitag-online", "aitag", "codex-atlas"}:
             remote = str(g.get("remote_work_id") or wid or "").strip()
             title = str(g.get("source_title") or "").strip()
             if not title:

@@ -27,7 +27,13 @@ function initInspirationSidebar() {
     } catch { }
   });
   toStudio?.addEventListener('click', () => {
-    if (!inspirationState.workId || !window.WorkBridge) return;
+    if (!inspirationState.workId) return;
+    if (typeof isCodexAtlasGallery === 'function' && isCodexAtlasGallery()) {
+      Promise.resolve(createCodexAtlasStudioDraft(inspirationState.workId))
+        .catch((err) => reportAsyncError('建立法典图鉴草稿失败', err));
+      return;
+    }
+    if (!window.WorkBridge) return;
     if (typeof isAitagGallery === 'function' && isAitagGallery()) {
       if (typeof openOnlineRemixPanel === 'function') {
         Promise.resolve(openOnlineRemixPanel(inspirationState.workId, 'draft'))
@@ -40,6 +46,7 @@ function initInspirationSidebar() {
   });
   toRemix?.addEventListener('click', () => {
     if (!inspirationState.workId || !window.WorkBridge) return;
+    if (typeof isCodexAtlasGallery === 'function' && isCodexAtlasGallery()) return;
     if (typeof isAitagGallery === 'function' && isAitagGallery()) {
       if (typeof openOnlineRemixPanel === 'function') {
         Promise.resolve(openOnlineRemixPanel(inspirationState.workId, 'remix'))
@@ -56,6 +63,7 @@ function initInspirationSidebar() {
   });
   toQueue?.addEventListener('click', async () => {
     if (!inspirationState.workId) return;
+    if (typeof isRemoteDiscoveryGallery === 'function' && isRemoteDiscoveryGallery()) return;
     if (typeof isAitagGallery === 'function' && isAitagGallery()) return;
     const on = await toggleQueue(inspirationState.workId);
     toQueue.textContent = on ? '已入队 ✓' : '加入待生成';
@@ -66,6 +74,14 @@ function initInspirationSidebar() {
 async function loadInspirationPrompt(workId) {
   const el = document.getElementById('inspirationPrompt');
   if (!el || !workId) return;
+  if (typeof isCodexAtlasGallery === 'function' && isCodexAtlasGallery()) {
+    const prompt = String((inspirationState.work && inspirationState.work.prompt) || '').trim();
+    el.textContent = prompt || (CURRENT_LANG === 'zh'
+      ? '打开词条详情可复制 Prompt，或做成零生成 Studio 草稿。'
+      : 'Open the entry to copy its prompt, or make a zero-generation Studio draft.');
+    el.classList.remove('is-loading');
+    return;
+  }
   if (typeof isAitagGallery === 'function' && isAitagGallery()) {
     el.textContent = CURRENT_LANG === 'zh'
       ? '在线资产：打开详情查看 Prompt，建立草稿后再进入 Studio。'
@@ -125,6 +141,11 @@ function handleGalleryCardActivate(work, ev) {
   if (!work || !work.id) return;
   selectInspirationWork(work);
   const id = work.id;
+  if (typeof isCodexAtlasGallery === 'function' && isCodexAtlasGallery() && userPrefs.quick_send_studio) {
+    Promise.resolve(createCodexAtlasStudioDraft(id))
+      .catch((err) => reportAsyncError('建立法典图鉴草稿失败', err));
+    return;
+  }
   if (typeof isAitagGallery === 'function' && isAitagGallery() && userPrefs.quick_send_studio) {
     if (typeof openOnlineRemixPanel === 'function') {
       Promise.resolve(openOnlineRemixPanel(id, 'remix'))
@@ -604,12 +625,19 @@ function compactOneLine(s) {
 
 function applyHomeSeo() {
   const online = typeof isAitagGallery === 'function' && isAitagGallery();
-  const siteTitle = online
+  const atlas = typeof isCodexAtlasGallery === 'function' && isCodexAtlasGallery();
+  const siteTitle = atlas
+    ? (CURRENT_LANG === 'zh' ? '法典图鉴 · Nai学长工作室' : 'Codex Atlas · Nai Studio')
+    : online
     ? (CURRENT_LANG === 'zh' ? 'AITag 在线图库 · Nai学长工作室' : 'AITag Online Gallery · Nai Studio')
     : CURRENT_LANG === 'zh'
     ? (CONFIG.gallery_title_zh || SITE_TITLE_ZH)
     : (CONFIG.gallery_title_en || SITE_TITLE_EN);
-  const description = online
+  const description = atlas
+    ? (CURRENT_LANG === 'zh'
+      ? '只读浏览 法典图鉴 公开发布的词条与例图；复制 Prompt，或做成零生成 Studio 草稿。不会写入本地主库。'
+      : 'Read-only browse of the public 法典图鉴 prompt books. Copy a prompt or make a zero-generation Studio draft without saving into the local gallery.')
+    : online
     ? (CURRENT_LANG === 'zh'
       ? '在线搜索和浏览 AITag 的 NovelAI 作品，查看多图与角色候选，并建立零生成 Studio 草稿。'
       : 'Search and browse NovelAI works from AITag, inspect every image and character slot, and create a zero-generation Studio draft.')
@@ -642,7 +670,10 @@ function applyWorkSeo(workId, work = {}, images = []) {
   const typeLabel = typeRaw ? typeRaw.toUpperCase() : 'AI';
   const titleRaw = (work.title && String(work.title).trim()) ? String(work.title).trim() : '';
   const online = typeof isAitagGallery === 'function' && isAitagGallery();
-  const siteTitle = online
+  const atlas = typeof isCodexAtlasGallery === 'function' && isCodexAtlasGallery();
+  const siteTitle = atlas
+    ? (CURRENT_LANG === 'zh' ? '法典图鉴 · Nai学长工作室' : 'Codex Atlas · Nai Studio')
+    : online
     ? (CURRENT_LANG === 'zh' ? 'AITag 在线图库 · Nai学长工作室' : 'AITag Online Gallery · Nai Studio')
     : (CURRENT_LANG === 'zh' ? SITE_TITLE_ZH : SITE_TITLE_EN);
   const workTitle = `[${typeLabel}] ${titleRaw || t('work_fallback', { id: workId })} - ${siteTitle}`;
@@ -675,7 +706,7 @@ function applyWorkSeo(workId, work = {}, images = []) {
   setOrCreateMetaByName('twitter:card', 'summary_large_image');
   setOrCreateMetaByName('twitter:title', workTitle);
   setOrCreateMetaByName('twitter:description', desc || (CURRENT_LANG === 'zh' ? HOME_DESC_ZH : HOME_DESC_EN));
-  const href = `${window.location.origin}/i/${workId}${online ? '?gallery=aitag-online' : ''}`;
+  const href = `${window.location.origin}/i/${encodeURIComponent(String(workId))}${atlas ? '?gallery=codex-atlas' : (online ? '?gallery=aitag-online' : '')}`;
   setOrCreateMetaByProperty('og:url', href);
   setOrCreateLinkRel('canonical', href);
   try {
@@ -796,7 +827,7 @@ function buildImageUrl(imgOrPath = '') {
     const remoteUrl = String(
       imgOrPath.thumbnail_url || imgOrPath.thumb_url || imgOrPath.url || imgOrPath.image_url || ''
     ).trim();
-    if (/^https:\/\//i.test(remoteUrl) || remoteUrl.startsWith('/api/nai/aitag/')) return remoteUrl;
+    if (/^https:\/\//i.test(remoteUrl) || remoteUrl.startsWith('/api/nai/aitag/') || remoteUrl.startsWith('/api/nai/codex-atlas/')) return remoteUrl;
     const localPath = String(imgOrPath.local_path || '').trim();
     if (localPath) return buildImageUrl(localPath);
     const t = String(imgOrPath.image_type || '').trim();
@@ -822,7 +853,7 @@ function buildImageUrl(imgOrPath = '') {
 function buildThumbUrlFromWork(work = {}) {
   if (!work || typeof work !== 'object') return '';
   const remoteUrl = String(work.thumbnail_url || work.thumb_url || work.cover_url || '').trim();
-  if (/^https:\/\//i.test(remoteUrl) || remoteUrl.startsWith('/api/nai/aitag/')) return remoteUrl;
+  if (/^https:\/\//i.test(remoteUrl) || remoteUrl.startsWith('/api/nai/aitag/') || remoteUrl.startsWith('/api/nai/codex-atlas/')) return remoteUrl;
   if (work.thumb_path) return buildImageUrl(work.thumb_path);
   const t = String(work.AI_type || '').trim();
   const a = String(work.userId ?? '').trim();
@@ -986,7 +1017,25 @@ function normalizeWorkId(id) {
     return window.WorkBridge.normalizeWorkId(id);
   }
   const value = String(id == null ? '' : id).trim();
-  return /^\d+$/.test(value) && value !== '0' ? value : '';
+  if (/^\d+$/.test(value) && value !== '0') return value;
+  if (/^[a-z0-9_]{1,64}:[A-Za-z0-9._-]{1,180}$/.test(value)) return value;
+  return '';
+}
+
+async function createCodexAtlasStudioDraft(workId) {
+  const id = normalizeWorkId(workId);
+  if (!id || !window.ApiClient) return;
+  try {
+    const result = await window.ApiClient.request(
+      `/api/nai/codex-atlas/entry/${encodeURIComponent(id)}/draft`,
+      { method: 'POST', timeoutMs: 120000 },
+    );
+    const studioUrl = String((result && result.studio_url) || '').trim();
+    if (!studioUrl) throw new Error('未返回 Studio 草稿地址');
+    window.location.href = studioUrl;
+  } catch (err) {
+    reportAsyncError('建立法典图鉴草稿失败', err);
+  }
 }
 function compareWorkIdsDesc(leftId, rightId) {
   const left = normalizeWorkId(leftId).replace(/^0+(?=\d)/, '');
@@ -1313,6 +1362,11 @@ function galleryLoadError(message) {
 
 async function loadFavorites() {
   try {
+    if (typeof isCodexAtlasGallery === 'function' && isCodexAtlasGallery()) {
+      setFavoriteIds([]);
+      refreshFavoriteButtons();
+      return;
+    }
     const endpoint = typeof isAitagGallery === 'function' && isAitagGallery()
       ? '/api/nai/aitag/favorites'
       : '/api/favorites';
@@ -1338,6 +1392,7 @@ function isFavorited(workId) {
 async function toggleFavorite(workId) {
   const wid = normalizeWorkId(workId);
   if (!wid) return false;
+  if (typeof isCodexAtlasGallery === 'function' && isCodexAtlasGallery()) return false;
   try {
     const online = typeof isAitagGallery === 'function' && isAitagGallery();
     const endpoint = online
