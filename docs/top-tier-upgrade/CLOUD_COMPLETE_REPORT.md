@@ -31,7 +31,8 @@ Pixiv `WIN-013` 用户已要求跳过。v1.9 记忆/TTS 按计划不做。
 |---|---|
 | 唯一实施仓 | `h1neolzr7f/NaiXueZhang-Studio-Upgrade` |
 | 集成分支 | `cursor/cloud-top-tier-integration-f036` |
-| 当前 HEAD | `27f3fa087bbdf1f3494c84268f6df0c1c7a9d6eb` |
+| 报告写入提交 | `0c46e12edf4d36aa12e28cb1de1bb9d831d138f0` |
+| 以分支 tip 为准 | `git rev-parse origin/cursor/cloud-top-tier-integration-f036` |
 | `main` 基线（未改） | `008de38ad4dc6c8afbf0ec32ae411cd85685ac02` |
 | 集成 Draft PR | https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/3 |
 | Lead run | https://cursor.com/agents/bc-6ecf51c6-e504-4cfe-85d6-9b8feaf5f036 |
@@ -68,7 +69,7 @@ checkout：
 git fetch origin cursor/cloud-top-tier-integration-f036
 git checkout cursor/cloud-top-tier-integration-f036
 git rev-parse HEAD
-# 期望：27f3fa087bbdf1f3494c84268f6df0c1c7a9d6eb
+# 报告写入：0c46e12edf4d36aa12e28cb1de1bb9d831d138f0；以分支 tip 为准
 ```
 
 不要从 `main` 另起炉灶。不要重做 Phase 0。
@@ -357,7 +358,7 @@ RUN_STATE.json、STATUS.md、OWNERSHIP.md、DECISIONS.md、CAPABILITY_MATRIX.md�
 CLOUD_PRS.md、PENDING_LOCAL_WINDOWS.md、HANDOFF_CLOUD_TO_WINDOWS.md、NEXT_ACTION.md。
 唯一仓库 h1neolzr7f/NaiXueZhang-Studio-Upgrade。
 不要连接 Manga。不要重做 Phase 0。
-checkout cursor/cloud-top-tier-integration-f036 @ 27f3fa087bbdf1f3494c84268f6df0c1c7a9d6eb
+checkout cursor/cloud-top-tier-integration-f036（报告写入 0c46e12；以分支 tip 为准）
 云端可做的 v1.6 compile / v1.7 gallery_index / v1.8 kernel 已落地。
 不要把 tooling 接入 planning.py。不要做 v1.9。
 不要合并 main、不要发 Release、不要用真实 NAI Token。
