@@ -71,10 +71,16 @@ def test_generate_payload_characterization_preserves_cost_and_v4_contract() -> N
         "model",
         "parameters",
         "request_type",
+        "requested_action",
         "resized_for_free",
         "steps",
+        "unknown_fields",
+        "unsupported_fields",
         "width",
     }
+    assert result["requested_action"] == "generate"
+    assert result["unsupported_fields"] == []
+    assert isinstance(result["unknown_fields"], list)
     assert result["action"] == "generate"
     assert result["request_type"] == "PromptGenerateRequest"
     assert result["model"] == "nai-diffusion-4-5-full"

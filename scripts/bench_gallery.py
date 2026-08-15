@@ -26,7 +26,11 @@ def _synthetic_rows(count: int) -> list[dict[str, Any]]:
         rows.append(
             {
                 "work_id": index,
-                "prompt": f"1girl arknights amiya look{index % 17}",
+                "prompt": (
+                    f"1girl arknights amiya look{index % 17}"
+                    if index % 5 == 0
+                    else f"1girl landscape look{index % 17}"
+                ),
                 "model": "nai-diffusion-4-5-full" if index % 2 == 0 else "nai-diffusion-4-full",
                 "width": 832,
                 "height": 1216,

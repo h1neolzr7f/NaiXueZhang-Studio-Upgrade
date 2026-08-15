@@ -24,14 +24,14 @@ This integration Draft PR: previous Phase 0 docs/tooling/Windows aliases plus th
 
 ## 6. Tests
 
-- Cloud-safe pytest after this change (recorded in STATUS after the run)
-- Sensitive scan
-- `python scripts/bench_gallery.py --count 1000 --repeats 20`
-- `python scripts/check_windows_scripts.py`
+- Cloud pytest: 1116 passed, 68 skipped, 1 pre-existing P1 quality-gate failure
+- Sensitive scan clean
+- `python scripts/bench_gallery.py --count 1000 --repeats 20` (hits=200, synthetic)
+- `python scripts/check_windows_scripts.py` passed
 
 ## 7. Cloud Build
 
-Draft in progress: [bld-20260815-c10799be-3d0d-41bd-8535-6eaedb553274](https://cursor.com/dashboard/cloud-agents/builds/bld-20260815-c10799be-3d0d-41bd-8535-6eaedb553274)  
+READY: [bld-20260815-c10799be-3d0d-41bd-8535-6eaedb553274](https://cursor.com/dashboard/cloud-agents/builds/bld-20260815-c10799be-3d0d-41bd-8535-6eaedb553274)  
 Personal transitional environment: [d93c0dbf-9877-11f1-ba66-0e7d0216e441](https://cursor.com/dashboard/cloud-agents/environments/e/d93c0dbf-9877-11f1-ba66-0e7d0216e441)  
 Install baseline: `requirements.core.lock.txt` + pytest + langgraph + langgraph-checkpoint-sqlite + aiosqlite. No NAI token secret.
 

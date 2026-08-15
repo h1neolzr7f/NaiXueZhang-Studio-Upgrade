@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "execution_mode": "CLOUD_WEB",
-  "updated_at": "2026-08-15T07:20:00Z",
+  "updated_at": "2026-08-15T08:10:00Z",
   "studio": {
     "repository": "h1neolzr7f/NaiXueZhang-Studio-Upgrade",
     "base_branch": "main",
     "base_sha": "008de38ad4dc6c8afbf0ec32ae411cd85685ac02",
     "integration_branch": "cursor/cloud-top-tier-integration-f036",
-    "integration_sha": ""
+    "integration_sha": "pending_this_commit"
   },
   "out_of_scope_repositories": [
     "h1neolzr7f/Manga-Editor-Desu-NAI",
@@ -30,7 +30,7 @@
   "barrel_lowest_capability": "gen.img2img_inpaint_canvas",
   "barrel_lowest_score": 3.0,
   "cloud_build": {
-    "status": "IN_PROGRESS",
+    "status": "READY",
     "reference": "bld-20260815-c10799be-3d0d-41bd-8535-6eaedb553274",
     "environment_public_id": "d93c0dbf-9877-11f1-ba66-0e7d0216e441",
     "kind": "personal_transitional_draft"
@@ -49,61 +49,94 @@
     {
       "role": "Lead",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "Cloud Lead on Upgrade repo: environment build, integration branch, Wave 2 independent files",
+      "task": "Cloud Lead on Upgrade repo: environment build, integration, Wave 2 review",
       "status": "RUNNING",
       "branch": "cursor/cloud-top-tier-integration-f036",
-      "updated_at": "2026-08-15T07:20:00Z"
+      "updated_at": "2026-08-15T08:10:00Z"
     },
     {
       "role": "W0",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "capability matrix and competitor baseline (continued, not redone)",
+      "task": "capability matrix review",
       "status": "COMPLETED",
-      "branch": "cursor/cloud-top-tier-integration-f036",
-      "updated_at": "2026-08-15T07:20:00Z"
+      "branch": "cursor/cloud-w0-phase0-f036",
+      "updated_at": "2026-08-15T08:00:00Z"
     },
     {
       "role": "W1",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "NAI compile unknown/unsupported field reporting",
-      "status": "RUNNING",
-      "branch": "cursor/cloud-top-tier-integration-f036",
-      "updated_at": "2026-08-15T07:20:00Z"
+      "task": "NAI compile snapshots and audit",
+      "status": "COMPLETED",
+      "branch": "cursor/cloud-w1-nai-core-f036",
+      "updated_at": "2026-08-15T08:00:00Z"
     },
     {
       "role": "W2",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "cloud-safe gallery micro-bench",
-      "status": "RUNNING",
-      "branch": "cursor/cloud-top-tier-integration-f036",
-      "updated_at": "2026-08-15T07:20:00Z"
+      "task": "gallery index design",
+      "status": "COMPLETED",
+      "branch": "cursor/cloud-w2-gallery-f036",
+      "updated_at": "2026-08-15T08:00:00Z"
     },
     {
       "role": "W3",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "tooling timeout/cancel/schema and loop-limit finish",
-      "status": "RUNNING",
-      "branch": "cursor/cloud-top-tier-integration-f036",
-      "updated_at": "2026-08-15T07:20:00Z"
+      "task": "catalog projection for ToolSpec",
+      "status": "COMPLETED",
+      "branch": "cursor/cloud-w3-agent-kernel-f036",
+      "updated_at": "2026-08-15T08:00:00Z"
     },
     {
       "role": "W4",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "fault injection plus Windows script static check",
-      "status": "RUNNING",
-      "branch": "cursor/cloud-top-tier-integration-f036",
-      "updated_at": "2026-08-15T07:20:00Z"
+      "task": "quality and Windows audit",
+      "status": "COMPLETED",
+      "branch": "cursor/cloud-w4-quality-f036",
+      "updated_at": "2026-08-15T08:00:00Z"
     }
   ],
   "branches": [
     {
       "name": "cursor/cloud-top-tier-integration-f036",
       "maps_to": "cloud/top-tier-integration",
-      "base_sha": "008de38ad4dc6c8afbf0ec32ae411cd85685ac02",
-      "continues": "cursor/cloud-top-tier-integration-6d7e"
+      "base_sha": "008de38ad4dc6c8afbf0ec32ae411cd85685ac02"
+    },
+    {
+      "name": "cursor/cloud-w0-phase0-f036",
+      "maps_to": "cloud/w0-phase0",
+      "base_sha": "4d8dbea13eb166c4351c4e31f55ecc658bd40c6d"
+    },
+    {
+      "name": "cursor/cloud-w1-nai-core-f036",
+      "maps_to": "cloud/w1-nai-core",
+      "base_sha": "4d8dbea13eb166c4351c4e31f55ecc658bd40c6d"
+    },
+    {
+      "name": "cursor/cloud-w2-gallery-f036",
+      "maps_to": "cloud/w2-gallery",
+      "base_sha": "4d8dbea13eb166c4351c4e31f55ecc658bd40c6d"
+    },
+    {
+      "name": "cursor/cloud-w3-agent-kernel-f036",
+      "maps_to": "cloud/w3-agent-kernel",
+      "base_sha": "4d8dbea13eb166c4351c4e31f55ecc658bd40c6d"
+    },
+    {
+      "name": "cursor/cloud-w4-quality-f036",
+      "maps_to": "cloud/w4-quality",
+      "base_sha": "4d8dbea13eb166c4351c4e31f55ecc658bd40c6d"
     }
   ],
-  "pull_requests": [],
+  "pull_requests": [
+    {
+      "repository": "h1neolzr7f/NaiXueZhang-Studio-Upgrade",
+      "number": 3,
+      "head": "cursor/cloud-top-tier-integration-f036",
+      "base": "main",
+      "status": "draft",
+      "depends_on": []
+    }
+  ],
   "decisions": ["D-001", "D-002", "D-003", "D-004", "D-005", "D-006", "D-007", "D-008", "D-009"],
   "pending_local_windows": [
     "WIN-001", "WIN-002", "WIN-003", "WIN-004", "WIN-005",
@@ -122,5 +155,10 @@
       "message": "Windows one-click, DPAPI, Defender, Live2D, and large-gallery benches remain queued."
     }
   ],
-  "next_action": "Continue Wave 2 on cursor/cloud-top-tier-integration-f036. Do not redo Phase 0. Do not wire tooling into planning.py. Do not start img2img UI. Wait for Cloud Build, then keep using the same install baseline."
+  "tests": {
+    "cloud_pytest": "1116 passed, 68 skipped, 1 failed (pre-existing product_quality_gate P1)",
+    "sensitive_scan": "clean",
+    "bench_gallery": "synthetic 1000/20 hits=200"
+  },
+  "next_action": "Windows Lead: checkout cursor/cloud-top-tier-integration-f036, run doctor_windows and run_tests_windows. Cloud: do not wire tooling into planning.py and do not start img2img UI."
 }

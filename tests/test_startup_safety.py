@@ -31,6 +31,7 @@ def _install_fixture_python(fixture: Path, *, with_pip: bool = False) -> Path:
     return fixture_venv / "Scripts" / "python.exe"
 
 
+@unittest.skipUnless(os.name == "nt", "cmd.exe/powershell one-click contract is Windows-only")
 class StartupScriptContractTests(unittest.TestCase):
     def test_start_does_not_install_or_create_dependencies(self) -> None:
         source = START_SCRIPT.read_text(encoding="utf-8").lower()
@@ -282,6 +283,7 @@ class StartupScriptContractTests(unittest.TestCase):
         self.assertEqual("restart", delegated_mode)
 
 
+@unittest.skipUnless(os.name == "nt", "INSTALL.bat contract is Windows-only")
 class InstallScriptContractTests(unittest.TestCase):
     def test_install_prefers_lock_file_with_requirements_fallback(self) -> None:
         source = INSTALL_SCRIPT.read_text(encoding="utf-8").lower()
@@ -405,6 +407,7 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+@unittest.skipUnless(os.name == "nt", "gallery_process_guard.ps1 is Windows-only")
 class StartupProcessSafetyTests(unittest.TestCase):
     def setUp(self) -> None:
         self._temp_dir = tempfile.TemporaryDirectory()
