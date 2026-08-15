@@ -157,6 +157,6 @@ def index() -> FileResponse:
 
 
 @router.get("/i/{work_id}")
-def work_page(work_id: int) -> FileResponse:
+def work_page(work_id: str) -> FileResponse:
     _ = work_id
     return _page("index.html")

@@ -10,7 +10,9 @@
       return window.WorkBridge.normalizeWorkId(value);
     }
     const id = String(value == null ? "" : value).trim();
-    return /^\d+$/.test(id) && id !== "0" ? id : "";
+    if (/^\d+$/.test(id) && id !== "0") return id;
+    if (/^[a-z0-9_]{1,64}:[A-Za-z0-9._-]{1,180}$/.test(id)) return id;
+    return "";
   }
 
   function loadCharSwapStyles() {
@@ -43,7 +45,10 @@
     const data = detail.data;
     const source = String(detail.source || (data && data.source) || "").trim();
     const online = source === "aitag-online"
-      || (typeof window.isAitagGallery === "function" && window.isAitagGallery());
+      || source === "codex-atlas"
+      || (typeof window.isRemoteDiscoveryGallery === "function" && window.isRemoteDiscoveryGallery())
+      || (typeof window.isAitagGallery === "function" && window.isAitagGallery())
+      || (typeof window.isCodexAtlasGallery === "function" && window.isCodexAtlasGallery());
     if (online) return;
     if (!workId || !data) return;
     try {

@@ -25,15 +25,24 @@ class GalleryFiltersUiTests(unittest.TestCase):
         switch_start = html.index('id="gallerySourceSwitch"')
         self.assertLess(switch_start, advanced_start)
         self.assertIn('role="group"', html[switch_start - 100:switch_start + 200])
-        for gallery_id, label in (("site", "Pixiv NAI"), ("codex", "自选库"), ("qqgroup", "Q群"), ("aitag-online", "AITag 在线库")):
+        for gallery_id, label in (
+            ("site", "Pixiv NAI"),
+            ("codex", "自选库"),
+            ("qqgroup", "Q群"),
+            ("aitag-online", "AITag 在线库"),
+            ("codex-atlas", "法典图鉴"),
+        ):
             with self.subTest(gallery_id=gallery_id):
                 self.assertIn(f'data-gallery-source="{gallery_id}"', html)
                 self.assertIn(f'>{label}</button>', html)
         self.assertIn("button.setAttribute('aria-pressed'", app)
         self.assertNotIn("window.location.assign('/aitag-library')", app)
         self.assertIn("new URL('/api/nai/aitag/search', API_BASE)", app)
+        self.assertIn("new URL('/api/nai/codex-atlas/search', API_BASE)", app)
         self.assertIn("adaptAitagWork", app)
         self.assertIn("adaptAitagDetail", app)
+        self.assertIn("adaptCodexAtlasWork", app)
+        self.assertIn("adaptCodexAtlasDetail", app)
         self.assertIn("gallerySourceSel.dispatchEvent(new Event('change'))", app)
         self.assertIn("url.searchParams.set('gallery', currentGalleryId())", app)
 
@@ -42,11 +51,15 @@ class GalleryFiltersUiTests(unittest.TestCase):
         core = (ROOT / "web" / "app-core.js").read_text(encoding="utf-8")
         hooks = (ROOT / "web" / "shared" / "gallery-detail-hooks.js").read_text(encoding="utf-8")
         self.assertIn("isAitagGallery()", app)
+        self.assertIn("isCodexAtlasGallery()", app)
         self.assertIn("/api/nai/aitag/work/", app)
+        self.assertIn("/api/nai/codex-atlas/entry/", app)
         self.assertIn("openOnlineRemixPanel", app)
+        self.assertIn("createCodexAtlasStudioDraft", core)
         self.assertIn("imgOrPath.thumbnail_url", core)
         self.assertIn("work.thumbnail_url", core)
         self.assertIn('source === "aitag-online"', hooks)
+        self.assertIn('source === "codex-atlas"', hooks)
         self.assertIn("if (online) return", hooks)
 
     def test_aitag_switch_updates_the_whole_gallery_shell(self) -> None:
@@ -64,14 +77,17 @@ class GalleryFiltersUiTests(unittest.TestCase):
         self.assertIn("AITag online · NAI works", app)
         self.assertIn("正在读取 AITag 在线库", app)
         self.assertIn("零生成草稿换角", app)
-        self.assertIn("localBanner')?.classList.toggle('hidden', online)", app)
-        self.assertIn("if (isAitagGallery()) return", app)
-        self.assertIn("!isAitagGallery() && window.GalleryBootstrap", app)
+        self.assertIn("localBanner')?.classList.toggle('hidden', remote)", app)
+        self.assertIn("if (isRemoteDiscoveryGallery()) return", app)
+        self.assertIn("!isRemoteDiscoveryGallery() && window.GalleryBootstrap", app)
         self.assertIn("单击在线作品查看详情与全部图片", app)
         self.assertIn("建立原图草稿 →", app)
         self.assertIn("角色换角 →", app)
         self.assertIn("generateOnlineCurrentDraft", app)
-        self.assertIn("inspirationToQueue')?.classList.toggle('hidden', online)", app)
+        self.assertIn("inspirationToQueue')?.classList.toggle('hidden', remote)", app)
+        self.assertIn("Codex atlas · prompt books", app)
+        self.assertIn("正在读取法典图鉴", app)
+        self.assertIn("用此词条生成 →", app)
 
     def test_primary_search_stays_visible_while_secondary_filters_are_collapsed(self) -> None:
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")

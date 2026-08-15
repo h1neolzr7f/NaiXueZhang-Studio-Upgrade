@@ -13,7 +13,7 @@ from atomic_io import atomic_write_text
 from gallery_catalog import gallery_specs, normalize_gallery_id
 
 JAVASCRIPT_MAX_SAFE_INTEGER = (2**53) - 1
-SELECTION_ONLY_GALLERY_IDS = frozenset({"aitag-online"})
+SELECTION_ONLY_GALLERY_IDS = frozenset({"aitag-online", "codex-atlas"})
 _PATH_LOCKS_GUARD = threading.Lock()
 _PATH_LOCKS: dict[str, threading.RLock] = {}
 

@@ -1180,7 +1180,7 @@ def index() -> FileResponse:
 
 
 @router.get("/i/{work_id}")
-def work_detail_page(work_id: int) -> FileResponse:
+def work_detail_page(work_id: str) -> FileResponse:
     """Serve the SPA shell for direct /i/<work_id> links."""
     _ = work_id
     return _serve_index_html()

@@ -21,6 +21,19 @@
         if (state.q) url.searchParams.set('q', state.q);
         return url;
       }
+      if (options.isCodexAtlasGallery && options.isCodexAtlasGallery()) {
+        const url = new URL('/api/nai/codex-atlas/search', options.apiBase);
+        const mode = options.getSortMode() || 'relevance';
+        url.searchParams.set('page', Math.max(1, Number(page) || 1));
+        url.searchParams.set('page_size', state.pageSize);
+        url.searchParams.set('sort', ['relevance', 'recent', 'title'].includes(mode) ? mode : 'relevance');
+        url.searchParams.set('safe_only', 'true');
+        if (state.q) url.searchParams.set('q', state.q);
+        if (state.prompt) url.searchParams.set('prompt', state.prompt);
+        const bookId = options.currentGalleryGroup ? options.currentGalleryGroup() : '';
+        if (bookId) url.searchParams.set('book_id', bookId);
+        return url;
+      }
       if (options.isAitagGallery()) {
         const url = new URL('/api/nai/aitag/search', options.apiBase);
         const mode = options.getSortMode() || 'popular';
@@ -98,7 +111,12 @@
         throw err;
       }
       return {
-        items: (Array.isArray(data.items) ? data.items : []).map((item) => options.isAitagGallery() ? options.adaptAitagWork(item) : item),
+        items: (Array.isArray(data.items) ? data.items : []).map((item) => {
+          if (options.isCodexAtlasGallery && options.isCodexAtlasGallery() && options.adaptCodexAtlasWork) {
+            return options.adaptCodexAtlasWork(item);
+          }
+          return options.isAitagGallery() ? options.adaptAitagWork(item) : item;
+        }),
         total: typeof data.total === 'number' ? data.total : 0,
         page: Number(data.page) || Number(page) || 1,
         page_size: Number(data.page_size) || state.pageSize,
@@ -136,7 +154,7 @@
       const banner = document.getElementById('setupBanner');
       const text = document.getElementById('setupBannerText');
       const dismiss = document.getElementById('setupBannerDismiss');
-      if (!banner || !text || !window.ApiClient || options.isAitagGallery()) return;
+      if (!banner || !text || !window.ApiClient || options.isAitagGallery() || (options.isCodexAtlasGallery && options.isCodexAtlasGallery())) return;
       if (dismiss) dismiss.addEventListener('click', () => banner.classList.add('hidden'));
       try {
         const report = await window.ApiClient.request('/api/crawler/pixiv/report');
@@ -149,7 +167,7 @@
         }
         if (total > 0) return;
         text.textContent = '欢迎使用 Nai学长工作室：先建初始图库——去「采集页」无账号开爬，或把本地图拖进「自选库」。只有通过 NovelAI 元数据验证的图片才会入库；图库有数据后，Studio 再创作、换角与 Pixiv 发布即可使用。';
-        if (!options.isAitagGallery()) banner.classList.remove('hidden');
+        if (!options.isAitagGallery() && !(options.isCodexAtlasGallery && options.isCodexAtlasGallery())) banner.classList.remove('hidden');
       } catch (_error) { /* banner stays hidden */ }
     }
 
