@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -44,6 +45,8 @@ class PixivImportBatchTests(unittest.TestCase):
         self.assertIsNotNone(pixiv_accounts._validate_refresh_token_shape(short["refresh_token"]))
 
     def test_import_batch_skip_dup_and_api(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Pixiv account import persists refresh tokens via Windows DPAPI")
         long1 = "b" * 48
         long2 = "c" * 48
         with tempfile.TemporaryDirectory() as tmp:
