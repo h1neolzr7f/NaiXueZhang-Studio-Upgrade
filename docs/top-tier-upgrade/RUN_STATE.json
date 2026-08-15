@@ -7,7 +7,7 @@
     "base_branch": "main",
     "base_sha": "008de38ad4dc6c8afbf0ec32ae411cd85685ac02",
     "integration_branch": "cursor/cloud-top-tier-integration-f036",
-    "integration_sha": "76a8c6162cdde8af24d458b2b5663b7890323ab9"
+    "integration_sha": "27f3fa087bbdf1f3494c84268f6df0c1c7a9d6eb"
   },
   "out_of_scope_repositories": [
     "h1neolzr7f/Manga-Editor-Desu-NAI",

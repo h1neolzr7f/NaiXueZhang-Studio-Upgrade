@@ -67,4 +67,5 @@ Integration Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/p
 
 ## Next
 
+Full handoff for other AIs: `docs/top-tier-upgrade/CLOUD_COMPLETE_REPORT.md`.  
 Cloud-completable Wave 3 work is in. Remaining work is Windows / paid / Pixiv / UI canvas / v1.9. Do not merge `main`.
