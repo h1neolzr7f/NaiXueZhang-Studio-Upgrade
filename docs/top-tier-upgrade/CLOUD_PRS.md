@@ -9,7 +9,7 @@
 - Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/3
 - Worker: Lead
 - Scope: Phase 0 continuation plus D-012 img2img/infill compile, PNG restore tests, additive gallery_index, kernel compile/index preview
-- Tests: targeted v1.6–v1.8 green; pre-existing P1 quality-gate must stay
+- Tests: 1132 passed / 68 skipped / 1 pre-existing P1 quality-gate failure
 - Benchmarks: synthetic in-memory only
 - Depends on: worker branches listed below (files already reviewed onto this branch)
 - Windows pending: PENDING_LOCAL_WINDOWS.md

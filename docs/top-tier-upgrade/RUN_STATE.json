@@ -156,9 +156,9 @@
     }
   ],
   "tests": {
-    "cloud_pytest": "targeted v1.6-v1.8 green; broader suite recorded after commit",
-    "sensitive_scan": "pending_this_revision",
-    "bench_gallery": "synthetic 1000/20; not a 10k claim"
+    "cloud_pytest": "1132 passed, 68 skipped, 1 failed (pre-existing product_quality_gate P1)",
+    "sensitive_scan": "clean",
+    "bench_gallery": "synthetic 1000/20 hits=200; not a 10k claim"
   },
   "next_action": "Cloud-completable v1.6-v1.8 is in. Remaining: Windows WIN-001..015, paid NAI (WIN-012), Pixiv (WIN-013 deferred), Studio img2img canvas UI, tooling→planning.py after v1.6/v1.7 gate review, v1.9 memory/TTS. Do not merge main. Do not persist chat secrets."
 }

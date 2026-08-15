@@ -24,7 +24,7 @@ This integration Draft PR: previous Phase 0 docs/tooling/Windows aliases plus th
 
 ## 6. Tests
 
-- Cloud pytest: 1116 passed, 68 skipped, 1 pre-existing P1 quality-gate failure
+- Cloud pytest: 1132 passed, 68 skipped, 1 pre-existing P1 quality-gate failure
 - Sensitive scan clean
 - `python scripts/bench_gallery.py --count 1000 --repeats 20` (hits=200, synthetic)
 - `python scripts/check_windows_scripts.py` passed

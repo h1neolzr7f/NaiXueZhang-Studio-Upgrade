@@ -51,8 +51,11 @@ Integration Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/p
 
 ## Tests this run (Linux Cloud VM)
 
-- Targeted v1.6–v1.8 + gallery/tooling regression: green before the broader suite
-- The pre-existing `test_product_quality_gate` P1=1 must not be weakened
+- `1132 passed, 68 skipped, 1 failed, 127 subtests`
+- The one failure is pre-existing `test_product_quality_gate` P1=1 (Regression Guard). Not introduced here. Do not delete or weaken the gate.
+- `scripts/scan_sensitive.py --git-candidates --content-only` clean
+- `scripts/bench_gallery.py --count 1000 --repeats 20`: hits=200, p95≈0.3ms, synthetic only
+- `scripts/check_windows_scripts.py` passed
 - Windows-shell / DPAPI cases skipped on POSIX (D-003/D-007)
 
 ## Blockers
