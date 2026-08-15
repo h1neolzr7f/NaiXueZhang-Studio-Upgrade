@@ -18,13 +18,13 @@
 
 ## Worker branches (independent, not merged to main)
 
-| Worker | Branch | Deliverable | Lead review |
-|---|---|---|---|
-| W0 | cursor/cloud-w0-phase0-f036 | docs/top-tier-upgrade/W0_REVIEW.md | accepted onto integration |
-| W1 | cursor/cloud-w1-nai-core-f036 | tests/test_nai_param_snapshots.py, W1_NAI_AUDIT.md | accepted onto integration |
-| W2 | cursor/cloud-w2-gallery-f036 | GALLERY_INDEX_DESIGN.md | accepted onto integration |
-| W3 | cursor/cloud-w3-agent-kernel-f036 | catalog_projection.py + tests | accepted onto integration |
-| W4 | cursor/cloud-w4-quality-f036 | W4_QUALITY_AUDIT.md | accepted onto integration |
+| Worker | Branch | Draft PR | Deliverable | Lead review |
+|---|---|---|---|---|
+| W0 | cursor/cloud-w0-phase0-f036 | #7 | docs/top-tier-upgrade/W0_REVIEW.md | accepted onto integration |
+| W1 | cursor/cloud-w1-nai-core-f036 | #8 | tests/test_nai_param_snapshots.py, W1_NAI_AUDIT.md | accepted onto integration |
+| W2 | cursor/cloud-w2-gallery-f036 | #9 | GALLERY_INDEX_DESIGN.md | accepted onto integration |
+| W3 | cursor/cloud-w3-agent-kernel-f036 | #6 | catalog_projection.py + tests | accepted onto integration |
+| W4 | cursor/cloud-w4-quality-f036 | #5 | W4_QUALITY_AUDIT.md | accepted onto integration |
 
 ## Previous / unrelated
 
