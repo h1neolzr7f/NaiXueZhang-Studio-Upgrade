@@ -98,7 +98,7 @@ Matches `docs/top-tier-upgrade/NAI_PARAM_MATRIX.md` on this SHA:
 |---|---|
 | `0,0` or negative | `832,1216` + resized |
 | `832x1216` / `1216x832` / `1024x1024` | unchanged |
-| `1216x1216` | `960x960` |
+| `1216x1216` | `1024x1024` (scale is exactly `1024/1216`) |
 | `2048x2048` | `1024x1024` |
 
 Other boundaries:
@@ -106,7 +106,7 @@ Other boundaries:
 - Default `force_free=True` when the caller omits the kwarg; `2048²` / 50 steps becomes `1024²` / 28.
 - `force_free=False` keeps `1472²` / 36 steps (below `2 * 1216`).
 - `force_free=False` still fits `2500²` because `2500 > 2432`; steps stay 36; `free_eligible` stays false.
-- `width=0` uses the `or 832` default, then free-fit reports resized.
+- `width=0` / `height=0` use the `or 832` / `or 1216` defaults, so the free-fit path sees a legal Opus size and `resized_for_free` stays false.
 - `requested_action` wins over `action`.
 - `INFILL` lowercases to `infill` and is reported as `action:infill`.
 
