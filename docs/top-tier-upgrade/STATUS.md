@@ -42,6 +42,12 @@ Integration Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/p
 - Formal `GATE_REVIEW.md` then kernel → chat (not planning.py)
 - v1.9 confirmed memory / handoff / anti-disturbance
 
+## Tests this run (Linux Cloud VM)
+
+- `1145 passed, 68 skipped, 0 failed, 127 subtests`
+- `product_quality_gate` p0=0 p1=0 p2=0; assertion `p1 == 0` unchanged
+- Windows-shell / DPAPI cases skipped on POSIX (D-003/D-007)
+
 ## Blockers
 
 1. Paid NovelAI generation is still not authorized in cloud.

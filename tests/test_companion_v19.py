@@ -45,10 +45,11 @@ class CompanionV19Tests(unittest.TestCase):
         allowed = companion_state.delivery_allowed(night)
         self.assertFalse(allowed["ok"])
         self.assertEqual(allowed["reason"], "quiet_hours")
-        companion_state.update_quiet({"enabled": False})
+        companion_state.update_quiet({"enabled": False, "max_events_per_hour": 1, "min_interval_seconds": 1800})
         companion_state.mark_delivered("evt-1")
-        again = companion_state.delivery_allowed(datetime(2026, 8, 15, 12, 0, tzinfo=timezone.utc))
+        again = companion_state.delivery_allowed()
         self.assertFalse(again["ok"])
+        self.assertIn(again["reason"], {"rate_hour", "rate_interval"})
 
     def test_handoff_is_between_desks_only(self) -> None:
         item = companion_state.record_handoff(from_agent="sakiko", to_agent="tomori", note="先出图")
