@@ -14,6 +14,58 @@ MAX_FREE_LONG_EDGE = 1216
 MAX_FREE_STEPS = 28
 MAX_FREE_PIXELS = 1024 * 1024
 
+# Keys consumed by the current txt2img compile path. Anything else is reported,
+# not silently dropped, and is not sent as a second NovelAI client.
+KNOWN_COMMENT_KEYS = frozenset(
+    {
+        "prompt",
+        "uc",
+        "negative_prompt",
+        "Source",
+        "model",
+        "width",
+        "height",
+        "steps",
+        "scale",
+        "sampler",
+        "seed",
+        "params_version",
+        "qualityToggle",
+        "autoSmea",
+        "controlnet_strength",
+        "controlnet_model",
+        "reference_image_multiple",
+        "reference_information_extracted_multiple",
+        "reference_strength_multiple",
+        "inpaintImg2ImgStrength",
+        "characterPrompts",
+        "v4_prompt",
+        "v4_negative_prompt",
+        "noise_schedule",
+        "cfg_rescale",
+        "dynamic_thresholding",
+        "dynamic_thresholding_percentile",
+        "dynamic_thresholding_mimic_scale",
+        "skip_cfg_above_sigma",
+        "skip_cfg_below_sigma",
+        "prefer_brownian",
+        "sm",
+        "sm_dyn",
+        "request_type",
+        "image",
+        "mask",
+        "action",
+        "requested_action",
+        "xianyun_vibe",
+        "vibe_transfer",
+        "vibeTransfer",
+        "vibe",
+    }
+)
+SUPPORTED_ACTIONS = frozenset({"generate", "img2img", "inpaint", "infill"})
+UNCOMPILED_INPUT_KEYS = ("image", "mask")
+UNCOMPILED_VIBE_KEYS = ("xianyun_vibe", "vibe_transfer", "vibeTransfer", "vibe")
+
 
 def _infer_model(source: str, explicit: str = "") -> str:
     """Prefer an explicit model field, then Source string, then current product default."""
@@ -71,6 +123,37 @@ def _normalized_v4_payloads(
     negative["caption"] = negative_caption
     negative["use_coords"] = bool(negative.get("use_coords", v4.get("use_coords", True)))
     return v4, negative
+
+
+def requested_action(patched_comment: dict) -> str:
+    """Return the action the comment asked for. Compile still defaults to generate."""
+
+    raw = str(
+        patched_comment.get("requested_action") or patched_comment.get("action") or "generate"
+    ).strip().lower()
+    if raw in SUPPORTED_ACTIONS:
+        return raw
+    return "generate"
+
+
+def collect_unknown_fields(patched_comment: dict) -> list[str]:
+    return sorted(str(key) for key in patched_comment if str(key) not in KNOWN_COMMENT_KEYS)
+
+
+def collect_unsupported_fields(patched_comment: dict) -> list[str]:
+    """Fields that exist on the comment but are not compiled into the HTTP action."""
+
+    unsupported: list[str] = []
+    action = requested_action(patched_comment)
+    if action != "generate":
+        unsupported.append(f"action:{action}")
+    for key in UNCOMPILED_INPUT_KEYS:
+        if patched_comment.get(key):
+            unsupported.append(key)
+    for key in UNCOMPILED_VIBE_KEYS:
+        if patched_comment.get(key):
+            unsupported.append(key)
+    return unsupported
 
 
 def fit_opus_free_size(width: int, height: int) -> tuple[int, int, bool]:
@@ -203,7 +286,12 @@ def build_generate_payload(
     return {
         "input": base,
         "model": model,
+        # Production HTTP path stays txt2img until a dedicated img2img/inpaint
+        # compile lands. Requested/unsupported fields are reported, not dropped.
         "action": "generate",
+        "requested_action": requested_action(patched_comment),
+        "unsupported_fields": collect_unsupported_fields(patched_comment),
+        "unknown_fields": collect_unknown_fields(patched_comment),
         "request_type": patched_comment.get("request_type") or "PromptGenerateRequest",
         "parameters": parameters,
         "free_eligible": free_eligible,

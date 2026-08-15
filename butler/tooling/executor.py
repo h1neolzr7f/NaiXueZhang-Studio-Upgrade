@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import re
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -31,6 +32,16 @@ def _redact(value: Any) -> Any:
     return value
 
 
+_TYPE_CHECKS = {
+    "string": lambda value: isinstance(value, str),
+    "integer": lambda value: isinstance(value, int) and not isinstance(value, bool),
+    "number": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool),
+    "boolean": lambda value: isinstance(value, bool),
+    "array": lambda value: isinstance(value, list),
+    "object": lambda value: isinstance(value, dict),
+}
+
+
 def _validate_object(data: dict[str, Any], schema: dict[str, Any], tool_name: str) -> None:
     if not schema:
         return
@@ -50,13 +61,14 @@ def _validate_object(data: dict[str, Any], schema: dict[str, Any], tool_name: st
                 ErrorEnvelope(code="schema_invalid", message=f"unexpected field: {key}", tool_name=tool_name)
             )
         expected = (properties.get(key) or {}).get("type")
-        if expected == "string" and not isinstance(value, str):
+        checker = _TYPE_CHECKS.get(str(expected or ""))
+        if checker and not checker(value):
             raise ToolingError(
-                ErrorEnvelope(code="schema_invalid", message=f"{key} must be a string", tool_name=tool_name)
-            )
-        if expected == "integer" and not isinstance(value, int):
-            raise ToolingError(
-                ErrorEnvelope(code="schema_invalid", message=f"{key} must be an integer", tool_name=tool_name)
+                ErrorEnvelope(
+                    code="schema_invalid",
+                    message=f"{key} must be a {expected}",
+                    tool_name=tool_name,
+                )
             )
 
 
@@ -82,6 +94,15 @@ class ToolExecutor:
         call_id = call_id or f"call_{uuid4().hex}"
         started = _now()
         try:
+            if context.cancelled:
+                raise ToolingError(
+                    ErrorEnvelope(
+                        code="cancelled",
+                        message="tool call cancelled before execute",
+                        tool_name=name,
+                        call_id=call_id,
+                    )
+                )
             spec = self.registry.get(name)
             context.authorize(spec)
             _validate_object(arguments, dict(spec.input_schema), spec.name)
@@ -115,7 +136,7 @@ class ToolExecutor:
                 raise ToolingError(
                     ErrorEnvelope(code="unknown_tool", message=f"no handler bound for {spec.name}", tool_name=spec.name)
                 )
-            raw = handler(dict(arguments), context)
+            raw = self._run_handler(handler, dict(arguments), context, spec)
             data, truncated, redactions = self._limit_and_redact(raw, spec)
             result = {
                 "call_id": call_id,
@@ -135,11 +156,17 @@ class ToolExecutor:
             return result
         except ToolingError as exc:
             envelope = exc.envelope
+            if envelope.code == "permission_denied":
+                status = "denied"
+            elif envelope.code in {"cancelled", "timeout"}:
+                status = envelope.code
+            else:
+                status = "failed"
             return {
                 "call_id": call_id,
                 "tool_name": name,
                 "tool_version": "",
-                "status": "denied" if envelope.code == "permission_denied" else "failed",
+                "status": status,
                 "started_at": started,
                 "finished_at": _now(),
                 "data": {},
@@ -149,6 +176,57 @@ class ToolExecutor:
                 "next_cursor": None,
                 "workflow_request": None,
             }
+        except Exception:
+            return {
+                "call_id": call_id,
+                "tool_name": name,
+                "tool_version": "",
+                "status": "failed",
+                "started_at": started,
+                "finished_at": _now(),
+                "data": {},
+                "error": ErrorEnvelope(
+                    code="handler_failed",
+                    message=f"{name} failed without exposing internals",
+                    tool_name=name,
+                    call_id=call_id,
+                ).to_dict(),
+                "redactions": [],
+                "truncated": False,
+                "next_cursor": None,
+                "workflow_request": None,
+            }
+
+    def _run_handler(
+        self,
+        handler: Handler,
+        arguments: dict[str, Any],
+        context: ToolContext,
+        spec: ToolSpec,
+    ) -> dict[str, Any]:
+        timeout_s = max(0.001, float(spec.timeout_ms) / 1000.0)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(handler, arguments, context)
+            try:
+                raw = future.result(timeout=timeout_s)
+            except concurrent.futures.TimeoutError as exc:
+                raise ToolingError(
+                    ErrorEnvelope(
+                        code="timeout",
+                        message=f"{spec.name} exceeded {spec.timeout_ms}ms",
+                        retryable=True,
+                        tool_name=spec.name,
+                    )
+                ) from exc
+        if not isinstance(raw, dict):
+            raise ToolingError(
+                ErrorEnvelope(
+                    code="schema_invalid",
+                    message=f"{spec.name} handler must return an object",
+                    tool_name=spec.name,
+                )
+            )
+        return raw
 
     def _limit_and_redact(self, raw: dict[str, Any], spec: ToolSpec) -> tuple[dict[str, Any], bool, list[str]]:
         data = _redact(raw)

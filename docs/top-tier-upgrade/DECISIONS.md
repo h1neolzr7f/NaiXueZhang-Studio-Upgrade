@@ -57,3 +57,25 @@
 - Chosen: skip those persistence/cmd cases unless `os.name == "nt"`. Do not change production encryption or quota semantics to go green on Linux.
 - Tests: architecture token writes, Pixiv account restore/import/migrate, crawler case-insensitive ownership, runtime selector cmd probe.
 - Layer: B
+
+## D-008 Continue on a new Upgrade-bound integration branch
+
+- Date: 2026-08-15
+- Existing behavior: Previous work lived on `cursor/cloud-top-tier-integration-6d7e` because that Cloud run was bound to frozen v1.4.
+- Chosen: this run continues that tree as `cursor/cloud-top-tier-integration-f036` on Upgrade. Do not redo Phase 0. Do not modify `main`.
+- Evidence: this run's `environment-info.repos` is `github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade`.
+- Tests: existing Phase 0 tests plus this wave's compile/tooling/bench/fault tests
+- Rollback: delete the new branch; leave PR #2 as historical
+- Layer: C for branch name, B for continuation
+
+## D-009 Report uncompiled NAI fields instead of changing HTTP action
+
+- Date: 2026-08-15
+- Capability: gen.img2img_inpaint_canvas / restore.png_stealth_v4
+- Existing behavior: `build_generate_payload` always emits `action=generate` and omits `image`/`mask`.
+- Options: silently start img2img; add a second client; report requested/unsupported/unknown fields and keep HTTP generate.
+- Chosen: keep HTTP `action=generate`. Add `requested_action`, `unsupported_fields`, `unknown_fields`.
+- Evidence: `tests/test_nai_generate_compile.py` already locks txt2img until img2img lands; changing action would be a production behavior change before Phase 0/v1.6 UI exists.
+- Tests: `test_unknown_and_uncompiled_fields_are_reported_not_dropped`
+- Rollback: revert the extra return keys
+- Layer: B

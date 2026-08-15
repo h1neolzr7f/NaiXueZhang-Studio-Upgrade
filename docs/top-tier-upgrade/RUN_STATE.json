@@ -1,95 +1,110 @@
 {
   "schema_version": 1,
   "execution_mode": "CLOUD_WEB",
-  "updated_at": "2026-08-15T07:35:00Z",
+  "updated_at": "2026-08-15T07:20:00Z",
   "studio": {
     "repository": "h1neolzr7f/NaiXueZhang-Studio-Upgrade",
     "base_branch": "main",
     "base_sha": "008de38ad4dc6c8afbf0ec32ae411cd85685ac02",
-    "integration_branch": "cursor/cloud-top-tier-integration-6d7e",
-    "integration_sha": "35e7d3c1aafa98e1ca81f1e44c7bad750e9c839d"
+    "integration_branch": "cursor/cloud-top-tier-integration-f036",
+    "integration_sha": ""
   },
   "out_of_scope_repositories": [
     "h1neolzr7f/Manga-Editor-Desu-NAI",
     "h1neolzr7f/NaiXueZhang-Studio-Phone"
   ],
-  "wrong_cloud_binding": {
-    "connected_repository": "h1neolzr7f/NaiXueZhang-Studio",
-    "connected_sha": "6d0298495d3086d9ba6e9c47b9cde91b65e994b0",
-    "decision": "D-001"
-  },
+  "superseded": [
+    {
+      "item": "cursor/cloud-top-tier-integration-6d7e",
+      "reason": "Previous Cloud run was bound to frozen v1.4; this run continues that work on the Upgrade repo",
+      "status": "SUPERSEDED_CONTINUED"
+    },
+    {
+      "item": "Manga Environment / Manga Protocol / Manga Bridge / W5",
+      "reason": "v1.3 Studio-Only Core",
+      "status": "SUPERSEDED_OUT_OF_SCOPE"
+    }
+  ],
   "active_phase": "PHASE_0",
   "active_wave": "WAVE_2",
   "barrel_lowest_capability": "gen.img2img_inpaint_canvas",
   "barrel_lowest_score": 3.0,
   "cloud_build": {
-    "status": "BLOCKED_WRONG_REPO_BINDING",
-    "reference": ""
+    "status": "IN_PROGRESS",
+    "reference": "bld-20260815-c10799be-3d0d-41bd-8535-6eaedb553274",
+    "environment_public_id": "d93c0dbf-9877-11f1-ba66-0e7d0216e441",
+    "kind": "personal_transitional_draft"
   },
   "model_configuration": {
     "requested": "Grok 4.6 xhigh Fast",
     "actual_lead": "cursor-grok-4.6-high-fast",
-    "actual_workers": "cursor-grok-4.6-high-fast"
+    "actual_workers": "cursor-grok-4.6-high-fast",
+    "xhigh_separately_selectable": false
+  },
+  "lead_run": {
+    "bc_id": "bc-6ecf51c6-e504-4cfe-85d6-9b8feaf5f036",
+    "url": "https://cursor.com/agents/bc-6ecf51c6-e504-4cfe-85d6-9b8feaf5f036"
   },
   "agents": [
     {
       "role": "Lead",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "orchestrate Phase 0 and safe Wave 2; publish via GitHub MCP after v1.4 token 403",
+      "task": "Cloud Lead on Upgrade repo: environment build, integration branch, Wave 2 independent files",
       "status": "RUNNING",
-      "branch": "cursor/cloud-top-tier-integration-6d7e",
-      "updated_at": "2026-08-15T07:35:00Z"
+      "branch": "cursor/cloud-top-tier-integration-f036",
+      "updated_at": "2026-08-15T07:20:00Z"
     },
     {
       "role": "W0",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "capability matrix and competitor baseline",
+      "task": "capability matrix and competitor baseline (continued, not redone)",
       "status": "COMPLETED",
-      "branch": "cursor/cloud-top-tier-integration-6d7e",
-      "updated_at": "2026-08-15T06:48:00Z"
+      "branch": "cursor/cloud-top-tier-integration-f036",
+      "updated_at": "2026-08-15T07:20:00Z"
     },
     {
       "role": "W1",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "NAI Core audit plus compile-lock tests",
-      "status": "COMPLETED",
-      "branch": "cursor/cloud-top-tier-integration-6d7e",
-      "updated_at": "2026-08-15T06:48:00Z"
+      "task": "NAI compile unknown/unsupported field reporting",
+      "status": "RUNNING",
+      "branch": "cursor/cloud-top-tier-integration-f036",
+      "updated_at": "2026-08-15T07:20:00Z"
     },
     {
       "role": "W2",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "Gallery and workflow audit",
-      "status": "COMPLETED",
-      "branch": "cursor/cloud-top-tier-integration-6d7e",
-      "updated_at": "2026-08-15T06:48:00Z"
+      "task": "cloud-safe gallery micro-bench",
+      "status": "RUNNING",
+      "branch": "cursor/cloud-top-tier-integration-f036",
+      "updated_at": "2026-08-15T07:20:00Z"
     },
     {
       "role": "W3",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "Agent Kernel audit plus butler/tooling skeleton",
-      "status": "COMPLETED",
-      "branch": "cursor/cloud-top-tier-integration-6d7e",
-      "updated_at": "2026-08-15T06:50:00Z"
+      "task": "tooling timeout/cancel/schema and loop-limit finish",
+      "status": "RUNNING",
+      "branch": "cursor/cloud-top-tier-integration-f036",
+      "updated_at": "2026-08-15T07:20:00Z"
     },
     {
       "role": "W4",
       "model": "cursor-grok-4.6-high-fast",
-      "task": "quality/Windows audit plus doctor aliases",
-      "status": "COMPLETED",
-      "branch": "cursor/cloud-top-tier-integration-6d7e",
-      "updated_at": "2026-08-15T06:50:00Z"
+      "task": "fault injection plus Windows script static check",
+      "status": "RUNNING",
+      "branch": "cursor/cloud-top-tier-integration-f036",
+      "updated_at": "2026-08-15T07:20:00Z"
     }
   ],
   "branches": [
     {
-      "name": "cursor/cloud-top-tier-integration-6d7e",
+      "name": "cursor/cloud-top-tier-integration-f036",
       "maps_to": "cloud/top-tier-integration",
-      "base_sha": "008de38ad4dc6c8afbf0ec32ae411cd85685ac02"
+      "base_sha": "008de38ad4dc6c8afbf0ec32ae411cd85685ac02",
+      "continues": "cursor/cloud-top-tier-integration-6d7e"
     }
   ],
   "pull_requests": [],
-  "decisions": ["D-001", "D-002", "D-003", "D-004", "D-005", "D-006", "D-007"],
+  "decisions": ["D-001", "D-002", "D-003", "D-004", "D-005", "D-006", "D-007", "D-008", "D-009"],
   "pending_local_windows": [
     "WIN-001", "WIN-002", "WIN-003", "WIN-004", "WIN-005",
     "WIN-006", "WIN-007", "WIN-008", "WIN-009", "WIN-010",
@@ -97,15 +112,15 @@
   ],
   "blockers": [
     {
-      "id": "ENV-001",
-      "kind": "cloud_environment",
-      "message": "This Cloud run is bound to NaiXueZhang-Studio v1.4; cannot create a reusable Upgrade Cloud Build."
-    },
-    {
       "id": "CRED-001",
       "kind": "credentials",
       "message": "Real NAI/Pixiv tokens and paid verification are not authorized."
+    },
+    {
+      "id": "WIN-000",
+      "kind": "platform",
+      "message": "Windows one-click, DPAPI, Defender, Live2D, and large-gallery benches remain queued."
     }
   ],
-  "next_action": "Continue Wave 2 on cursor/cloud-top-tier-integration-6d7e in NaiXueZhang-Studio-Upgrade. Do not redo Phase 0. Do not bind the next Cloud Agent to the frozen v1.4 repo."
+  "next_action": "Continue Wave 2 on cursor/cloud-top-tier-integration-f036. Do not redo Phase 0. Do not wire tooling into planning.py. Do not start img2img UI. Wait for Cloud Build, then keep using the same install baseline."
 }

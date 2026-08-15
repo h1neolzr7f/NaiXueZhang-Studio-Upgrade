@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from .context import ToolContext
-from .errors import ErrorEnvelope, ToolingError
+from .errors import ErrorEnvelope
 from .executor import ToolExecutor
 from .registry import ToolRegistry
 
@@ -52,6 +52,12 @@ class InteractiveLoop:
             results.append(result)
             if result.get("status") == "workflow_requested":
                 return {"status": "workflow_requested", "rounds": round_index, "results": results}
-        raise ToolingError(
-            ErrorEnvelope(code="loop_limit", message="interactive tool loop reached the 4-round limit")
-        )
+        return {
+            "status": "loop_limit",
+            "rounds": MAX_ROUNDS,
+            "results": results,
+            "error": ErrorEnvelope(
+                code="loop_limit",
+                message="interactive tool loop reached the 4-round limit",
+            ).to_dict(),
+        }

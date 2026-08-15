@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from butler.tooling import InteractiveLoop, ToolExecutor, ToolRegistry, ToolingError, project_legacy_specs
+from butler.tooling import InteractiveLoop, ToolExecutor, ToolRegistry, project_legacy_specs
 
 
 class LoopLimitTests(unittest.TestCase):
@@ -40,9 +40,11 @@ class LoopLimitTests(unittest.TestCase):
             return {"tool": "search_gallery", "arguments": {}, "call_id": f"c{context.round_index}"}
 
         loop = InteractiveLoop(registry, executor, planner)
-        with self.assertRaises(ToolingError) as exc:
-            loop.run(agent_id="tomori")
-        self.assertEqual(exc.exception.envelope.code, "loop_limit")
+        out = loop.run(agent_id="tomori")
+        self.assertEqual(out["status"], "loop_limit")
+        self.assertEqual(out["rounds"], 4)
+        self.assertEqual(out["error"]["code"], "loop_limit")
+        self.assertEqual(len(out["results"]), 4)
 
     def test_desk_switch_rebuilds_allow_list(self) -> None:
         registry = ToolRegistry()

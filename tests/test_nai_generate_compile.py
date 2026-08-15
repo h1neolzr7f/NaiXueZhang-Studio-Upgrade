@@ -160,6 +160,30 @@ class NaiGenerateCompileLockTests(unittest.TestCase):
             hits.append(relative)
         self.assertEqual(hits, ["nai/generate.py"])
 
+    def test_unknown_and_uncompiled_fields_are_reported_not_dropped(self) -> None:
+        comment = {
+            "prompt": "1girl",
+            "width": 832,
+            "height": 1216,
+            "steps": 28,
+            "action": "img2img",
+            "image": "base64-or-bytes",
+            "mask": "base64-mask",
+            "xianyun_vibe": {"reference_images": ["https://example.invalid/vibe.png"]},
+            "future_vendor_field": {"keep": True},
+        }
+        payload = generation.build_generate_payload(comment)
+        self.assertEqual(payload["action"], "generate")
+        self.assertEqual(payload["requested_action"], "img2img")
+        self.assertIn("image", payload["unsupported_fields"])
+        self.assertIn("mask", payload["unsupported_fields"])
+        self.assertIn("xianyun_vibe", payload["unsupported_fields"])
+        self.assertIn("action:img2img", payload["unsupported_fields"])
+        self.assertIn("future_vendor_field", payload["unknown_fields"])
+        self.assertNotIn("image", payload["parameters"])
+        self.assertNotIn("mask", payload["parameters"])
+        self.assertNotIn("future_vendor_field", payload["parameters"])
+
     def test_generate_image_does_not_define_a_second_http_client(self) -> None:
         source = ast.parse((ROOT / "nai_api.py").read_text(encoding="utf-8"))
         assigned = [

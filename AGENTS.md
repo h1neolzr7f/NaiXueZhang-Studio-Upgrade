@@ -26,10 +26,12 @@ Lead owns `butler/store.py`, `butler/workflow_runtime.py`, `butler/planning.py`,
 ## Commands
 
 ```powershell
-python -m pip install -r requirements.core.lock.txt pytest langgraph langgraph-checkpoint-sqlite
+python -m pip install -r requirements.core.lock.txt pytest langgraph langgraph-checkpoint-sqlite aiosqlite
 python -m compileall -q -x "runtime|\.venv|node_modules|data" .
 python -m pytest -q --ignore=tests/test_pixiv_selector_probe.py
 python scripts/scan_sensitive.py --git-candidates --content-only
+python scripts/bench_gallery.py --count 1000 --repeats 20
+python scripts/check_windows_scripts.py
 ```
 
 Windows full verification: `scripts/verify.ps1` or `scripts/run_tests_windows.ps1`.

@@ -13,7 +13,8 @@ Base SHA: `008de38ad4dc6c8afbf0ec32ae411cd85685ac02`
 | nai/ nai_api.py nai_char_modules/ | W1 | NAI compile/transport | 2026-08-15 | v1.6 | generate_image |
 | gallery_*.py db.py db_queries.py search.py generated_gallery.py | W2 | gallery assets | 2026-08-15 | v1.7 | WorkRef, search_works |
 | butler/tooling/ tests/tooling/ | W3 | independent kernel | 2026-08-15 | v1.8 integration | WorkflowRequest |
-| tests/ scripts/*windows*.ps1 docs/top-tier-upgrade/ | W4 / Lead | quality and handoff | 2026-08-15 | standing | doctor/verify |
+| tests/ scripts/*windows*.ps1 scripts/bench_gallery.py scripts/check_windows_scripts.py docs/top-tier-upgrade/ | W4 / Lead | quality and handoff | 2026-08-15 | standing | doctor/verify |
+| .cursor/environment.json | Lead | Cloud install baseline | 2026-08-15 | standing | core lock + pytest + langgraph |
 | frontend/ web/ | shared read; UI owners per change | dual UI | 2026-08-15 | per PR | same API |
 
 Workers must not edit another lease. Propose patches to Lead instead.

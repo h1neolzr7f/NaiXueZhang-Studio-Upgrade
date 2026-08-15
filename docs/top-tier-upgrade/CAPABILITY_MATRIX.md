@@ -19,7 +19,7 @@ Barrel score = minimum of **core=Y** rows. Current barrel: **3.0** (`gen.img2img
 | publish.pixiv_browser | 发布 | Y | SANP | Playwright 本机 Chrome；Butler 只准备草稿 | pixiv_web_upload.py, butler/planning.py | 7.0 | 8.0 | implement | 比 Cookie 直传更安全 | 预检失败不上传 |
 | recover.generation_unknown | 崩溃恢复 | Y | Langbai | running→unknown + recovered_after_restart | generation_jobs.py, tests/test_generation_jobs.py | 8.0 | 9.0 | implement | 已对齐崩溃≠没扣费 | 杀进程后 can_retry=false |
 | assist.split_desks | 小祥/凑企鹅 | Y | LingChat | 分台白名单+执行期二次鉴权；一次性计划器 | butler/agents.py, tests/test_butler_agents.py | 7.0 | 8.0 | exclude | 分台是强项，不要合成单角色 | 小祥不能 generate_image |
-| assist.tool_loop | Agent Tool Runtime | Y | LingChat | 无四轮回填；本轮新增独立 butler/tooling 空转 | butler/planning.py, butler/tooling/ | 4.5 | 9.0 | implement | 内核已建，未接入聊天 | 付费工具只产 WorkflowRequest |
+| assist.tool_loop | Agent Tool Runtime | Y | LingChat | 独立 butler/tooling：四轮上限、超时、取消、二次鉴权；未接入聊天 | butler/planning.py, butler/tooling/ | 5.0 | 9.0 | implement | 内核已建，未接入聊天 | 付费工具只产 WorkflowRequest |
 | assist.memory_tts_emotion | 主动角色体验 | Y | LingChat | 无长期记忆/TTS/窥屏 | butler/planning.py, companion-dock.js | 4.0 | 6.0 | defer | v1.9；不做窥屏 | 跨会话只复述已确认偏好 |
 | search.visual_similar | 图库复用 | N | IIB | ROADMAP 未做 | ROADMAP.md | 2.0 | 7.0 | defer | 非当前最短生产闸门 | 默认本地，无密钥不出网 |
 | lineage.recipe_object | 生成→发布 | N | Langbai | 无统一配方对象 | ROADMAP.md | 2.0 | 7.0 | implement | 血缘未闭合 | 成图能追溯素材→任务→发布 |
@@ -34,10 +34,11 @@ Barrel score = minimum of **core=Y** rows. Current barrel: **3.0** (`gen.img2img
 | 后处理 | 3.0 | post.pipeline |
 | 发布与恢复 | 7.0 | publish.pixiv_browser |
 | 数据和付费安全 | 8.5 | recover.generation_unknown + P0 测试 |
-| Agent Tool Runtime | 4.5 | assist.tool_loop |
+| Agent Tool Runtime | 5.0 | assist.tool_loop |
 | 主动角色体验 | 4.0 | assist.memory_tts_emotion |
 | Windows 安装与上手 | 8.0 | 云端未真机验证，见 PENDING_LOCAL_WINDOWS |
 | 文档与可验证性 | 7.5 | 本目录建立后提高 |
 
 **barrel_lowest_capability:** `gen.img2img_inpaint_canvas` / `post.pipeline`  
-**barrel_lowest_score:** `3.0`
+**barrel_lowest_score:** `3.0`  
+`assist.tool_loop` is now 5.0 (timeout/cancel/loop-limit finish) but still not wired to chat.
