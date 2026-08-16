@@ -41,6 +41,8 @@ def test_workspace_bundle_freezes_generation_comment() -> None:
         "/api/director/preview",
         "/api/nai-tags",
         "/api/plugin/char-swap/batch/run",
+        "/api/plugin/char-swap/batch/authorize",
+        "/api/nai/authorize",
         "/api/pixiv/upload",
         "/api/pixiv/launch",
         "/api/product/health",
@@ -106,8 +108,8 @@ def test_workspace_does_not_render_a_second_nav() -> None:
     assert "工作区导航" not in bundle
     assert "返回图库" in bundle
     assert "正在打开图库" in bundle
-    assert "点一张图" not in bundle
-    assert "按 prompt 过滤" not in bundle
+    assert "/api/nai/authorize" in bundle
+    assert "/api/plugin/char-swap/batch/authorize" in bundle
 
 
 def test_bare_workspace_root_redirects_to_gallery() -> None:

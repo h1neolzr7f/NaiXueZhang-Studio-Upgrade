@@ -344,6 +344,28 @@ async def _execute_confirmed(action: dict[str, Any]) -> dict[str, Any]:
         )
         copies = int(args.get("batch_count") or 1)
         manual_config = load_char_swap_config()
+        from nai_authorization import ACTION_STUDIO, compile_batch_authorization, issue_for_preview
+        from nai_batch import build_studio_targets
+
+        force_free = bool(manual_config.get("force_free", True))
+        prompt_profile = str(manual_config.get("prompt_profile") or "native")
+        targets, recipe = build_studio_targets(
+            comment if isinstance(comment, dict) else {},
+            work_id=work_id or None,
+            page_index=int(args.get("page_index") or 0),
+            copies=copies,
+            source_gallery_id=gallery_id,
+            prompt_profile=prompt_profile,
+        )
+        issued = issue_for_preview(
+            compile_batch_authorization(
+                targets,
+                recipe,
+                force_free=force_free,
+                action=ACTION_STUDIO,
+                copies=copies,
+            )
+        )
         result = start_studio_generate(
             comment if isinstance(comment, dict) else {},
             work_id=work_id or None,
@@ -351,8 +373,9 @@ async def _execute_confirmed(action: dict[str, Any]) -> dict[str, Any]:
             copies=copies,
             source_gallery_id=gallery_id,
             seed_policy="",
-            force_free=bool(manual_config.get("force_free", True)),
-            prompt_profile=str(manual_config.get("prompt_profile") or "native"),
+            force_free=force_free,
+            prompt_profile=prompt_profile,
+            authorization_ticket=str(issued.get("ticket") or ""),
         )
         if not result.get("ok"):
             raise RuntimeError(str(result.get("message") or "生图任务未能入队"))

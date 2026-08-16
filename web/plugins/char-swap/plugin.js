@@ -12,7 +12,7 @@ import {
   loadPluginConfig, 
   $,
   flashMsg
-} from "./api.js?v=01f205facd";
+} from "./api.js?v=980573fcbd";
 import { 
   buildPanel, 
   initDraft, 
@@ -40,7 +40,7 @@ import {
   mountQuickFab, 
   unmountGenSidebar, 
   mountGenSidebar 
-} from "./batch.js?v=b2f9991491";
+} from "./batch.js?v=3395f919a3";
 
 const PLUGIN_VERSION = "56-mount-gen";
 window.__CHAR_SWAP_PLUGIN_VERSION__ = PLUGIN_VERSION;

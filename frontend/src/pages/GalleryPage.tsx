@@ -13,6 +13,11 @@ type GalleryItem = {
   gallery_id?: string;
   tags?: string[];
   prompt?: string;
+  lifecycle?: string;
+  favorite?: boolean;
+  available?: boolean;
+  qualified_id?: string;
+  ref?: { remote_id?: string; provider_id?: string };
 };
 
 type SearchPayload = {
@@ -31,6 +36,7 @@ type WorkLite = {
   page_count?: number;
   prompt?: string;
   images?: { url?: string; thumb_url?: string }[];
+  ref?: { remote_id?: string; provider_id?: string };
 };
 
 type GalleryOption = { id?: string; gallery_id?: string; label?: string; name?: string };
@@ -147,7 +153,9 @@ export function GalleryPage({ search }: { search: string }) {
     if (prompt.trim()) params.set("prompt", prompt.trim());
     if (group.trim()) params.set("group", group.trim());
     const path =
-      view === "favorites"
+      view === "online"
+        ? `/api/online/search?q=${encodeURIComponent(q)}`
+        : view === "favorites"
         ? `/api/favorites/works?${params.toString()}`
         : view === "queue"
           ? `/api/queue/works?${params.toString()}`
@@ -167,9 +175,30 @@ export function GalleryPage({ search }: { search: string }) {
     };
   }, [q, galleryId, page, sort, timeRange, prompt, group, view]);
 
+  const items = useMemo(() => data.items || [], [data]);
+
   useEffect(() => {
     if (!selected) {
       setDetail(null);
+      return;
+    }
+    if (view === "online") {
+      const card = items.find((item) => {
+        const id = workIdOf(item.work_id ?? item.id ?? item.ref?.remote_id ?? item.qualified_id);
+        return id === selected;
+      });
+      setDetail(
+        card
+          ? {
+              work_id: selected,
+              title: card.title,
+              prompt: card.prompt,
+              thumb_url: card.thumb_url,
+              ref: card.ref,
+            }
+          : null,
+      );
+      setFavorited(Boolean(card?.favorite));
       return;
     }
     let cancelled = false;
@@ -194,9 +223,8 @@ export function GalleryPage({ search }: { search: string }) {
     return () => {
       cancelled = true;
     };
-  }, [selected, galleryId]);
+  }, [selected, galleryId, view, items]);
 
-  const items = useMemo(() => data.items || [], [data]);
   const galleryOptions =
     galleries.length > 0
       ? galleries
@@ -213,6 +241,25 @@ export function GalleryPage({ search }: { search: string }) {
       {},
     );
     setFavorited(Boolean(result.favorited));
+  }
+
+  async function addOnlineToLibrary() {
+    const remoteId = String(detail?.ref?.remote_id || selected || "");
+    if (!remoteId) return;
+    const result = await post<{ work_id?: number; message?: string }>("/api/online/add-to-library", {
+      remote_id: remoteId,
+      gallery_id: "codex",
+    });
+    if (result.work_id) {
+      navigate(studioPath(String(result.work_id), "codex"));
+    }
+  }
+
+  async function favoriteOnline() {
+    const remoteId = String(detail?.ref?.remote_id || selected || "");
+    if (!remoteId) return;
+    await post("/api/online/favorite", { remote_id: remoteId });
+    setFavorited(true);
   }
 
   async function toggleQueue() {
@@ -272,7 +319,8 @@ export function GalleryPage({ search }: { search: string }) {
             })}
           </select>
           <select value={view} onChange={(event) => go({ view: event.target.value, page: 1 })} aria-label="视图">
-            <option value="all">全部</option>
+            <option value="all">我的图库</option>
+            <option value="online">在线发现</option>
             <option value="favorites">收藏</option>
             <option value="queue">待生成</option>
           </select>
@@ -280,11 +328,15 @@ export function GalleryPage({ search }: { search: string }) {
         </div>
         {error ? <p className="ws-status err">{error}</p> : null}
         {!loading && items.length === 0 ? (
-          <p className="ws-status">这里还没有作品。用上面的搜索框查找，或点导航「爬虫」采集新图。</p>
+          <p className="ws-status">
+            {view === "online"
+              ? "在线区还没有结果。搜索后可以先收藏（只记引用），需要处理时再加入我的图库。"
+              : "这里还没有作品。用上面的搜索框查找，或点导航「爬虫」采集新图。"}
+          </p>
         ) : null}
         <div className="ws-grid">
           {items.map((item) => {
-            const workId = workIdOf(item.work_id ?? item.id);
+            const workId = workIdOf(item.work_id ?? item.id ?? item.ref?.remote_id ?? item.qualified_id);
             const src = thumbOf(item);
             const gid = item.gallery_id || galleryId;
             const active = selected === workId;
@@ -304,6 +356,19 @@ export function GalleryPage({ search }: { search: string }) {
                   <button className="link" type="button" onClick={() => workId && navigate(studioPath(workId, gid))}>
                     {item.title || `#${workId}`}
                   </button>
+                  {view === "online" ? (
+                    <p className="ws-status">
+                      {item.available === false
+                        ? "来源暂不可用，仍可看收藏快照"
+                        : item.lifecycle === "materialized"
+                          ? "已在我的图库"
+                          : item.lifecycle === "cached"
+                            ? "已缓存，尚未入库"
+                            : item.favorite
+                              ? "已收藏引用"
+                              : "在线引用"}
+                    </p>
+                  ) : null}
                 </div>
               </article>
             );
@@ -326,18 +391,31 @@ export function GalleryPage({ search }: { search: string }) {
             <p className="ws-status">{(detail.tags || []).slice(0, 12).join(" · ")}</p>
             {detail.prompt ? <p className="ws-prompt">{detail.prompt}</p> : null}
             <div className="ws-actions">
-              <button className="ws-btn" onClick={() => navigate(studioPath(selected, galleryId))}>
-                去工作台
-              </button>
-              <button className="ws-btn ghost" onClick={() => navigate(remixPath(selected, galleryId))}>
-                换角
-              </button>
-              <button className="ws-btn ghost" onClick={() => void toggleFavorite()}>
-                {favorited ? "取消收藏" : "收藏"}
-              </button>
-              <button className="ws-btn ghost" onClick={() => void toggleQueue()}>
-                {queued ? "移出队列" : "加入待生成"}
-              </button>
+              {view === "online" ? (
+                <>
+                  <button className="ws-btn" onClick={() => void addOnlineToLibrary()}>
+                    加入我的图库
+                  </button>
+                  <button className="ws-btn ghost" onClick={() => void favoriteOnline()}>
+                    {favorited ? "已收藏引用" : "收藏（不下载）"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="ws-btn" onClick={() => navigate(studioPath(selected, galleryId))}>
+                    去工作台
+                  </button>
+                  <button className="ws-btn ghost" onClick={() => navigate(remixPath(selected, galleryId))}>
+                    换角
+                  </button>
+                  <button className="ws-btn ghost" onClick={() => void toggleFavorite()}>
+                    {favorited ? "取消收藏" : "收藏"}
+                  </button>
+                  <button className="ws-btn ghost" onClick={() => void toggleQueue()}>
+                    {queued ? "移出队列" : "加入待生成"}
+                  </button>
+                </>
+              )}
             </div>
           </>
         ) : (

@@ -168,6 +168,7 @@ async def _generate_for_target(
     remote_work_id: str = "",
     token_id: str = "",
     job: GenerationJob | None = None,
+    paid_authorized: bool = False,
 ) -> dict[str, Any]:
     """Generate once per round; outer rounds provide visible, cancellable retry."""
     if job is not None and job.cancel_requested:
@@ -201,6 +202,7 @@ async def _generate_for_target(
         source_thumb=source_thumb,
         remote_work_id=remote_work_id,
         wait_for_slot=True,
+        paid_authorized=paid_authorized,
     )
     result.setdefault(
         "request_attempted",
@@ -304,6 +306,7 @@ async def _process_target(
         "remote_work_id": str(raw.get("remote_work_id") or ""),
         "token_id": str(recipe.get("token_id") or ""),
         "job": job,
+        "paid_authorized": bool((job.state.get("_request") or {}).get("paid_authorized")),
     }
     generated = await _generate_for_target(
         prepared["patched_comment"],
@@ -609,6 +612,9 @@ def start_batch(
     generate: bool = True,
     preview_only: bool = False,
     _retry_of: str = "",
+    authorization_ticket: str = "",
+    _paid_authorized: bool = False,
+    authorization_action: str = "",
 ) -> dict[str, Any]:
     if not targets:
         return {"ok": False, "error": "empty", "message": "target list is empty"}
@@ -618,17 +624,14 @@ def start_batch(
             "error": "too_many_targets",
             "message": f"single batch limit is {BATCH_TARGET_MAX} works",
         }
-    if (
-        generate
-        and not preview_only
-        and generation_concurrency_for_batch(targets, force_free=force_free) <= 0
-    ):
-        return {
-            "ok": False,
-            "error": "missing_token",
-            "message": "NovelAI token is not configured",
-            "batch": batch_status(),
-        }
+
+    from nai_authorization import (
+        ACTION_CHAR_SWAP,
+        ACTION_STUDIO,
+        AuthorizationError,
+        authorize_start_batch,
+        target_fingerprints,
+    )
 
     normalized: list[dict[str, Any]] = []
     paid = bool(generate and not preview_only)
@@ -640,6 +643,72 @@ def start_batch(
             item["patched_comment"] = copy.deepcopy(comment)
             item["frozen_comment"] = True
         normalized.append(item)
+    action = str(
+        authorization_action
+        or (recipe or {}).get("kind")
+        or ACTION_CHAR_SWAP
+    )
+    if action == "studio_snapshot":
+        action = ACTION_STUDIO
+    stored_hashes: dict[str, Any] = {}
+    paid_reuse = False
+    if _retry_of:
+        original = _JOB_MANAGER.get_job(str(_retry_of))
+        if original is None:
+            return {
+                "ok": False,
+                "error": "not_found",
+                "message": "retry source job not found",
+                "request_attempted": False,
+                "batch": batch_status(),
+            }
+        frozen = original.state.get("_request")
+        if not isinstance(frozen, dict):
+            return {
+                "ok": False,
+                "error": "not_retryable",
+                "message": "generation request is unavailable",
+                "request_attempted": False,
+                "batch": batch_status(),
+            }
+        paid_reuse = bool(frozen.get("paid_authorized"))
+        stored_hashes = {
+            "payload_hash": str(frozen.get("payload_hash") or ""),
+            "manifest_hash": str(frozen.get("manifest_hash") or ""),
+            "target_fingerprints": list(frozen.get("target_fingerprints") or []),
+        }
+    try:
+        auth = authorize_start_batch(
+            normalized,
+            recipe,
+            force_free=force_free,
+            generate=generate,
+            preview_only=preview_only,
+            action=action,
+            ticket=authorization_ticket,
+            paid_authorized=paid_reuse,
+            retry_of=str(_retry_of or ""),
+            stored_hashes=stored_hashes,
+        )
+    except AuthorizationError as exc:
+        return {
+            "ok": False,
+            "error": exc.error_code,
+            "message": str(exc),
+            "request_attempted": False,
+            "batch": batch_status(),
+        }
+    if (
+        generate
+        and not preview_only
+        and generation_concurrency_for_batch(normalized, force_free=force_free) <= 0
+    ):
+        return {
+            "ok": False,
+            "error": "missing_token",
+            "message": "NovelAI token is not configured",
+            "batch": batch_status(),
+        }
     try:
         job, starts_now = _JOB_MANAGER.enqueue_job(
             total=len(normalized),
@@ -655,6 +724,11 @@ def start_batch(
                 "generate": bool(generate),
                 "preview_only": bool(preview_only),
                 "retry_of": str(_retry_of or ""),
+                "paid_authorized": bool(auth.get("paid_authorized")),
+                "payload_hash": auth.get("payload_hash"),
+                "manifest_hash": auth.get("manifest_hash"),
+                "target_fingerprints": target_fingerprints(normalized),
+                "authorization_action": action,
             },
             required_persistence=bool(generate and not preview_only),
         )
@@ -791,20 +865,25 @@ def retry_batch(task_id: str) -> dict[str, Any]:
             "error": "nothing_to_retry",
             "message": "no failed or unfinished targets",
         }
+    recipe = dict(request.get("recipe") or {})
+    recipe["_payload_hash"] = str(request.get("payload_hash") or "")
+    recipe["_manifest_hash"] = str(request.get("manifest_hash") or "")
     return start_batch(
         targets,
-        dict(request.get("recipe") or {}),
+        recipe,
         force_free=bool(request.get("force_free", True)),
         generate=bool(request.get("generate", True)),
         preview_only=bool(request.get("preview_only", False)),
         _retry_of=task_id,
+        _paid_authorized=bool(request.get("paid_authorized")),
+        authorization_action=str(request.get("authorization_action") or ""),
     )
 
 
 STUDIO_COPY_MAX = 8
 
 
-def start_studio_generate(
+def build_studio_targets(
     patched_comment: dict[str, Any],
     *,
     work_id: int | None = None,
@@ -812,15 +891,12 @@ def start_studio_generate(
     copies: int = 1,
     source_gallery_id: str = "site",
     seed_policy: str = "",
-    force_free: bool = True,
     prompt_profile: str = "native",
     source_title: str = "",
     source_thumb: str = "",
     remote_work_id: str = "",
     token_id: str = "",
-) -> dict[str, Any]:
-    """Enqueue a click-time snapshot as one durable job (1 copy still a job)."""
-
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     copies = max(1, min(STUDIO_COPY_MAX, int(copies or 1)))
     snapshot = copy.deepcopy(patched_comment if isinstance(patched_comment, dict) else {})
     raw_seed = snapshot.get("seed")
@@ -873,12 +949,48 @@ def start_studio_generate(
         "source_gallery_id": gallery_id,
         "page_index": int(page_index or 0),
     }
+    return targets, recipe
+
+
+def start_studio_generate(
+    patched_comment: dict[str, Any],
+    *,
+    work_id: int | None = None,
+    page_index: int = 0,
+    copies: int = 1,
+    source_gallery_id: str = "site",
+    seed_policy: str = "",
+    force_free: bool = True,
+    prompt_profile: str = "native",
+    source_title: str = "",
+    source_thumb: str = "",
+    remote_work_id: str = "",
+    token_id: str = "",
+    authorization_ticket: str = "",
+) -> dict[str, Any]:
+    """Enqueue a click-time snapshot as one durable job (1 copy still a job)."""
+
+    targets, recipe = build_studio_targets(
+        patched_comment,
+        work_id=work_id,
+        page_index=page_index,
+        copies=copies,
+        source_gallery_id=source_gallery_id,
+        seed_policy=seed_policy,
+        prompt_profile=prompt_profile,
+        source_title=source_title,
+        source_thumb=source_thumb,
+        remote_work_id=remote_work_id,
+        token_id=token_id,
+    )
     started = start_batch(
         targets,
         recipe,
         force_free=force_free,
         generate=True,
         preview_only=False,
+        authorization_ticket=authorization_ticket,
+        authorization_action="studio_generate",
     )
     if started.get("ok"):
         started["message"] = (

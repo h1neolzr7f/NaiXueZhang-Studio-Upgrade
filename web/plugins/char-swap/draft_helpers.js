@@ -1,5 +1,5 @@
 import { BATCH_MAX_DEFAULT, draftCacheKey, draftPageCache, normalizeWorkId, state } from "./state.js?v=f80b97d795";
-import { deepClone } from "./api.js?v=01f205facd";
+import { deepClone } from "./api.js?v=980573fcbd";
 
 export function getBatchMax() {
   const v = state.pluginConfig && state.pluginConfig.batch_target_max;

@@ -222,6 +222,37 @@ def hash_bucket(value: int) -> int:
     return (int(value) >> 48) & 0xFFFF
 
 
+def hash_bands(value: int, threshold: int, hash_bits: int = 64) -> list[int]:
+    """t+1 non-overlapping bands. Hamming distance <= t implies one identical band."""
+
+    count = max(1, int(threshold) + 1)
+    base = hash_bits // count
+    remainder = hash_bits % count
+    bands: list[int] = []
+    shift = hash_bits
+    number = int(value) & ((1 << hash_bits) - 1)
+    for index in range(count):
+        width = base + (1 if index < remainder else 0)
+        shift -= width
+        bands.append((number >> shift) & ((1 << width) - 1))
+    return bands
+
+
+def encode_index_cursor(work_id: int, page_index: int) -> dict[str, int]:
+    return {"work_id": int(work_id), "page_index": int(page_index)}
+
+
+def parse_index_cursor(raw: Any) -> tuple[int, int] | None:
+    if raw in (None, "", {}, []):
+        return None
+    if isinstance(raw, str) and ":" in raw:
+        left, right = raw.split(":", 1)
+        return int(left), int(right)
+    if isinstance(raw, dict):
+        return int(raw.get("work_id") or 0), int(raw.get("page_index") or 0)
+    raise ValueError("index cursor must be {work_id, page_index}")
+
+
 def hash_to_text(value: int) -> str:
     return f"{int(value) & ((1 << 64) - 1):016x}"
 
@@ -433,19 +464,28 @@ def collect_work_image_items(
     *,
     work_ids: Iterable[int] | None = None,
     images_dir: Path | None = None,
+    after: tuple[int, int] | None = None,
+    limit: int | None = None,
 ) -> list[IndexImage]:
     sql = """
         SELECT work_id, page_index, local_path, source_sha256
         FROM work_images
         WHERE downloaded = 1
     """
-    params: tuple[Any, ...] = ()
+    params: list[Any] = []
     ids = [int(item) for item in (work_ids or [])]
     if ids:
         placeholders = ",".join("?" * len(ids))
         sql += f" AND work_id IN ({placeholders})"
-        params = tuple(ids)
-    rows = conn.execute(sql, params).fetchall()
+        params.extend(ids)
+    if after is not None:
+        sql += " AND (work_id > ? OR (work_id = ? AND page_index > ?))"
+        params.extend([int(after[0]), int(after[0]), int(after[1])])
+    sql += " ORDER BY work_id ASC, page_index ASC"
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(int(limit) + 1)
+    rows = conn.execute(sql, tuple(params)).fetchall()
     items: list[IndexImage] = []
     for row in rows:
         relative = str(row["local_path"] or "")
@@ -499,48 +539,64 @@ def find_near_duplicates(
     rows = conn.execute(
         "SELECT image_key, work_id, page_index, dhash, phash FROM gallery_image_hashes"
     ).fetchall()
-    buckets: dict[int, list[sqlite3.Row]] = {}
-    for row in rows:
-        dhash = hash_from_text(row["dhash"])
-        if dhash is None:
-            continue
-        buckets.setdefault(hash_bucket(dhash), []).append(row)
+    candidates: dict[tuple[str, str], tuple[sqlite3.Row, sqlite3.Row]] = {}
+
+    def add_field(field: str, threshold: int) -> None:
+        buckets: dict[tuple[int, int], list[sqlite3.Row]] = {}
+        for row in rows:
+            value = hash_from_text(row[field])
+            if value is None:
+                continue
+            for band_index, band in enumerate(hash_bands(value, threshold)):
+                buckets.setdefault((band_index, band), []).append(row)
+        for bucket_rows in buckets.values():
+            for index, left in enumerate(bucket_rows):
+                for right in bucket_rows[index + 1 :]:
+                    pair = tuple(sorted((left["image_key"], right["image_key"])))
+                    candidates.setdefault(pair, (left, right))
+
+    add_field("dhash", dhash_threshold)
+    add_field("phash", phash_threshold)
     seen: set[tuple[str, str]] = set()
     groups: list[dict[str, Any]] = []
-    for bucket_rows in buckets.values():
-        for index, left in enumerate(bucket_rows):
-            members = [
+    anchors: dict[str, list[dict[str, Any]]] = {}
+    for pair, (left, right) in candidates.items():
+        if pair in seen:
+            continue
+        left_d = hash_from_text(left["dhash"])
+        right_d = hash_from_text(right["dhash"])
+        left_p = hash_from_text(left["phash"])
+        right_p = hash_from_text(right["phash"])
+        d_dist = hamming(left_d or 0, right_d or 0) if left_d is not None and right_d is not None else 99
+        p_dist = hamming(left_p, right_p) if left_p is not None and right_p is not None else 99
+        if d_dist > dhash_threshold and p_dist > phash_threshold:
+            continue
+        seen.add(pair)
+        left_key = str(left["image_key"])
+        members = anchors.setdefault(
+            left_key,
+            [
                 {
                     "image_key": left["image_key"],
                     "work_id": int(left["work_id"]),
                     "page_index": int(left["page_index"]),
                     "distance": 0,
                 }
-            ]
-            for right in bucket_rows[index + 1 :]:
-                pair = tuple(sorted((left["image_key"], right["image_key"])))
-                if pair in seen:
-                    continue
-                left_d = hash_from_text(left["dhash"])
-                right_d = hash_from_text(right["dhash"])
-                left_p = hash_from_text(left["phash"])
-                right_p = hash_from_text(right["phash"])
-                d_dist = hamming(left_d or 0, right_d or 0)
-                p_dist = hamming(left_p, right_p) if left_p is not None and right_p is not None else 99
-                if d_dist <= dhash_threshold or p_dist <= phash_threshold:
-                    seen.add(pair)
-                    members.append(
-                        {
-                            "image_key": right["image_key"],
-                            "work_id": int(right["work_id"]),
-                            "page_index": int(right["page_index"]),
-                            "distance": min(d_dist, p_dist),
-                        }
-                    )
-            if len(members) > 1:
-                groups.append({"kind": "near", "items": members})
-            if len(groups) >= MAX_DUPLICATE_GROUPS:
-                return groups[:MAX_DUPLICATE_GROUPS]
+            ],
+        )
+        members.append(
+            {
+                "image_key": right["image_key"],
+                "work_id": int(right["work_id"]),
+                "page_index": int(right["page_index"]),
+                "distance": min(d_dist, p_dist),
+            }
+        )
+    for members in anchors.values():
+        if len(members) > 1:
+            groups.append({"kind": "near", "items": members})
+        if len(groups) >= MAX_DUPLICATE_GROUPS:
+            return groups[:MAX_DUPLICATE_GROUPS]
     return groups[:MAX_DUPLICATE_GROUPS]
 
 
@@ -625,7 +681,119 @@ def index_status(conn: sqlite3.Connection, gallery_id: str = "") -> dict[str, An
         "embed": {"provider": "local_none", "model": None, "outbound": False},
         "indexed": _count("SELECT COUNT(*) FROM gallery_index_files"),
         "hashed": _count("SELECT COUNT(*) FROM gallery_image_hashes"),
+        **visibility_counts(conn),
         "notes": "Counts are SQLite metadata, not a Windows 10k/100k bench.",
+    }
+
+
+def visibility_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    ensure_schema(conn)
+    try:
+        unindexed = int(
+            conn.execute(
+                """
+                SELECT COUNT(*) FROM work_images wi
+                LEFT JOIN gallery_index_files g
+                  ON g.work_id = wi.work_id AND g.page_index = wi.page_index
+                WHERE wi.downloaded = 1 AND g.image_key IS NULL
+                """
+            ).fetchone()[0]
+        )
+        stale = int(
+            conn.execute(
+                """
+                SELECT COUNT(*) FROM gallery_index_files g
+                LEFT JOIN work_images wi
+                  ON wi.work_id = g.work_id AND wi.page_index = g.page_index AND wi.downloaded = 1
+                WHERE wi.work_id IS NULL
+                """
+            ).fetchone()[0]
+        )
+    except sqlite3.Error:
+        return {"unindexed": 0, "stale": 0}
+    return {"unindexed": unindexed, "stale": stale}
+
+
+def list_unindexed(
+    conn: sqlite3.Connection,
+    *,
+    work_ids: list[int] | None = None,
+    limit: int = 200,
+) -> list[dict[str, int]]:
+    ensure_schema(conn)
+    sql = """
+        SELECT wi.work_id, wi.page_index
+        FROM work_images wi
+        LEFT JOIN gallery_index_files g
+          ON g.work_id = wi.work_id AND g.page_index = wi.page_index
+        WHERE wi.downloaded = 1 AND g.image_key IS NULL
+    """
+    params: list[Any] = []
+    if work_ids:
+        placeholders = ",".join("?" * len(work_ids))
+        sql += f" AND wi.work_id IN ({placeholders})"
+        params.extend(int(item) for item in work_ids)
+    sql += " ORDER BY wi.work_id, wi.page_index LIMIT ?"
+    params.append(int(limit))
+    return [
+        {"work_id": int(row["work_id"]), "page_index": int(row["page_index"])}
+        for row in conn.execute(sql, tuple(params)).fetchall()
+    ]
+
+
+def list_stale(
+    conn: sqlite3.Connection,
+    *,
+    work_ids: list[int] | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    ensure_schema(conn)
+    sql = """
+        SELECT g.image_key, g.work_id, g.page_index
+        FROM gallery_index_files g
+        LEFT JOIN work_images wi
+          ON wi.work_id = g.work_id AND wi.page_index = g.page_index AND wi.downloaded = 1
+        WHERE wi.work_id IS NULL
+    """
+    params: list[Any] = []
+    if work_ids:
+        placeholders = ",".join("?" * len(work_ids))
+        sql += f" AND g.work_id IN ({placeholders})"
+        params.extend(int(item) for item in work_ids)
+    sql += " ORDER BY g.work_id, g.page_index LIMIT ?"
+    params.append(int(limit))
+    return [
+        {
+            "image_key": row["image_key"],
+            "work_id": int(row["work_id"]),
+            "page_index": int(row["page_index"]),
+        }
+        for row in conn.execute(sql, tuple(params)).fetchall()
+    ]
+
+
+def reconcile_index(
+    conn: sqlite3.Connection,
+    *,
+    work_ids: list[int] | None = None,
+    drop_stale: bool = True,
+) -> dict[str, Any]:
+    """Scoped anti-join only. Never treat 'not in current page' as stale."""
+
+    ensure_schema(conn)
+    stale = list_stale(conn, work_ids=work_ids, limit=10_000)
+    removed = 0
+    if drop_stale:
+        for item in stale:
+            conn.execute("DELETE FROM gallery_index_files WHERE image_key = ?", (item["image_key"],))
+            conn.execute("DELETE FROM gallery_image_hashes WHERE image_key = ?", (item["image_key"],))
+            removed += 1
+    unindexed = list_unindexed(conn, work_ids=work_ids, limit=10_000)
+    return {
+        "unindexed": unindexed,
+        "stale": stale,
+        "stale_removed": removed,
+        "scope_work_ids": list(work_ids or []),
     }
 
 
@@ -635,23 +803,29 @@ def run_incremental(
     *,
     visual: bool = True,
     images_dir: Path | None = None,
+    cursor: Any = None,
 ) -> dict[str, Any]:
     """Dirty-set index on an existing ``Database``. ``rebuild_fts`` stays the repair path.
 
     Lives here so ``db.py`` does not grow past the quality-gate line budget.
+    Keyset continuation uses (work_id, page_index). Cursor and upsert commit together.
     """
 
     ids = [int(item) for item in work_ids] if work_ids is not None else None
     if ids is not None and len(ids) > MAX_INCREMENTAL_WORK_IDS:
         raise ValueError(f"work_ids exceeds {MAX_INCREMENTAL_WORK_IDS}")
+    after = parse_index_cursor(cursor) if cursor not in (None, "", {}) else None
 
     def action() -> dict[str, Any]:
-        items = collect_work_image_items(
-            db.conn, work_ids=ids, images_dir=images_dir
+        fetched = collect_work_image_items(
+            db.conn,
+            work_ids=ids,
+            images_dir=images_dir,
+            after=after,
+            limit=MAX_INCREMENTAL_ITEMS,
         )
-        truncated = len(items) > MAX_INCREMENTAL_ITEMS
-        if truncated:
-            items = items[:MAX_INCREMENTAL_ITEMS]
+        truncated = len(fetched) > MAX_INCREMENTAL_ITEMS
+        items = fetched[:MAX_INCREMENTAL_ITEMS]
 
         def sync_text(work_id: int) -> None:
             db._sync_work_fts(work_id)
@@ -663,8 +837,16 @@ def run_incremental(
             visual_enabled=visual,
             sync_text=sync_text,
         )
+        next_cursor = None
+        if items:
+            last = items[-1]
+            next_cursor = encode_index_cursor(last.work_id, last.page_index)
         result["truncated"] = truncated
         result["item_limit"] = MAX_INCREMENTAL_ITEMS
+        result["cursor"] = encode_index_cursor(*after) if after else None
+        result["next_cursor"] = next_cursor if truncated else None
+        visibility = visibility_counts(db.conn)
+        result.update(visibility)
         db.conn.commit()
         return result
 

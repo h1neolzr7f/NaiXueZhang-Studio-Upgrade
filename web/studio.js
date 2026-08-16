@@ -937,9 +937,7 @@
     showGenProgress(true, copies > 1 ? `入队中 0/${copies}…` : "入队中…");
     try {
       setStatus(copies > 1 ? `提交 ${copies} 张生成任务…` : "提交生成任务…", true);
-      const res = await api("/api/nai/generate", {
-        method: "POST",
-        body: {
+      const generateBody = {
           patched_comment: snapshot,
           work_id: workIdPayload,
           work_id_str: isAitag ? remoteId : "",
@@ -952,7 +950,15 @@
           seed_policy: seedPolicy,
           force_free: true,
           prompt_profile: "native",
-        },
+      };
+      const preview = await api("/api/nai/authorize", { method: "POST", body: generateBody });
+      if (preview && preview.requires_ticket) {
+        const ok = window.confirm(preview.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会授权出图。");
+        if (!ok) throw new Error("已取消非免费出图");
+      }
+      const res = await api("/api/nai/generate", {
+        method: "POST",
+        body: Object.assign({}, generateBody, { authorization_ticket: (preview && preview.ticket) || "" }),
       });
       if (!res.ok) throw new Error(res.message || res.error || "生成失败");
       const taskId = res.task_id || (res.batch && res.batch.task_id) || "";

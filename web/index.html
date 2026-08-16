@@ -19,7 +19,7 @@
   <meta name="twitter:description" content="本地 NovelAI 图库与提示词图谱。" />
   <meta data-seo="end" />
   <link rel="stylesheet" href="/assets/styles.css?v=1f1b43909b" />
-  <link rel="stylesheet" href="/assets/local.css?v=2e0bfcbad7" />
+  <link rel="stylesheet" href="/assets/local.css?v=13692c9569" />
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
   <link rel="stylesheet" href="/assets/shared/motion.css?v=8cc6bd1e71" />
   <link rel="stylesheet" href="/assets/core-theme.css?v=0158aeb657" />
@@ -108,6 +108,7 @@
           <button type="button" class="gallery-source-button" data-gallery-source="codex" aria-pressed="false">自选库</button>
           <button type="button" class="gallery-source-button" data-gallery-source="qqgroup" aria-pressed="false">Q群</button>
           <button type="button" class="gallery-source-button" data-gallery-source="aitag-online" aria-pressed="false">AITag 在线库</button>
+          <button type="button" class="gallery-source-button" id="onlineDiscoverBtn" aria-pressed="false">在线发现</button>
         </div>
         <select id="gallerySource" hidden aria-hidden="true" tabindex="-1">
           <option value="site">Pixiv NAI 图库</option>
@@ -208,6 +209,11 @@
           <div class="spinner" aria-hidden="true"></div>
           <span>正在读取本地图谱…</span>
         </div>
+        <section id="onlineDiscover" class="online-discover hidden" hidden>
+          <p id="onlineDiscoverHelp">在线区只看引用。收藏不会下载；点「加入我的图库」才会入库，然后可以去换角或出图。</p>
+          <div id="onlineDiscoverGrid" class="gallery-grid" aria-live="polite"></div>
+          <p id="onlineDiscoverStatus" class="search-status" role="status"></p>
+        </section>
         <section id="gallery" class="gallery-grid" aria-live="polite"></section>
         <div id="noResult" class="no-result" role="status">
           <span id="noResultText">没有找到作品</span>
@@ -329,5 +335,6 @@
   <script src="/assets/app-detail.js?v=bcd485899b"></script>
   <script src="/assets/shared/gallery-drop-folders.js?v=7d8c91bf0a"></script>
   <script src="/assets/app.js?v=b895c5c3a8"></script>
+  <script src="/assets/online-discover.js?v=804348beba"></script>
 </body>
 </html>

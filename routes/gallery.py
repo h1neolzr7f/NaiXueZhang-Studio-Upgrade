@@ -313,6 +313,7 @@ def _import_drop_files(
         extra = {
             "group_key": folder,
             "group_label": folder,
+            "source_sha256": digest,
         }
         qq_account = ""
         qq_label = ""
@@ -558,8 +559,15 @@ def api_gallery_index_incremental(
                 detail=f"work_ids exceeds {MAX_INCREMENTAL_WORK_IDS}",
             )
     visual = True if not isinstance(payload, dict) else bool(payload.get("visual", True))
+    cursor = payload.get("cursor") if isinstance(payload, dict) else None
     try:
-        result = run_incremental(db, work_ids, visual=visual, images_dir=spec.images_dir)
+        result = run_incremental(
+            db,
+            work_ids,
+            visual=visual,
+            images_dir=spec.images_dir,
+            cursor=cursor,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     result["gallery_id"] = gid

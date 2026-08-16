@@ -25,7 +25,8 @@ from generated_gallery import (
     list_deleted,
 )
 from post_pipeline import load_config
-from nai_batch import batch_status, start_studio_generate
+from nai_authorization import ACTION_STUDIO, compile_batch_authorization, issue_for_preview
+from nai_batch import batch_status, build_studio_targets, start_studio_generate
 from gallery_catalog import get_db as get_gallery_db, serialize_gallery_payload
 
 router = APIRouter(prefix="/api")
@@ -192,6 +193,7 @@ async def api_nai_generate(payload: NaiGenerateRequest) -> dict:
         source_thumb=source_thumb,
         remote_work_id=remote_work_id,
         token_id=str(data.get("token_id") or ""),
+        authorization_ticket=str(data.get("authorization_ticket") or ""),
     )
     if not result.get("ok"):
         error = str(result.get("error") or "")
@@ -199,8 +201,62 @@ async def api_nai_generate(payload: NaiGenerateRequest) -> dict:
             raise HTTPException(status_code=400, detail=str(result.get("message") or "NovelAI token is not configured"))
         if error == "persistence_failed":
             raise HTTPException(status_code=503, detail=str(result.get("message") or "generation job could not be persisted"))
+        if error in {
+            "authorization_required",
+            "ticket_invalid",
+            "ticket_expired",
+            "ticket_replay",
+            "ticket_hash_mismatch",
+        }:
+            raise HTTPException(status_code=403, detail=str(result.get("message") or "authorization required"))
         return result
     return result
+
+
+def _studio_auth_preview(data: dict) -> dict:
+    comment = data.get("patched_comment") if isinstance(data.get("patched_comment"), dict) else {}
+    try:
+        copies = int(data.get("copies") or data.get("batch_count") or 1)
+    except (TypeError, ValueError):
+        copies = 1
+    targets, recipe = build_studio_targets(
+        comment,
+        work_id=data.get("work_id") if str(data.get("work_id") or "").strip() else None,
+        page_index=int(data.get("page_index") or 0),
+        copies=copies,
+        source_gallery_id=str(data.get("source_gallery_id") or "site"),
+        seed_policy=str(data.get("seed_policy") or ""),
+        prompt_profile=str(data.get("prompt_profile") or "native"),
+    )
+    return compile_batch_authorization(
+        targets,
+        recipe,
+        force_free=bool(data.get("force_free", True)),
+        action=ACTION_STUDIO,
+        copies=copies,
+    )
+
+
+@router.post("/nai/authorize")
+async def api_nai_authorize(payload: NaiGenerateRequest) -> dict:
+    preview = _studio_auth_preview(payload.model_dump())
+    issued = issue_for_preview(preview)
+    return {
+        "ok": True,
+        "requires_ticket": bool(issued.get("requires_ticket")),
+        "free_eligible": bool(issued.get("free_eligible")),
+        "ticket": issued.get("ticket") or "",
+        "copies": issued.get("copies"),
+        "action": issued.get("action"),
+        "compiled": issued.get("compiled") or [],
+        "payload_hash": issued.get("payload_hash"),
+        "manifest_hash": issued.get("manifest_hash"),
+        "message": (
+            "需要确认后才能发送非免费请求"
+            if issued.get("requires_ticket")
+            else "免费标准路径，无需授权票据"
+        ),
+    }
 
 def _start_generated_maintenance_once() -> None:
     # This will be run inside server.py lifespan, so we just declare it or delegate it.

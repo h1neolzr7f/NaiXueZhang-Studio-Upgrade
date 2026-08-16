@@ -18,6 +18,7 @@ from char_swap_config import load_config as load_char_swap_config, save_config a
 from nai_prompt_profiles import PROMPT_PROFILE_CHOICES
 from ark_char_library import search_library, library_stats, reload_library
 from gallery_catalog import normalize_gallery_id, serialize_gallery_payload
+from nai_authorization import ACTION_CHAR_SWAP, compile_batch_authorization, issue_for_preview
 from nai_batch import (
     start_batch,
     batch_status,
@@ -140,18 +141,62 @@ def api_char_swap_batch_preview(payload: dict = Body(default_factory=dict)) -> d
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+@router.post("/batch/authorize")
+def api_char_swap_batch_authorize(payload: CharSwapBatchRunRequest) -> dict:
+    preview = compile_batch_authorization(
+        list(payload.targets or []),
+        dict(payload.recipe or {}),
+        force_free=bool(payload.force_free),
+        action=ACTION_CHAR_SWAP,
+    )
+    issued = issue_for_preview(preview)
+    return {
+        "ok": True,
+        "requires_ticket": bool(issued.get("requires_ticket")),
+        "free_eligible": bool(issued.get("free_eligible")),
+        "ticket": issued.get("ticket") or "",
+        "copies": issued.get("copies"),
+        "action": issued.get("action"),
+        "compiled": issued.get("compiled") or [],
+        "payload_hash": issued.get("payload_hash"),
+        "manifest_hash": issued.get("manifest_hash"),
+        "message": (
+            "需要确认后才能发送非免费请求"
+            if issued.get("requires_ticket")
+            else "免费标准路径，无需授权票据"
+        ),
+    }
+
+
 @router.post("/batch/run")
 async def api_char_swap_batch_run(payload: CharSwapBatchRunRequest) -> dict:
     try:
-        return start_batch(
+        result = start_batch(
             list(payload.targets or []),
             dict(payload.recipe or {}),
             force_free=bool(payload.force_free),
             generate=bool(payload.generate),
             preview_only=bool(payload.preview_only),
+            authorization_ticket=str(payload.authorization_ticket or ""),
+            authorization_action="char_swap_batch",
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not result.get("ok"):
+        error = str(result.get("error") or "")
+        if error in {
+            "authorization_required",
+            "ticket_invalid",
+            "ticket_expired",
+            "ticket_replay",
+            "ticket_hash_mismatch",
+        }:
+            raise HTTPException(status_code=403, detail=str(result.get("message") or "authorization required"))
+        if error == "missing_token":
+            raise HTTPException(status_code=400, detail=str(result.get("message") or "NovelAI token is not configured"))
+        if error == "persistence_failed":
+            raise HTTPException(status_code=503, detail=str(result.get("message") or "generation job could not be persisted"))
+    return result
 
 @router.get("/batch/status")
 def api_char_swap_batch_status(task_id: str = Query("")) -> dict:

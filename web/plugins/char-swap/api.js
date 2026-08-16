@@ -67,6 +67,7 @@ export function instructionFromAiJson(aiJson) {
 const ADHOC_BODY_ENDPOINTS = new Set([
   "/api/plugin/char-swap/transform",
   "/api/plugin/char-swap/batch/preview",
+  "/api/plugin/char-swap/batch/authorize",
   "/api/plugin/char-swap/batch/run",
 ]);
 

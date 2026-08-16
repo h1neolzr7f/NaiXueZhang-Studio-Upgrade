@@ -1,7 +1,7 @@
 // Deep Module for NAI Style Reference selection and style-tag interpretation.
 
 import { state, buildStyleBundleFallback } from "./state.js?v=f80b97d795";
-import { api, loadPluginConfig, invalidatePluginConfig } from "./api.js?v=01f205facd";
+import { api, loadPluginConfig, invalidatePluginConfig } from "./api.js?v=980573fcbd";
 
 export function presetStyle(preset) {
   if (!preset) return "";

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 from tests.asgi_client import TestClient
@@ -72,6 +73,8 @@ def test_batch_run_defaults_to_free_guarded_generation() -> None:
         force_free=True,
         generate=True,
         preview_only=False,
+        authorization_ticket="",
+        authorization_action="char_swap_batch",
     )
 
 
@@ -104,6 +107,8 @@ def test_batch_preview_only_is_explicit_and_never_changes_into_generation() -> N
         force_free=False,
         generate=True,
         preview_only=True,
+        authorization_ticket="",
+        authorization_action="char_swap_batch",
     )
 
 
@@ -122,6 +127,58 @@ def test_batch_status_wraps_the_stable_generation_job_shape() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"ok": True, "batch": job}
+
+
+def test_char_swap_ui_authorizes_before_paid_run() -> None:
+    remix = Path("frontend/src/pages/RemixPage.tsx").read_text(encoding="utf-8")
+    classic = Path("web/plugins/char-swap/batch.js").read_text(encoding="utf-8")
+    assert "/api/plugin/char-swap/batch/authorize" in remix
+    assert "/api/plugin/char-swap/batch/authorize" in classic
+    assert "authorization_ticket" in remix
+    assert "authorization_ticket" in classic
+
+
+def test_batch_authorize_issues_ticket_for_image_input() -> None:
+    request = {
+        "targets": [
+            {
+                "work_id": 1,
+                "patched_comment": {
+                    "prompt": "1girl",
+                    "action": "img2img",
+                    "image": "abc",
+                },
+            }
+        ],
+        "recipe": {"copies": 1},
+        "force_free": True,
+    }
+    response = client.post("/api/plugin/char-swap/batch/authorize", json=request)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["requires_ticket"] is True
+    assert body["ticket"]
+
+
+def test_batch_run_paid_without_ticket_is_403() -> None:
+    request = {
+        "targets": [
+            {
+                "work_id": 1,
+                "patched_comment": {
+                    "prompt": "1girl",
+                    "action": "img2img",
+                    "image": "abc",
+                },
+            }
+        ],
+        "recipe": {},
+        "force_free": True,
+        "generate": True,
+    }
+    response = client.post("/api/plugin/char-swap/batch/run", json=request)
+    assert response.status_code == 403
 
 
 def test_retry_never_replays_a_billing_uncertain_job() -> None:

@@ -366,9 +366,9 @@ export function StudioPage({ search }: { search: string }) {
     const seedPolicy = seed.trim() === "" || Number(seed) < 0 ? "random" : "increment";
     setBusy(true);
     setError("");
-    setStatus("正在提交冻结快照…");
+    setStatus("正在编译并确认费用…");
     try {
-      const result = await post<GenerateResult>("/api/nai/generate", {
+      const body = {
         patched_comment: comment,
         frozen_comment: true,
         work_id: workId || null,
@@ -380,6 +380,27 @@ export function StudioPage({ search }: { search: string }) {
         force_free: forceFree,
         prompt_profile: "native",
         seed_policy: seedPolicy,
+      };
+      const preview = await post<{
+        requires_ticket?: boolean;
+        ticket?: string;
+        message?: string;
+        free_eligible?: boolean;
+      }>("/api/nai/authorize", body);
+      if (preview.requires_ticket) {
+        const ok = window.confirm(
+          preview.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会拿到一次性授权并出图。",
+        );
+        if (!ok) {
+          setStatus("");
+          setError("已取消非免费出图");
+          return;
+        }
+      }
+      setStatus("正在提交冻结快照…");
+      const result = await post<GenerateResult>("/api/nai/generate", {
+        ...body,
+        authorization_ticket: preview.ticket || "",
       });
       if (!result.ok) {
         throw new Error(String(result.message || result.error || "生成失败"));

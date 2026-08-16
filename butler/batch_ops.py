@@ -411,12 +411,25 @@ def _start_batch_workflow(args: dict[str, Any], *, prepare_pixiv: bool) -> dict[
             }
         from char_swap_config import load_config as load_char_swap_config
 
+        from nai_authorization import ACTION_CHAR_SWAP, compile_batch_authorization, issue_for_preview
+
+        force_free = bool(load_char_swap_config().get("force_free", True))
+        issued = issue_for_preview(
+            compile_batch_authorization(
+                targets,
+                recipe,
+                force_free=force_free,
+                action=ACTION_CHAR_SWAP,
+            )
+        )
         result = start_batch(
             targets,
             recipe,
-            force_free=bool(load_char_swap_config().get("force_free", True)),
+            force_free=force_free,
             generate=True,
             preview_only=False,
+            authorization_ticket=str(issued.get("ticket") or ""),
+            authorization_action=ACTION_CHAR_SWAP,
         )
     except Exception as exc:
         api._set_workflow(
