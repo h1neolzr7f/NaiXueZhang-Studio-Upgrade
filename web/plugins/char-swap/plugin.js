@@ -12,7 +12,7 @@ import {
   loadPluginConfig, 
   $,
   flashMsg
-} from "./api.js?v=0411b73ad6";
+} from "./api.js?v=a73081883e";
 import { 
   buildPanel, 
   initDraft, 

@@ -1,5 +1,5 @@
 import { state, saveCurrentDraftToCache, loadDraftFromCache, clearDraftCacheForWork, BATCH_MAX_DEFAULT, normalizeWorkId, normalizeGalleryId } from "./state.js?v=f80b97d795";
-import { api, $, deepClone, setMsg, flashMsg, copyText, loadPluginConfig, esc, authorizeAndRunBatch } from "./api.js?v=0411b73ad6";
+import { api, $, deepClone, setMsg, flashMsg, copyText, loadPluginConfig, esc, authorizeAndRunBatch } from "./api.js?v=a73081883e";
 import { fillStylePresetSelects } from "./presets.js?v=f16dbe971d";
 import { buildRecipeFromForm, syncBatchTargetSlot } from "./batch_recipe.js?v=cde99cf67e";
 import { draftCommentForPage, getBatchMax } from "./draft_helpers.js?v=71bb7ead54";

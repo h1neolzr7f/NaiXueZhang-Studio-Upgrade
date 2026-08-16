@@ -1,5 +1,5 @@
 import { state, saveCurrentDraftToCache, loadDraftFromCache, clearDraftCacheForPage, clearDraftCacheForWork, buildStyleBundleFallback, extractCache, draftPageCache, draftCacheKey, saveSource, loadSource, clearSource, persistDraftCache } from "./state.js?v=f80b97d795";
-import { api, $, deepClone, setMsg, flashMsg, copyText, instructionFromAiJson, loadPluginConfig, esc } from "./api.js?v=0411b73ad6";
+import { api, $, deepClone, setMsg, flashMsg, copyText, instructionFromAiJson, loadPluginConfig, esc } from "./api.js?v=a73081883e";
 import { 
     showPresetModal, showMultiSlotPresetModal, showStylePresetModal, 
     upsertStylePreset, deleteStylePreset, saveStylePresetsViaConfig, 

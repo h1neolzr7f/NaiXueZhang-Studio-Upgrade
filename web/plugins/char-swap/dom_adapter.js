@@ -2,7 +2,7 @@
 // The rest of the feature receives stable operations instead of sharing modal
 // lifecycle and draft-preview DOM details.
 
-import { instructionFromAiJson } from "./api.js?v=0411b73ad6";
+import { instructionFromAiJson } from "./api.js?v=a73081883e";
 
 export function byId(id, root = document) {
   if (root === document) return document.getElementById(id);

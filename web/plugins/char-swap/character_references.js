@@ -1,7 +1,7 @@
 // Deep Module for selecting and creating NAI Character Reference Cards.
 // It normalizes all reference sources before a DOM Adapter renders them.
 
-import { api, invalidatePluginConfig } from "./api.js?v=0411b73ad6";
+import { api, invalidatePluginConfig } from "./api.js?v=a73081883e";
 
 export function characterReferenceLabel(reference) {
   const mine = reference && (reference.is_custom || reference.source === "custom") ? "我的 OC · " : "";
