@@ -61,8 +61,28 @@ Windows 比 Linux 多跑启动器/DPAPI，所以是 1269/14 而不是云端的 1
 | Studio 未确认 txt2img | `ticket=""`，免费标准路径 |
 | Studio 未确认 img2img | `requires_ticket=true`，`ticket=""` |
 | 换角未确认 | `ticket=""`；`confirmed=true` 才发票 |
-| 真实 Token | 只读看到 `dpapi:v1:`，未调用 NovelAI |
-| Live2D 资源 | `web/vendor/live2d-models/` 在树内；未做主观动画验收 |
+| 真实 Token | 用户授权后写入隔离目录 DPAPI（`dpapi:v1:`，无明文）。未写入 `E:\aitag-mirror` 或一键包 `data/` |
+| Live2D 资源 | `companions.json` / `tomori/casual` / `sakiko/causal` 的 `model.json` 在 8798 上均为 HTTP 200 |
+
+## 2026-08-16 晚间补测（不拷贝 13GB 旧库）
+
+对 `E:\aitag-mirror\data\aitag.db` **只读**打开，没有复制 5.4GB 库或 3.4 万张图。
+
+| 项 | 结果 |
+|---|---|
+| 库规模 | 5.287 GB db；34658 works；370591 work_images；33230 已下载且有 local_path |
+| 类型 | NAI 33863 / NAI_X 770 / SD 14 / ComfyUI 11 |
+| 抽查文件 | 40/40 `local_path` 在 `E:\aitag-mirror\data\images` 存在 |
+| 首页 60 条 | 6.3 ms |
+| FTS `1girl` | 3.5 ms，命中 60 |
+| COUNT 有路径图 | 1132.7 ms（5.4GB 库上最慢的一条只读查询） |
+| Token | 隔离 `.tmp/windows-rc-data/nai_token.local.json`，DPAPI，`pst-` 不在文件里 |
+| `/api/nai/tokens` | 8798 看到 1 个 novelai 槽，masked |
+| `/api/nai/authorize` | 免费标准路径：`free_eligible=true`，`ticket=""`，`nai-diffusion-4-5-full` 832×1216 / 23 steps |
+| HTTP `/api/nai/generate` | 入队成功，但卡在 `queue_position=3`。隔离 `generation_jobs.json` 里有 pytest 留下的 `terminal=false` 假任务堵队列 |
+| 直连 `generate_image` | `connect_failed`：本机到 `image.novelai.net` / `api.novelai.net` TLS 超时。`request_attempted=false`，**未扣 Anlas** |
+| 本机放大 | 抽 1 张已有 PNG 做 Lanczos 2x → `.tmp/upscale-probe/probe_up2x.png`（3.3 MB，708 ms）。GPU 206→290 MiB，这是 CPU 缩放，不是 DirectML |
+| 网络 | WinHTTP Direct access，无系统代理；NovelAI 三个 HTTPS 探测均超时 |
 
 ## Pending Task Matrix
 
@@ -75,11 +95,11 @@ Windows 比 Linux 多跑启动器/DPAPI，所以是 1269/14 而不是云端的 1
 | WIN-005 中文/长路径 | DONE | 启动器 fixture + 501 `安装's 图库` 续扫 |
 | WIN-006 junction/网盘 | NOT_APPLICABLE 本轮 | 无不可逆收益；未做 |
 | WIN-007 Defender | NEEDS_LOCAL_VERIFY | 本机源码启动无 SmartScreen；发行 zip 仍未签名 |
-| WIN-008 DirectML | NOT_APPLICABLE 本轮 | 未跑真实放大 |
-| WIN-009 Live2D | NEEDS_LOCAL_VERIFY | 资源在，主观手感未评 |
-| WIN-010 真 10k/100k | NEEDS_LOCAL_VERIFY | 真库 36 作品已索引；501 路径已测；不是 10k 真机 |
-| WIN-011 GPU/内存 | NEEDS_LOCAL_VERIFY | 未做长时间内存曲线 |
-| WIN-012 真实付费 NAI | BLOCKED | 需你确认；本轮只做 compile/ticket 边界 |
+| WIN-008 DirectML | 本轮只做 Lanczos | 抽 1 张本地 PNG 2x；未走 DirectML/ONNX |
+| WIN-009 Live2D | PARTIAL | 三份 model.json HTTP 200；主观手感仍未评 |
+| WIN-010 真 10k/100k | DONE 只读 | `E:\aitag-mirror` 34658 works / 33230 落盘图；未拷贝、未 migrate 原库 |
+| WIN-011 GPU/内存 | PARTIAL | 放大前后 nvidia-smi；不是长任务曲线 |
+| WIN-012 真实付费 NAI | 本机已接 Token，出图被网络挡住 | Token DPAPI 可用；authorize 绿；NovelAI TLS 超时，未扣费 |
 | WIN-013 Pixiv | NOT_APPLICABLE | 用户已延期 |
 | WIN-014 旧库升级 | DONE | 副本 `aitag.db` 打开并续扫到 `unindexed=0`；未删真实库 |
 | WIN-015 doctor/DPAPI | DONE | doctor 绿；Token 前缀 `dpapi:v1:`；plaintext 测试绿 |
@@ -110,16 +130,15 @@ Windows 比 Linux 多跑启动器/DPAPI，所以是 1269/14 而不是云端的 1
 ## 尚存 P0 / P1 / P2
 
 - **P0：** 无
-- **P1：** 无本机可修的残留。WIN-012 真实付费仍要你点头。
-- **P2：** 未打一键 zip；未签名；未做 10k 真机 bench；Live2D/GPU 主观项；Pixiv 延期；Capability 仍是决策原型。
+- **P1：** 本机访问 NovelAI 超时（`image.novelai.net` / `api.novelai.net`）。不是缺 Token。
+- **P2：** 未打 zip；未签名；Live2D 手感；Pixiv 延期。重启后残留 `queued` 死锁已修：未发出的排队任务恢复为 `cancelled`，不再挡住新单。
 
 ## 尚未验证
 
-- 真实 Anlas 扣费 1 张（WIN-012）
-- 真实 Pixiv 登录（WIN-013）
+- 等本机能连上 NovelAI 后再打 1 张（Token 已在隔离 DPAPI，未扣费）
+- 真实 Pixiv 登录（WIN-013，本轮未做）
 - `make_release.ps1` 全量 zip
 - 用户主观 UI/动画
-- 真实 10k/100k 磁盘库
 
 ## 最终 commit
 

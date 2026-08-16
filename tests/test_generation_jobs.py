@@ -149,6 +149,35 @@ class GenerationJobManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("可能已扣费", recovered["message"])
         self.assertEqual(successor.state["status"], "running")
 
+    def test_queued_jobs_are_cancelled_after_restart_and_do_not_block_new_jobs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            state_path = Path(temp) / "generation_jobs.json"
+            first_manager = GenerationJobManager(state_path=state_path)
+            active, started = first_manager.enqueue_job(
+                total=1, generate=True, preview_only=False
+            )
+            waiting, waiting_started = first_manager.enqueue_job(
+                total=1, generate=True, preview_only=False
+            )
+            self.assertTrue(started)
+            self.assertFalse(waiting_started)
+            self.assertEqual(first_manager.status(waiting.task_id)["status"], "queued")
+
+            restarted_manager = GenerationJobManager(state_path=state_path)
+            recovered_active = restarted_manager.status(active.task_id)
+            recovered_waiting = restarted_manager.status(waiting.task_id)
+            successor, successor_started = restarted_manager.enqueue_job(
+                total=1, generate=False, preview_only=True
+            )
+
+        self.assertEqual(recovered_active["status"], "unknown")
+        self.assertEqual(recovered_waiting["status"], "cancelled")
+        self.assertTrue(recovered_waiting["terminal"])
+        self.assertIn("未发出", recovered_waiting["message"])
+        self.assertTrue(successor_started)
+        self.assertEqual(successor.state["status"], "running")
+        self.assertEqual(restarted_manager.status(successor.task_id)["queue_position"], 0)
+
     def test_start_is_atomic_across_threads(self) -> None:
         manager = GenerationJobManager()
         ready = threading.Barrier(3)
