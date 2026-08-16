@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import base64
 import copy
+import io
 from pathlib import Path
 from typing import Any
+
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from nai_char import extract_chars, sanitize_payload
 from nai_prompt_optimizer import _prompt_snapshot, ai_status, optimize_nai_prompt
 from gallery_cache import cached
 from server_shared import DB, DATA_DIR
+
+SOURCE_IMAGE_MAX_BYTES = 12 * 1024 * 1024
 
 
 def _gallery_db(gallery_id: str = "site"):
@@ -98,6 +103,77 @@ def _import_from_work_uncached(
         "base_caption": data.get("base_caption") or "",
         "texts": _prompt_snapshot(comment),
     }
+
+
+def resolve_work_image_path(
+    work_id: int, page_index: int = 0, gallery_id: str = "site"
+) -> Path | None:
+    """Resolve a downloaded work image without leaving the gallery root."""
+
+    db = _gallery_db(gallery_id)
+    row = db.conn.execute(
+        """
+        SELECT local_path FROM work_images
+        WHERE work_id = ? AND page_index = ? AND downloaded = 1
+        """,
+        (int(work_id), int(page_index)),
+    ).fetchone()
+    if row is None:
+        return None
+    relative = str(row["local_path"] or "").strip()
+    if not relative:
+        return None
+    from gallery_catalog import get_spec
+    from gallery_index import resolve_index_image_path
+
+    spec = get_spec(gallery_id)
+    return resolve_index_image_path(
+        relative,
+        spec.images_dir,
+        extra_roots=(DATA_DIR, DATA_DIR / "images"),
+    )
+
+
+def encode_local_source_image(path: Path) -> dict[str, Any]:
+    raw = path.read_bytes()
+    if len(raw) > SOURCE_IMAGE_MAX_BYTES:
+        raise ValueError("source image too large")
+    try:
+        image = ImageOps.exif_transpose(Image.open(io.BytesIO(raw)))
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError("source image could not be decoded") from exc
+    if image.mode not in {"RGB", "RGBA"}:
+        image = image.convert("RGBA")
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    encoded = base64.b64encode(buf.getvalue()).decode("ascii")
+    return {
+        "ok": True,
+        "image": encoded,
+        "mime": "image/png",
+        "width": int(image.width),
+        "height": int(image.height),
+        "bytes": len(buf.getvalue()),
+    }
+
+
+def source_image_for_work(
+    work_id: int, page_index: int = 0, gallery_id: str = "site"
+) -> dict[str, Any]:
+    path = resolve_work_image_path(work_id, page_index, gallery_id)
+    if path is None:
+        raise ValueError("local source image is missing")
+    payload = encode_local_source_image(path)
+    payload.update(
+        {
+            "work_id": int(work_id),
+            "page_index": int(page_index),
+            "gallery_id": str(gallery_id or "site"),
+            "thumb": _work_thumb(int(work_id), str(gallery_id or "site")),
+            "title": _work_title(int(work_id), str(gallery_id or "site")),
+        }
+    )
+    return payload
 
 
 def import_from_work(

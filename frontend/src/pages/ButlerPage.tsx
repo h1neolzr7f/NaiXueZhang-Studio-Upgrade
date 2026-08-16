@@ -46,6 +46,13 @@ type CompareCandidate = {
   title?: string;
   thumb?: string;
 };
+type CompanionMemory = { id?: string; text?: string; status?: string; agent?: string };
+type CompanionState = {
+  quiet?: { enabled?: boolean; start?: string; end?: string; max_events_per_hour?: number };
+  memories?: CompanionMemory[];
+  handoff?: { from_agent?: string; to_agent?: string; note?: string; consumed?: boolean } | null;
+  tts?: { enabled?: boolean; core?: boolean };
+};
 
 export function ButlerPage() {
   const [status, setStatus] = useState<ButlerStatus | null>(null);
@@ -61,6 +68,9 @@ export function ButlerPage() {
   const [compareWork, setCompareWork] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [companion, setCompanion] = useState<CompanionState | null>(null);
+  const [memoryDraft, setMemoryDraft] = useState("");
+  const [quietOn, setQuietOn] = useState(false);
 
   function refreshStatus() {
     get<ButlerStatus>("/api/butler/status").then(setStatus).catch((err: Error) => setError(err.message));
@@ -69,8 +79,18 @@ export function ButlerPage() {
       .catch(() => undefined);
   }
 
+  function refreshCompanion() {
+    get<CompanionState>("/api/companion/state")
+      .then((payload) => {
+        setCompanion(payload);
+        setQuietOn(Boolean(payload.quiet?.enabled));
+      })
+      .catch(() => undefined);
+  }
+
   useEffect(() => {
     refreshStatus();
+    refreshCompanion();
     get<{ messages?: ChatMessage[] }>("/api/butler/history")
       .then((payload) => setMessages(payload.messages || []))
       .catch(() => undefined);
@@ -217,7 +237,84 @@ export function ButlerPage() {
           <li>出图 Token：{status?.generation?.configured ? "已配置" : "未配置"}</li>
           <li>待确认：{status?.pending_count ?? pending.length}</li>
           <li>后台：{status?.workflow?.status || "idle"} {status?.workflow?.message || ""}</li>
+          <li>TTS：未纳入核心木桶（{companion?.tts?.enabled ? "开" : "关"}）</li>
         </ul>
+        <div className="ws-compare">
+          <strong>已确认偏好 / 防打扰 / 人格交接</strong>
+          <p className="ws-status">记忆必须你确认后才会跨会话复述。没有窥屏、键鼠钩子或 God Agent。</p>
+          <label className="ws-check">
+            <input
+              type="checkbox"
+              checked={quietOn}
+              onChange={(event) => {
+                const enabled = event.target.checked;
+                setQuietOn(enabled);
+                void post("/api/companion/quiet", { enabled }).then(() => refreshCompanion());
+              }}
+            />
+            静默时段 {companion?.quiet?.start || "22:00"}–{companion?.quiet?.end || "08:00"}
+          </label>
+          <div className="ws-inline">
+            <input
+              value={memoryDraft}
+              onChange={(event) => setMemoryDraft(event.target.value)}
+              placeholder="一条待确认偏好，例如：竖图优先"
+            />
+            <button
+              className="ws-btn ghost"
+              type="button"
+              onClick={() => {
+                if (!memoryDraft.trim()) return;
+                void post("/api/companion/memory/propose", { text: memoryDraft.trim(), source: "user" }).then(() => {
+                  setMemoryDraft("");
+                  refreshCompanion();
+                });
+              }}
+            >
+              提议记住
+            </button>
+          </div>
+          {(companion?.memories || []).slice(0, 8).map((item) => (
+            <div className="ws-compare-item" key={item.id || item.text}>
+              <span>
+                {item.status === "confirmed" ? "已确认" : item.status === "forgotten" ? "已忘" : "待确认"} · {item.text}
+              </span>
+              {item.status === "proposed" ? (
+                <button
+                  className="ws-btn ghost"
+                  type="button"
+                  onClick={() => void post("/api/companion/memory/confirm", { id: item.id, confirm: true }).then(refreshCompanion)}
+                >
+                  确认
+                </button>
+              ) : item.status === "confirmed" ? (
+                <button
+                  className="ws-btn ghost"
+                  type="button"
+                  onClick={() => void post("/api/companion/memory/forget", { id: item.id }).then(refreshCompanion)}
+                >
+                  忘记
+                </button>
+              ) : null}
+            </div>
+          ))}
+          <div className="ws-actions">
+            <button
+              className="ws-btn ghost"
+              type="button"
+              onClick={() => void post("/api/companion/handoff", { from_agent: "sakiko", to_agent: "tomori", note: "维护这边先交给出图。" }).then(refreshCompanion)}
+            >
+              小祥 → 凑企鹅
+            </button>
+            <button
+              className="ws-btn ghost"
+              type="button"
+              onClick={() => void post("/api/companion/handoff", { from_agent: "tomori", to_agent: "sakiko", note: "出图这边先交给维护。" }).then(refreshCompanion)}
+            >
+              凑企鹅 → 小祥
+            </button>
+          </div>
+        </div>
         <div className="ws-compare">
           <strong>固定对比（2–4 张，明确比较才会识图）</strong>
           <div className="ws-inline">

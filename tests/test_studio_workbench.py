@@ -25,6 +25,8 @@ class StudioWorkbenchTests(unittest.TestCase):
         html = (ROOT / "web" / "studio.html").read_text(encoding="utf-8")
         self.assertIn("studio-shell-3", html)
         self.assertIn("studioGenerate", html)
+        self.assertIn("studioAction", html)
+        self.assertIn("studioMaskCanvas", html)
         self.assertIn("studioQueueList", html)
         self.assertIn("studioSizePresets", html)
         self.assertIn("Ctrl+Enter", html)
@@ -35,6 +37,7 @@ class StudioWorkbenchTests(unittest.TestCase):
         self.assertIn("HISTORY_KEY", js)
         self.assertIn("studioBatchCount", js)
         self.assertIn("/api/studio/queue", js)
+        self.assertIn("/api/studio/source-image", js)
         self.assertIn("Ctrl+Enter", js) or self.assertIn("ctrlKey", js)
 
     def test_queue_and_config_routes(self) -> None:

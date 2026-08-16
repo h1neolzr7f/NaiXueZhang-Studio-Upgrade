@@ -56,6 +56,15 @@ def _execute_auto(action: dict[str, Any]) -> dict[str, Any]:
     foreign = reject_foreign_tool(tool)
     if foreign:
         raise ValueError(foreign)
+    if tool in {"compile_nai_preview", "gallery_index_preview"}:
+        from butler.agents import current_agent
+        from butler.tool_loop_bridge import execute_chat_action
+
+        handled = execute_chat_action(action, agent_id=current_agent() or "shared")
+        if handled and handled.get("status") == "succeeded":
+            data = handled.get("data") if isinstance(handled.get("data"), dict) else {}
+            return {"ok": True, "tool": tool, "kernel": True, **data}
+        raise ValueError(str((handled or {}).get("error") or handled or "kernel preview failed"))
     if tool == "search_gallery":
         gallery_id = api._gallery_id(args.get("gallery_id"))
         # ``DB`` remains the canonical site-gallery singleton; only the new

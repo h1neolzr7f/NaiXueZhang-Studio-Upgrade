@@ -9,6 +9,7 @@ from studio_service import (
     optimize_comment,
     preview_work_prompt,
     sanitize_comment,
+    source_image_for_work,
     studio_config,
 )
 from user_prefs import load_prefs
@@ -37,6 +38,20 @@ def api_studio_preview(
 ) -> dict:
     try:
         return preview_work_prompt(work_id, page_index)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/source-image")
+def api_studio_source_image(
+    work_id: int = Query(..., ge=1),
+    page_index: int = Query(0, ge=0),
+    gallery_id: str = Query("site"),
+) -> dict:
+    try:
+        return source_image_for_work(work_id, page_index, gallery_id=gallery_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

@@ -135,7 +135,16 @@ def request_plan(
         }
     last_error: Exception | None = None
     system_prompt = api._scoped_planner_prompt(clean_message)
+    from butler.companion_state import planner_memory_context
     from butler.agents import filter_plan_for_agent
+
+    remembered = planner_memory_context(5)
+    if remembered:
+        payload["confirmed_preferences"] = remembered
+        system_prompt = (
+            f"{system_prompt}\n已确认偏好（已过滤 Token、Cookie、密码和路径等敏感信息，"
+            f"不得复述原文）：{'；'.join(remembered)}"
+        )
 
     for attempt in range(2):
         try:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -33,6 +34,8 @@ class CrawlerControlTests(unittest.TestCase):
         )
 
     def test_process_ownership_is_case_insensitive_on_windows(self) -> None:
+        if os.name != "nt":
+            self.skipTest("Windows path ownership is case-insensitive")
         target = crawler_control.SUPERVISOR_SCRIPT
         self.assertTrue(
             crawler_control._cmdline_owned_by(

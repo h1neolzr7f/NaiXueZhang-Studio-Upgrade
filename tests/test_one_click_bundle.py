@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -155,6 +158,7 @@ def test_all_beginner_entrypoints_share_runtime_then_venv_then_global_selection(
     assert '"scripts\\select_python_runtime.bat"' in release
 
 
+@pytest.mark.skipif(os.name != "nt", reason="select_python_runtime.bat requires cmd.exe")
 def test_runtime_selector_observably_prefers_runtime_then_venv() -> None:
     with tempfile.TemporaryDirectory() as temp:
         package = Path(temp) / "便携 gallery package"

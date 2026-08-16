@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -21,6 +22,7 @@ ZIP_SCRIPT = PROJECT_ROOT / "scripts" / "zip_release.py"
 VERIFY_SCRIPT = PROJECT_ROOT / "scripts" / "verify_release_stage.py"
 
 
+@unittest.skipUnless(os.name == "nt", "make_release.ps1 packaging contract is Windows-only")
 class ReleaseScriptSafetyTests(unittest.TestCase):
     def setUp(self):
         self._temp_dir = tempfile.TemporaryDirectory()

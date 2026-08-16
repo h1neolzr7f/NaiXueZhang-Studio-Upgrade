@@ -34,6 +34,7 @@
         ["怎么用", "我是新手，请按步骤教我怎么开始用这个软件"],
         ["检查图库", "帮我检查图库状态，并告诉我最需要先处理的三件事"],
         ["采集状态", "查看当前采集是否在跑，有没有缺图或耗尽封面"],
+        ["交接给凑企鹅", "__handoff__"],
       ],
     },
     tomori: {
@@ -49,6 +50,7 @@
         ["找素材", "找最近一个月收藏最多的 6 个适合继续生成的作品，先给候选不要生图"],
         ["准备出图", "从待生成队列里挑任务，先给参数建议，不要立刻调用 NAI"],
         ["整理投稿", "把最新的生成结果整理成 Pixiv 投稿草稿，不要上传"],
+        ["交接给小祥", "__handoff__"],
       ],
     },
   };
@@ -316,12 +318,49 @@
       setMood(agentId, data.workflow_id ? "任务已收下，完整进度在对话工作台" : "说完啦");
       const input = $(`.companion-dock[data-agent="${agentId}"] textarea`);
       if (input) input.value = "";
+      maybeRemember(agentId, text);
     } catch (error) {
       setLog(agentId, String(error.message || error));
       setMood(agentId, "这次没接住，完整对话里可以接着查");
     } finally {
       state.busy[agentId] = false;
     }
+  }
+
+  async function maybeRemember(agentId, text) {
+    const raw = String(text || "");
+    if (!/记住|偏好|以后都|下次/.test(raw) || !api()) return;
+    try {
+      await api().post("/api/companion/memory/propose", { text: raw.slice(0, 400), agent: agentId, source: "user" }, { timeoutMs: 15000 });
+      setMood(agentId, "这条偏好先记成待确认，完整对话里点确认后才会跨会话复述。");
+    } catch (_) { /* ignore */ }
+  }
+
+  async function requestHandoff(agentId) {
+    if (!api()) return;
+    const other = agentId === "tomori" ? "sakiko" : "tomori";
+    const input = $(`.companion-dock[data-agent="${agentId}"] textarea`);
+    const note = String((input && input.value) || "").trim() || "请接着这边的上下文。";
+    try {
+      await api().post("/api/companion/handoff", { from_agent: agentId, to_agent: other, note }, { timeoutMs: 15000 });
+      setMood(agentId, other === "tomori" ? "已经交给凑企鹅。" : "已经交给小祥。");
+      pin(other);
+      expand(other);
+    } catch (error) {
+      setMood(agentId, String(error.message || error));
+    }
+  }
+
+  async function pollCompanionEvents() {
+    if (!api() || typeof api().get !== "function") return;
+    try {
+      const data = await api().get("/api/companion/events", { timeoutMs: 15000 });
+      if (!data || !data.delivery || !data.delivery.ok || !data.event) return;
+      const event = data.event;
+      const agentId = event.agent === "tomori" ? "tomori" : "sakiko";
+      setMood(agentId, event.title || event.body || "");
+      await api().get("/api/companion/events?deliver=1", { timeoutMs: 15000 });
+    } catch (_) { /* anti-disturbance: stay silent */ }
   }
 
   function renderDock(spec) {
@@ -369,6 +408,10 @@
       button.type = "button";
       button.textContent = label;
       button.addEventListener("click", () => {
+        if (command === "__handoff__") {
+          requestHandoff(spec.id);
+          return;
+        }
         const input = $("textarea", dock);
         if (input) {
           input.value = command;
@@ -428,6 +471,8 @@
           state.catalog = Object.assign({}, FALLBACK_CATALOG, payload);
         }
       } catch (_) { /* keep letter fallback */ }
+      pollCompanionEvents();
+      window.setInterval(pollCompanionEvents, 120000);
     }
     loadScript(TOUCH_SRC).then(() => {
       bindTouch("sakiko");

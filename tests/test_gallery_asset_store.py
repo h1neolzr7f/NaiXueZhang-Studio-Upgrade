@@ -37,7 +37,9 @@ def test_gallery_asset_store_reports_and_enforces_storage_quota(tmp_path: Path) 
     assert status["asset_bytes"] == 12
     assert status["quota_remaining_bytes"] == 8
     assert status["quota_exceeded"] is False
-    assert status["disk_total_bytes"] == status["disk_used_bytes"] + status["disk_free_bytes"]
+    # ext4 and similar filesystems reserve blocks, so used+free can be less than total.
+    assert status["disk_used_bytes"] + status["disk_free_bytes"] <= status["disk_total_bytes"]
+    assert status["disk_total_bytes"] > 0
     assert store.has_capacity(8, quota_bytes=20) is True
     assert store.has_capacity(9, quota_bytes=20) is False
 

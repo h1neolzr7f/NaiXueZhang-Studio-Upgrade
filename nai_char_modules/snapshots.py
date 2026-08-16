@@ -95,12 +95,22 @@ def comment_from_png(path: Path | str) -> dict[str, Any] | None:
 
         with Image.open(png_path) as image:
             raw = (image.text or {}).get("Comment")
-        if not raw:
-            return None
-        comment = parse_comment(raw)
-        return comment if comment else None
+        comment = parse_comment(raw) if raw else {}
+        if comment:
+            return comment
     except Exception as exc:
         _logger.warning("PNG 内嵌 Comment 解析失败（%s）: %s", png_path, exc)
+        return None
+    try:
+        from nai_image_metadata import parse_nai_image
+
+        parsed = parse_nai_image(png_path)
+        if not parsed.accepted:
+            return None
+        restored = (parsed.canonical_metadata() or {}).get("Comment")
+        return restored if isinstance(restored, dict) and restored else None
+    except Exception as exc:
+        _logger.warning("PNG stealth/NAI Comment 回退失败（%s）: %s", png_path, exc)
         return None
 
 

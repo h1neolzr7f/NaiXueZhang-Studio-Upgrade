@@ -614,3 +614,34 @@ input[type="range"] {
 .studio-gen-progress { background: var(--bg3) !important; }
 .studio-preview-src, .studio-source-thumb { background: var(--bg1) !important; }
 .studio-muted { color: var(--muted) !important; }
+
+.studio-canvas-panel {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(76, 159, 255, 0.14);
+}
+.studio-canvas-panel.hidden { display: none !important; }
+.studio-canvas-wrap {
+  position: relative;
+  max-width: 100%;
+}
+.studio-canvas-image,
+.studio-canvas-mask {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+.studio-canvas-mask {
+  position: absolute;
+  inset: 0;
+  opacity: 0.45;
+  pointer-events: none;
+}
+.studio-canvas-mask.active {
+  pointer-events: auto;
+  cursor: crosshair;
+}

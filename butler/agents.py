@@ -48,6 +48,7 @@ SAKIKO_TOOLS = frozenset(
         "set_auto_mode",
         "auto_repair",
         "rebuild_knowledge_catalog",
+        "gallery_index_preview",
     }
 )
 
@@ -75,6 +76,8 @@ TOMORI_TOOLS = frozenset(
         "clear_queue",
         "list_generated",
         "compare_gallery_candidates",
+        "compile_nai_preview",
+        "gallery_index_preview",
     }
 )
 

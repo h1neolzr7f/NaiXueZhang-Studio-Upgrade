@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import sys
 import unittest
@@ -783,6 +784,7 @@ class ArchitectureUpgradeTests(unittest.TestCase):
         self.assertTrue(status["ok"])
         self.assertNotIn(detector_mod, sys.modules)
 
+    @unittest.skipUnless(os.name == "nt", "token file writes require Windows DPAPI")
     def test_nai_recaptcha_failure_removes_bad_token_and_falls_back(self) -> None:
         import nai_api
 
@@ -889,6 +891,7 @@ class ArchitectureUpgradeTests(unittest.TestCase):
         self.assertTrue(nai["id"].startswith("nai_"))
         self.assertTrue(xy["id"].startswith("xianyun_"))
 
+    @unittest.skipUnless(os.name == "nt", "token file writes require Windows DPAPI")
     def test_save_token_keeps_mixed_nai_and_xianyun_slots(self) -> None:
         import nai_api
 
@@ -919,6 +922,7 @@ class ArchitectureUpgradeTests(unittest.TestCase):
                 nai_api._TOKEN_ENTRIES_CACHE = old_cache
                 nai_api._TOKEN_ENTRIES_CACHE_AT = old_cache_at
 
+    @unittest.skipUnless(os.name == "nt", "token file writes require Windows DPAPI")
     def test_add_token_entry_probes_unknown_provider_before_rejecting(self) -> None:
         import nai_api
 
