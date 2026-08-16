@@ -1,19 +1,20 @@
 # Autonomous test evidence
 
-Updated: 2026-08-16  
+Updated: 2026-08-16 (review-closure loop)  
 Branch: `cursor/autonomous-next-architecture-96fe`  
 Commit at evidence write: see `git rev-parse HEAD`  
-Cloud: Linux only. Not a Windows 10k/100k claim.
+Cloud: Linux only. Not a Windows 10k/100k claim.  
+Peer review of `7e963da` correctly rejected the first Cloud RC claim.
 
 ## Gate results
 
 | Check | Pass 1 | Pass 2 |
 |---|---|---|
-| `pytest -q --ignore=tests/test_pixiv_selector_probe.py` | 1202 passed, 68 skipped, 127 subtests | 1202 passed, 68 skipped, 127 subtests |
+| `pytest -q --ignore=tests/test_pixiv_selector_probe.py` | 1211 passed, 68 skipped, 127 subtests | 1211 passed, 68 skipped, 127 subtests |
 | `scripts/product_quality_gate.py --json` | p0=p1=p2=0 | p0=p1=p2=0 |
 | `scripts/scan_sensitive.py --git-candidates --content-only` | clean | clean |
-| `python3 -m compileall -q -x "runtime\|\.venv|node_modules|data" .` | exit 0 | exit 0 |
-| `npm --prefix frontend run build` + `scripts/asset_versions.py` | done | stamps refreshed after char-swap extract |
+| `python3 -m compileall -q .` | exit 0 | — |
+| `npm --prefix frontend run build` + `scripts/asset_versions.py` | done after two-step authorize UI | stamps refreshed |
 
 Ignored: `tests/test_pixiv_selector_probe.py` (Windows/browser). No tests deleted. `db.py` still ≤1000 lines.
 
@@ -52,6 +53,22 @@ Real defects found after the first implementation, then locked:
 
 Second BREAK produced no new architecture-level hole. The 1001 continuation test is not used as a mutation target: disabling the cursor makes that loop non-terminating; the 501 first-page test is the bounded detector.
 
+### Wave 3 — peer-review P0/P1 (this loop)
+
+| Review hole | Locked test |
+|---|---|
+| SMEA `free_eligible=True` / hash unchanged | `test_smea_requires_ticket_and_changes_hashes`, `test_smea_is_not_free_eligible` |
+| HTTP ticket before confirm | `test_http_authorize_issues_ticket_only_after_confirm`, `test_authorize_http_requires_confirmed_to_issue_ticket`, `test_batch_authorize_issues_ticket_only_after_confirm` |
+| Retry after rewriting targets+fingerprints | `test_retry_rejects_recomputed_expensive_fingerprints` |
+| Cursor pre-insert stays unindexed | `test_pre_cursor_insert_is_backfilled_when_scan_finishes` |
+| File ok / DB fail orphan | `test_db_failure_after_file_write_does_not_leave_orphan` |
+| Empty / colliding remote identity | `test_rejects_opaque_id_without_provider_or_source` |
+| Favorites die on restart; Transform was preview_only | `test_search_favorite_materialize_lineage_and_local_survives_outage` |
+| Current schema rollback | `test_current_schema_v2_snapshot_rollback_rehearsal` |
+| Capability presented as execution | `test_capability_is_decision_prototype_not_execution` |
+
+Wave 3 mutation BREAK: 9/9 RED (paid gate, skip consume, bands=1, ignore `after`, delegation replay, drop SMEA, ticket before confirm, skip seal, skip backfill). Restore GREEN.
+
 ## Layer coverage
 
 ### Layer A — contract
@@ -72,7 +89,7 @@ Second BREAK produced no new architecture-level hole. The 1001 continuation test
 
 ### Layer C — synthetic E2E
 
-- Online search → favorite (reference) → add to My Library → lineage → cache evict keeps row → provider outage keeps local library: `tests/test_online_library_e2e.py`
+- Online search → favorite (disk) → add to My Library → free-safe local derive → lineage → restart keeps favorites → provider outage keeps local library: `tests/test_online_library_e2e.py`
 - 20× ticket issue/consume soak: `tests/test_synthetic_scale_and_soak.py`
 - 10k metadata continuation completeness: same file
 - 100k keyset scan &lt; 2s (Linux metadata only): same file

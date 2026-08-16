@@ -16,8 +16,8 @@ Do not treat Linux 10k/100k synthetic numbers as Windows results.
 
 - Why cloud cannot verify: no real Anlas / token
 - Where: `/studio` 经典工作台与 `/app` 工作区 Studio
-- Steps: 选一张带底图的 img2img → 点生成 → 应先出现确认 → 取消则不出图 → 确认后才入队
-- Expected: 取消无 HTTP 出图；确认后 job 可见；无 token 时是缺 token，不是静默成功
+- Steps: 选一张带底图的 img2img → 点生成 → 应先出现确认（此时还没有可用 ticket）→ 取消则不出图 → 确认后才签发 ticket 并入队
+- Expected: 未确认的 `/api/nai/authorize` 响应里 `ticket` 为空；确认后才有 ticket；无 token 时是缺 token，不是静默成功
 - Failure: 不确认就出图，或确认后 403
 
 ## WIN-018 换角批量授权

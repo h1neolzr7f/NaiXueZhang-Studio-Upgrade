@@ -6,12 +6,15 @@
 >
 > 仓库：`h1neolzr7f/NaiXueZhang-Studio-Upgrade`  
 > 审查分支：`cursor/autonomous-next-architecture-96fe`  
-> 证据提交：`d2ddfc1a15b626241c3f4991d01a5ee49914bb10`（以 `git rev-parse HEAD` 为准）  
+> 被打穿的证据提交：`7e963dac086c3176c87da5cdb793a259b636a606`（审查判定不同意 Cloud RC）  
+> 本轮修复后请重新审查当前 `HEAD`（以 `git rev-parse HEAD` 为准）  
 > 计划基线：`cursor/cloud-top-tier-integration-f036` @ `0e6564bc39c20a48df9dac7845ccac57a2156cd8`  
 > Draft PR：https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/12  
 > 基线 PR（f036，不要当成本轮实现）：https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/3
 >
 > **禁止合 `main`。禁止发 Release。禁止真实付费 NAI / 真实 Pixiv 登录。**
+>
+> 实现轮已接受 `7e963da` 的审查结论，并修复了其中的 P0/P1。不要把旧 Cloud RC 声称当作仍然有效。
 
 ---
 
