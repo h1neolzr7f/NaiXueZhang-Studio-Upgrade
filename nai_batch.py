@@ -676,6 +676,10 @@ def start_batch(
             "payload_hash": str(frozen.get("payload_hash") or ""),
             "manifest_hash": str(frozen.get("manifest_hash") or ""),
             "target_fingerprints": list(frozen.get("target_fingerprints") or []),
+            "authorization_seal": str(frozen.get("authorization_seal") or ""),
+            "action": str(frozen.get("authorization_action") or action),
+            "copies": frozen.get("copies"),
+            "force_free": frozen.get("force_free"),
         }
     try:
         auth = authorize_start_batch(
@@ -727,7 +731,9 @@ def start_batch(
                 "paid_authorized": bool(auth.get("paid_authorized")),
                 "payload_hash": auth.get("payload_hash"),
                 "manifest_hash": auth.get("manifest_hash"),
-                "target_fingerprints": target_fingerprints(normalized),
+                "target_fingerprints": list(auth.get("target_fingerprints") or target_fingerprints(normalized)),
+                "authorization_seal": auth.get("authorization_seal"),
+                "copies": auth.get("copies"),
                 "authorization_action": action,
             },
             required_persistence=bool(generate and not preview_only),

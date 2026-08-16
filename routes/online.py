@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
-from capability.gateway import CapabilityGateway
+from capability.gateway import EXECUTION_WIRED, CapabilityGateway
 from capability.orchestrator import Orchestrator
-from online_library import add_to_my_library, favorite_remote, list_favorites, search_online
+from online_library import (
+    add_to_my_library,
+    derive_local_transform,
+    favorite_remote,
+    list_favorites,
+    search_online,
+)
 
 router = APIRouter(prefix="/api")
 _GATEWAY = CapabilityGateway()
@@ -46,6 +52,20 @@ def api_online_add_to_library(payload: dict = Body(default_factory=dict)) -> dic
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@router.post("/online/derive")
+def api_online_derive(payload: dict = Body(default_factory=dict)) -> dict:
+    remote_id = str(payload.get("remote_id") or "").strip()
+    gallery_id = str(payload.get("gallery_id") or "codex").strip() or "codex"
+    if not remote_id:
+        raise HTTPException(status_code=400, detail="remote_id is required")
+    try:
+        return derive_local_transform(remote_id, gallery_id=gallery_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="remote asset not found") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.post("/capability/decide")
 def api_capability_decide(payload: dict = Body(default_factory=dict)) -> dict:
     decision = _GATEWAY.decide(
@@ -66,6 +86,8 @@ def api_capability_decide(payload: dict = Body(default_factory=dict)) -> dict:
         "capability_id": decision.capability_id,
         "persona_id": decision.persona_id,
         "workflow_request": decision.workflow_request,
+        "execution_wired": EXECUTION_WIRED,
+        "prototype": True,
     }
 
 

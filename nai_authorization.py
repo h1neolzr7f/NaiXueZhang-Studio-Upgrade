@@ -24,6 +24,11 @@ TICKET_VERSION = 1
 ACTION_STUDIO = "studio_generate"
 ACTION_CHAR_SWAP = "char_swap_batch"
 ACTION_BUTLER = "butler_generate"
+MAX_TICKET_COPIES = {
+    ACTION_STUDIO: 8,
+    ACTION_BUTLER: 8,
+    ACTION_CHAR_SWAP: 250,
+}
 
 _SECRET = secrets.token_bytes(32)
 _CONSUMED: dict[str, float] = {}
@@ -67,6 +72,10 @@ def cost_relevant_view(compiled: dict[str, Any], *, copies: int, action: str) ->
         "width": int(compiled.get("width") or 0),
         "height": int(compiled.get("height") or 0),
         "steps": int(compiled.get("steps") or 0),
+        "sm": bool(parameters.get("sm")),
+        "sm_dyn": bool(parameters.get("sm_dyn")),
+        "autoSmea": bool(parameters.get("autoSmea")),
+        "smea": bool(parameters.get("smea")),
         "has_image": bool(parameters.get("image") or compiled.get("action") in {"img2img", "infill"}),
         "has_mask": bool(parameters.get("mask")),
         "has_reference": bool(parameters.get("reference_image_multiple")),
@@ -80,6 +89,10 @@ def comment_manifest_view(comment: dict[str, Any] | None) -> dict[str, Any]:
         "width": source.get("width"),
         "height": source.get("height"),
         "steps": source.get("steps"),
+        "sm": bool(source.get("sm")),
+        "sm_dyn": bool(source.get("sm_dyn")),
+        "autoSmea": bool(source.get("autoSmea")),
+        "smea": bool(source.get("smea")),
         "action": source.get("action") or source.get("request_type"),
         "model": source.get("model"),
         "Source": source.get("Source"),
@@ -228,6 +241,44 @@ def _decode(ticket: str) -> dict[str, Any]:
     return payload
 
 
+def max_ticket_copies(action: str) -> int:
+    return int(MAX_TICKET_COPIES.get(str(action or ""), 8))
+
+
+def authorization_seal(
+    preview: dict[str, Any],
+    fingerprints: list[str] | None = None,
+) -> str:
+    body = {
+        "action": preview.get("action"),
+        "copies": int(preview.get("copies") or 0),
+        "force_free": bool(preview.get("force_free", True)),
+        "payload_hash": preview.get("payload_hash"),
+        "manifest_hash": preview.get("manifest_hash"),
+        "target_fingerprints": list(fingerprints if fingerprints is not None else preview.get("target_fingerprints") or []),
+    }
+    return hmac.new(_SECRET, _canonical(body), hashlib.sha256).hexdigest()
+
+
+def verify_authorization_seal(stored: dict[str, Any]) -> None:
+    expected = authorization_seal(
+        {
+            "action": stored.get("action") or stored.get("authorization_action"),
+            "copies": stored.get("copies"),
+            "force_free": stored.get("force_free", True),
+            "payload_hash": stored.get("payload_hash"),
+            "manifest_hash": stored.get("manifest_hash"),
+        },
+        list(stored.get("target_fingerprints") or []),
+    )
+    got = str(stored.get("authorization_seal") or "")
+    if not got or not hmac.compare_digest(expected, got):
+        raise AuthorizationError(
+            "retry authorization seal mismatch",
+            error_code="ticket_hash_mismatch",
+        )
+
+
 def issue_ticket(preview: dict[str, Any], *, ttl_seconds: int = TICKET_TTL_SECONDS) -> str:
     nonce = secrets.token_urlsafe(16)
     payload = {
@@ -297,6 +348,9 @@ def authorize_start_batch(
         force_free=force_free,
         action=action,
     )
+    fingerprints = target_fingerprints(targets)
+    preview["target_fingerprints"] = fingerprints
+    preview["authorization_seal"] = authorization_seal(preview, fingerprints)
     if not generate or preview_only:
         preview["authorized"] = True
         preview["paid_authorized"] = False
@@ -306,8 +360,9 @@ def authorize_start_batch(
         preview["paid_authorized"] = False
         return preview
     if paid_authorized and retry_of and stored_hashes:
+        verify_authorization_seal(stored_hashes)
         frozen_fps = {str(item) for item in (stored_hashes.get("target_fingerprints") or []) if item}
-        current_fps = set(target_fingerprints(targets))
+        current_fps = set(fingerprints)
         if frozen_fps and current_fps and current_fps.issubset(frozen_fps):
             preview["authorized"] = True
             preview["paid_authorized"] = True
@@ -332,8 +387,36 @@ def authorize_start_batch(
 
 
 def issue_for_preview(preview: dict[str, Any]) -> dict[str, Any]:
+    """Internal issue after a confirmed Butler/workflow action."""
+
     issued = dict(preview)
     if issued.get("requires_ticket"):
+        issued["ticket"] = issue_ticket(issued)
+    else:
+        issued["ticket"] = ""
+    return issued
+
+
+def issue_http_preview(preview: dict[str, Any], *, confirmed: bool = False) -> dict[str, Any]:
+    """HTTP authorize: tickets are issued only after an explicit confirmation.
+
+    This is a local trust model. The ticket is an HMAC bound to the frozen
+    cost view; it is not a remote billing receipt. Copies are capped per action.
+    """
+
+    issued = dict(preview)
+    cap = max_ticket_copies(str(issued.get("action") or ""))
+    copies = int(issued.get("copies") or 1)
+    issued["local_trust"] = True
+    issued["max_copies"] = cap
+    issued["needs_confirmation"] = bool(issued.get("requires_ticket") and not confirmed)
+    if copies > cap:
+        issued["ok"] = False
+        issued["error"] = "quantity_limit"
+        issued["ticket"] = ""
+        issued["message"] = f"copies exceed local authorization cap {cap}"
+        return issued
+    if issued.get("requires_ticket") and confirmed:
         issued["ticket"] = issue_ticket(issued)
     else:
         issued["ticket"] = ""

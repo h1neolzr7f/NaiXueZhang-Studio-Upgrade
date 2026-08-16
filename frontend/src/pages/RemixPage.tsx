@@ -291,6 +291,7 @@ export function RemixPage({ search }: { search: string }) {
         requires_ticket?: boolean;
         ticket?: string;
         message?: string;
+        needs_confirmation?: boolean;
       }>("/api/plugin/char-swap/batch/authorize", {
         targets,
         recipe,
@@ -298,14 +299,24 @@ export function RemixPage({ search }: { search: string }) {
         generate: true,
         preview_only: false,
       });
+      let ticket = "";
       if (auth.requires_ticket) {
         const ok = window.confirm(
-          auth.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会拿到一次性授权并出图。",
+          auth.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会签发一次性授权。",
         );
         if (!ok) {
           setError("已取消非免费出图");
           return;
         }
+        const issued = await post<{ ticket?: string }>("/api/plugin/char-swap/batch/authorize", {
+          targets,
+          recipe,
+          force_free: forceFree,
+          generate: true,
+          preview_only: false,
+          confirmed: true,
+        });
+        ticket = issued.ticket || "";
       }
       const payload = await post<{ ok?: boolean; task_id?: string; message?: string }>(
         "/api/plugin/char-swap/batch/run",
@@ -315,7 +326,7 @@ export function RemixPage({ search }: { search: string }) {
           force_free: forceFree,
           generate: true,
           preview_only: false,
-          authorization_ticket: auth.ticket || "",
+          authorization_ticket: ticket,
         },
       );
       if (!payload.ok) throw new Error(payload.message || "启动失败");

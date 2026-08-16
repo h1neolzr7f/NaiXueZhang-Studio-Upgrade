@@ -25,8 +25,8 @@ from generated_gallery import (
     list_deleted,
 )
 from post_pipeline import load_config
-from nai_authorization import ACTION_STUDIO, compile_batch_authorization, issue_for_preview
-from nai_batch import batch_status, build_studio_targets, start_studio_generate
+from nai_authorization import ACTION_STUDIO, compile_batch_authorization, issue_http_preview
+from nai_batch import STUDIO_COPY_MAX, batch_status, build_studio_targets, start_studio_generate
 from gallery_catalog import get_db as get_gallery_db, serialize_gallery_payload
 
 router = APIRouter(prefix="/api")
@@ -219,6 +219,7 @@ def _studio_auth_preview(data: dict) -> dict:
         copies = int(data.get("copies") or data.get("batch_count") or 1)
     except (TypeError, ValueError):
         copies = 1
+    copies = max(1, min(STUDIO_COPY_MAX, copies))
     targets, recipe = build_studio_targets(
         comment,
         work_id=data.get("work_id") if str(data.get("work_id") or "").strip() else None,
@@ -240,11 +241,16 @@ def _studio_auth_preview(data: dict) -> dict:
 @router.post("/nai/authorize")
 async def api_nai_authorize(payload: NaiGenerateRequest) -> dict:
     preview = _studio_auth_preview(payload.model_dump())
-    issued = issue_for_preview(preview)
+    issued = issue_http_preview(preview, confirmed=bool(payload.confirmed))
+    if issued.get("error") == "quantity_limit":
+        raise HTTPException(status_code=400, detail=str(issued.get("message") or "copies exceed cap"))
     return {
         "ok": True,
         "requires_ticket": bool(issued.get("requires_ticket")),
         "free_eligible": bool(issued.get("free_eligible")),
+        "needs_confirmation": bool(issued.get("needs_confirmation")),
+        "local_trust": True,
+        "max_copies": issued.get("max_copies"),
         "ticket": issued.get("ticket") or "",
         "copies": issued.get("copies"),
         "action": issued.get("action"),
@@ -252,7 +258,7 @@ async def api_nai_authorize(payload: NaiGenerateRequest) -> dict:
         "payload_hash": issued.get("payload_hash"),
         "manifest_hash": issued.get("manifest_hash"),
         "message": (
-            "需要确认后才能发送非免费请求"
+            "需要确认后才能签发付费授权票据"
             if issued.get("requires_ticket")
             else "免费标准路径，无需授权票据"
         ),

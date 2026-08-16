@@ -9,6 +9,9 @@ from .registry import get_capability
 
 Decision = Literal["ALLOW", "CONFIRM", "DELEGATE", "DENY"]
 
+# Decision plane only. Paid generate / library writes are not executed here.
+EXECUTION_WIRED = False
+
 
 @dataclass(frozen=True, slots=True)
 class CapabilityDecision:

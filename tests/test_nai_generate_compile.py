@@ -59,6 +59,15 @@ class NaiGenerateCompileLockTests(unittest.TestCase):
         self.assertNotIn("image", parameters)
         self.assertNotIn("mask", parameters)
 
+    def test_smea_is_not_free_eligible(self) -> None:
+        comment = {"prompt": "1girl", "width": 832, "height": 1216, "steps": 23, "sm": True}
+        payload = generation.build_generate_payload(comment, force_free=True)
+        self.assertFalse(payload["free_eligible"])
+        dyn = generation.build_generate_payload({**comment, "sm": False, "sm_dyn": True}, force_free=True)
+        self.assertFalse(dyn["free_eligible"])
+        auto = generation.build_generate_payload({**comment, "sm": False, "autoSmea": True}, force_free=True)
+        self.assertFalse(auto["free_eligible"])
+
     def test_reference_or_image_is_not_free_eligible(self) -> None:
         comment = {
             "prompt": "1girl",

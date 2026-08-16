@@ -89,6 +89,36 @@ class IndexContinuationAndVisibilityTests(unittest.TestCase):
             finally:
                 db.close()
 
+    def test_pre_cursor_insert_is_backfilled_when_scan_finishes(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            db = Database(root / "gallery.db")
+            try:
+                self._fill(db, root, 501)
+                first = run_incremental(db, images_dir=root, visual=False)
+                self.assertTrue(first["truncated"])
+                db.conn.execute(
+                    "INSERT INTO works(id, title, caption, tags, ai_type) VALUES (0, 'early', '', 'arknights', 'nai')"
+                )
+                png = root / "0.png"
+                _solid((1, 2, 3)).save(png)
+                db.conn.execute(
+                    """
+                    INSERT INTO work_images(work_id, page_index, local_path, source_sha256, downloaded, prompt_text)
+                    VALUES (0, 0, ?, '', 1, '1girl')
+                    """,
+                    (png.name,),
+                )
+                db.conn.commit()
+                self.assertIn(0, [item["work_id"] for item in list_unindexed(db.conn)])
+                second = run_incremental(db, cursor=first["next_cursor"], images_dir=root, visual=False)
+                self.assertFalse(second["truncated"])
+                self.assertGreaterEqual(int(second.get("backfilled") or 0), 1)
+                self.assertEqual(visibility_counts(db.conn)["unindexed"], 0)
+                self.assertEqual(list_unindexed(db.conn), [])
+            finally:
+                db.close()
+
     def test_unindexed_and_stale_are_anti_joins_not_page_windows(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -155,6 +185,8 @@ class IndexContinuationAndVisibilityTests(unittest.TestCase):
                     )
                 db.conn.commit()
                 groups = find_near_duplicates(db.conn, dhash_threshold=2, phash_threshold=2)
+                self.assertTrue(groups)
+                self.assertTrue(all(len(group["items"]) == 2 for group in groups))
                 members = {
                     item["image_key"]
                     for group in groups
@@ -164,11 +196,8 @@ class IndexContinuationAndVisibilityTests(unittest.TestCase):
                 self.assertIn("2:0", members)
                 self.assertIn("3:0", members)
                 paired = {
-                    tuple(sorted((left["image_key"], right["image_key"])))
+                    tuple(sorted((group["items"][0]["image_key"], group["items"][1]["image_key"])))
                     for group in groups
-                    for left in group["items"]
-                    for right in group["items"]
-                    if left["image_key"] != right["image_key"]
                 }
                 self.assertIn(("1:0", "2:0"), paired)
                 self.assertIn(("1:0", "3:0"), paired)

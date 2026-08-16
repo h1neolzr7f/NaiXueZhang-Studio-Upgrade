@@ -1,21 +1,29 @@
 from __future__ import annotations
 
+import re
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from library_writer import MaterializePage, materialize_asset
 from remote_asset import RemoteAssetRef
-from scripts.gallery_import_common import upsert_local_work
 
 
 class RemoteIdentityTests(unittest.TestCase):
-    def test_rejects_opaque_id_without_provider(self) -> None:
+    def test_rejects_opaque_id_without_provider_or_source(self) -> None:
         with self.assertRaises(ValueError):
             RemoteAssetRef(provider_id="", remote_id="123")
-        ref = RemoteAssetRef.for_pixiv("99", source_url="https://www.pixiv.net/artworks/99")
-        self.assertEqual(ref.qualified_id, "pixiv:99:v1")
+        with self.assertRaises(ValueError):
+            RemoteAssetRef(provider_id="provider-x", remote_id="42")
+        ref = RemoteAssetRef.for_pixiv("99")
+        self.assertTrue(ref.qualified_id.startswith("pixiv:99:"))
+        self.assertTrue(ref.qualified_id.endswith(":v1"))
+        self.assertEqual(ref.source_url, "https://www.pixiv.net/artworks/99")
         self.assertEqual(ref.identity_version, 1)
+        left = RemoteAssetRef(provider_id="provider-x", remote_id="42", source_url="https://a.example/1")
+        right = RemoteAssetRef(provider_id="provider-x", remote_id="42", source_url="https://b.example/2")
+        self.assertNotEqual(left.qualified_id, right.qualified_id)
 
 
 class LibraryWriterTests(unittest.TestCase):
@@ -69,27 +77,52 @@ class NoDirectLibraryWriteGuardTests(unittest.TestCase):
         "db_crawler_writes.py",
         "pixiv_nai_intake.py",
         "gallery_maintenance.py",
+        "routes/gallery.py",
+        "routes/compliance.py",
+        "qq_gallery_ingest.py",
     }
+    WRITE_RE = re.compile(
+        r"\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(works|work_images)\b",
+        re.IGNORECASE,
+    )
+    SKIP_PARTS = {".git", "node_modules", "__pycache__", "tests", "frontend"}
 
     def test_provider_modules_do_not_insert_library_rows(self) -> None:
         forbidden = []
-        for path in (
-            Path("qq_gallery_ingest.py"),
-            Path("crawler_qq.py"),
-            Path("scripts/gallery_import_common.py"),
-            Path("scripts/import_codex_gallery.py"),
-            Path("routes/gallery.py"),
-            Path("acquire/synthetic_provider.py"),
-            Path("online_library.py"),
-        ):
+        for path in Path(".").rglob("*.py"):
+            if any(part in self.SKIP_PARTS for part in path.parts):
+                continue
+            rel = path.as_posix().lstrip("./")
+            if path.name in self.ALLOWED or rel in self.ALLOWED:
+                continue
             text = path.read_text(encoding="utf-8")
-            if "INSERT INTO works" in text or "INSERT INTO work_images" in text:
-                forbidden.append(str(path))
+            if self.WRITE_RE.search(text):
+                forbidden.append(rel)
         self.assertEqual(forbidden, [])
 
     def test_allowed_writers_are_explicit(self) -> None:
         for name in self.ALLOWED:
             self.assertTrue(Path(name).is_file(), name)
+
+    def test_db_failure_after_file_write_does_not_leave_orphan(self) -> None:
+        from online_library import add_to_my_library, reset_online_state_for_tests
+
+        reset_online_state_for_tests()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            dest = root / "online" / "synthetic" / "syn-1.png"
+            dest.parent.mkdir(parents=True)
+            spec = type("Spec", (), {"images_dir": root})()
+            with patch("gallery_catalog.get_spec", return_value=spec), patch(
+                "gallery_catalog.ensure_gallery_dirs"
+            ), patch("online_library._cache") as cache, patch(
+                "online_library.materialize_asset", side_effect=RuntimeError("db down")
+            ), patch("online_library.stable_work_id", return_value=501):
+                cache.return_value.put.return_value = root / "cache.bin"
+                with self.assertRaises(RuntimeError):
+                    add_to_my_library("syn-1", gallery_id="codex")
+            self.assertFalse(dest.exists())
+        reset_online_state_for_tests()
 
 
 if __name__ == "__main__":

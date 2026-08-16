@@ -18,7 +18,7 @@ from char_swap_config import load_config as load_char_swap_config, save_config a
 from nai_prompt_profiles import PROMPT_PROFILE_CHOICES
 from ark_char_library import search_library, library_stats, reload_library
 from gallery_catalog import normalize_gallery_id, serialize_gallery_payload
-from nai_authorization import ACTION_CHAR_SWAP, compile_batch_authorization, issue_for_preview
+from nai_authorization import ACTION_CHAR_SWAP, compile_batch_authorization, issue_http_preview
 from nai_batch import (
     start_batch,
     batch_status,
@@ -149,11 +149,16 @@ def api_char_swap_batch_authorize(payload: CharSwapBatchRunRequest) -> dict:
         force_free=bool(payload.force_free),
         action=ACTION_CHAR_SWAP,
     )
-    issued = issue_for_preview(preview)
+    issued = issue_http_preview(preview, confirmed=bool(payload.confirmed))
+    if issued.get("error") == "quantity_limit":
+        raise HTTPException(status_code=400, detail=str(issued.get("message") or "copies exceed cap"))
     return {
         "ok": True,
         "requires_ticket": bool(issued.get("requires_ticket")),
         "free_eligible": bool(issued.get("free_eligible")),
+        "needs_confirmation": bool(issued.get("needs_confirmation")),
+        "local_trust": True,
+        "max_copies": issued.get("max_copies"),
         "ticket": issued.get("ticket") or "",
         "copies": issued.get("copies"),
         "action": issued.get("action"),
@@ -161,7 +166,7 @@ def api_char_swap_batch_authorize(payload: CharSwapBatchRunRequest) -> dict:
         "payload_hash": issued.get("payload_hash"),
         "manifest_hash": issued.get("manifest_hash"),
         "message": (
-            "需要确认后才能发送非免费请求"
+            "需要确认后才能签发付费授权票据"
             if issued.get("requires_ticket")
             else "免费标准路径，无需授权票据"
         ),

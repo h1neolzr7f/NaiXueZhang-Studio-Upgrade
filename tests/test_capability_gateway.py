@@ -4,7 +4,7 @@ import time
 import unittest
 
 from capability.delegation import DelegationError, DelegationStore
-from capability.gateway import CapabilityGateway
+from capability.gateway import EXECUTION_WIRED, CapabilityGateway
 from capability.orchestrator import Orchestrator
 
 
@@ -129,3 +129,20 @@ class CapabilityGatewayTests(unittest.TestCase):
         body = routed.json()
         self.assertEqual(body["capability_id"], "library.delete")
         self.assertEqual(body["decision"], "DENY")
+
+    def test_capability_is_decision_prototype_not_execution(self) -> None:
+        self.assertFalse(EXECUTION_WIRED)
+        from tests.asgi_client import TestClient
+
+        import server
+
+        client = TestClient(server.app)
+        response = client.post(
+            "/api/capability/decide",
+            json={"persona_id": "studio", "capability_id": "nai.generate_paid", "confirmed": True},
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["decision"], "CONFIRM")
+        self.assertFalse(body["execution_wired"])
+        self.assertTrue(body["prototype"])

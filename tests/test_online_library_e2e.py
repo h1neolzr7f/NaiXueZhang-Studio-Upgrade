@@ -8,14 +8,15 @@ from unittest.mock import patch
 
 from db import Database
 from library_lifecycle import RemoteCache
-from nai_batch import start_batch
 from online_library import (
     add_to_my_library,
+    derive_local_transform,
     favorite_remote,
     list_favorites,
     reset_online_state_for_tests,
     search_online,
     set_provider_fail_mode,
+    unload_online_favorites_for_tests,
 )
 
 
@@ -31,53 +32,65 @@ class OnlineLibraryE2ETests(unittest.TestCase):
             spec.images_dir.mkdir()
             cache = RemoteCache(root / "cache", max_items=2)
             try:
-                found = search_online("角色")
-                self.assertTrue(found["ok"])
-                self.assertGreaterEqual(len(found["items"]), 1)
-                fav = favorite_remote("syn-1")
-                self.assertTrue(fav["favorite"])
-                self.assertEqual(fav["item"]["lifecycle"], "remote")
-                with patch("online_library._cache", return_value=cache), patch(
-                    "gallery_catalog.get_spec", return_value=spec
-                ), patch("gallery_catalog.ensure_gallery_dirs"), patch(
-                    "library_writer.get_db", return_value=db
-                ), patch("library_writer.ensure_gallery_dirs"), patch(
-                    "online_library.stable_work_id", return_value=501
-                ), patch("online_library._is_materialized", return_value=False):
-                    added = add_to_my_library("syn-1", gallery_id="codex")
-                self.assertTrue(added["ok"])
-                self.assertEqual(added["lifecycle"], "materialized")
-                work = db.conn.execute("SELECT list_json FROM works WHERE id = 501").fetchone()
-                self.assertIn("synthetic", work["list_json"])
-                image = db.conn.execute(
-                    "SELECT source_sha256 FROM work_images WHERE work_id = 501"
-                ).fetchone()
-                self.assertTrue(image["source_sha256"])
-                cache.evict_all()
-                still = db.conn.execute("SELECT id FROM works WHERE id = 501").fetchone()
-                self.assertIsNotNone(still)
-                with patch("nai_batch._launch_job"):
-                    preview = start_batch(
-                        [{"work_id": 501, "page_index": 0, "patched_comment": {"prompt": "1girl"}}],
-                        {"kind": "char_swap"},
-                        force_free=True,
-                        generate=True,
-                        preview_only=True,
-                    )
-                self.assertTrue(preview["ok"], preview)
-                db.close()
-                reopened = Database(root / "gallery.db")
-                try:
-                    again = reopened.conn.execute("SELECT list_json FROM works WHERE id = 501").fetchone()
-                    self.assertIn("syn-1", again["list_json"])
-                finally:
-                    reopened.close()
-                set_provider_fail_mode("unavailable")
-                offline = search_online("角色")
-                self.assertFalse(offline["ok"])
-                self.assertTrue(offline["local_library_available"])
-                favorites = list_favorites()
-                self.assertEqual(favorites[0]["available"], False)
+                with patch("online_library.data_dir", return_value=root):
+                    found = search_online("角色")
+                    self.assertTrue(found["ok"])
+                    self.assertGreaterEqual(len(found["items"]), 1)
+                    fav = favorite_remote("syn-1")
+                    self.assertTrue(fav["favorite"])
+                    self.assertEqual(fav["item"]["lifecycle"], "remote")
+                    with patch("online_library._cache", return_value=cache), patch(
+                        "gallery_catalog.get_spec", return_value=spec
+                    ), patch("gallery_catalog.ensure_gallery_dirs"), patch(
+                        "library_writer.get_db", return_value=db
+                    ), patch("library_writer.ensure_gallery_dirs"), patch(
+                        "online_library.stable_work_id", return_value=501
+                    ), patch("online_library._is_materialized", return_value=False):
+                        added = add_to_my_library("syn-1", gallery_id="codex")
+                    self.assertTrue(added["ok"])
+                    self.assertEqual(added["lifecycle"], "materialized")
+                    work = db.conn.execute("SELECT list_json FROM works WHERE id = 501").fetchone()
+                    self.assertIn("synthetic", work["list_json"])
+                    image = db.conn.execute(
+                        "SELECT source_sha256 FROM work_images WHERE work_id = 501"
+                    ).fetchone()
+                    self.assertTrue(image["source_sha256"])
+                    cache.evict_all()
+                    still = db.conn.execute("SELECT id FROM works WHERE id = 501").fetchone()
+                    self.assertIsNotNone(still)
+                    with patch("online_library._cache", return_value=cache), patch(
+                        "gallery_catalog.get_spec", return_value=spec
+                    ), patch("gallery_catalog.ensure_gallery_dirs"), patch(
+                        "library_writer.get_db", return_value=db
+                    ), patch("library_writer.ensure_gallery_dirs"), patch(
+                        "online_library.stable_work_id",
+                        side_effect=lambda *parts: 601 if "derive" in str(parts[0]) else 501,
+                    ):
+                        derived = derive_local_transform("syn-1", gallery_id="codex")
+                    self.assertTrue(derived["ok"])
+                    self.assertEqual(derived["parent_work_id"], 501)
+                    self.assertFalse(derived["paid"])
+                    self.assertIn("local derive", derived["lineage"]["transform_summary"])
+                    child = db.conn.execute("SELECT list_json FROM works WHERE id = 601").fetchone()
+                    self.assertIn("synthetic-derive", child["list_json"])
+                    self.assertIn("501", child["list_json"])
+                    unload_online_favorites_for_tests()
+                    restarted = list_favorites()
+                    self.assertEqual(len(restarted), 1)
+                    self.assertTrue(restarted[0].get("title") or restarted[0].get("favorite"))
+                    db.close()
+                    reopened = Database(root / "gallery.db")
+                    try:
+                        again = reopened.conn.execute("SELECT list_json FROM works WHERE id = 501").fetchone()
+                        self.assertIn("syn-1", again["list_json"])
+                    finally:
+                        reopened.close()
+                    set_provider_fail_mode("unavailable")
+                    offline = search_online("角色")
+                    self.assertFalse(offline["ok"])
+                    self.assertTrue(offline["local_library_available"])
+                    favorites = list_favorites()
+                    self.assertEqual(favorites[0]["available"], False)
             finally:
                 try:
                     db.close()

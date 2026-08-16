@@ -559,7 +559,6 @@ def find_near_duplicates(
     add_field("phash", phash_threshold)
     seen: set[tuple[str, str]] = set()
     groups: list[dict[str, Any]] = []
-    anchors: dict[str, list[dict[str, Any]]] = {}
     for pair, (left, right) in candidates.items():
         if pair in seen:
             continue
@@ -572,29 +571,25 @@ def find_near_duplicates(
         if d_dist > dhash_threshold and p_dist > phash_threshold:
             continue
         seen.add(pair)
-        left_key = str(left["image_key"])
-        members = anchors.setdefault(
-            left_key,
-            [
-                {
-                    "image_key": left["image_key"],
-                    "work_id": int(left["work_id"]),
-                    "page_index": int(left["page_index"]),
-                    "distance": 0,
-                }
-            ],
-        )
-        members.append(
+        groups.append(
             {
-                "image_key": right["image_key"],
-                "work_id": int(right["work_id"]),
-                "page_index": int(right["page_index"]),
-                "distance": min(d_dist, p_dist),
+                "kind": "near",
+                "items": [
+                    {
+                        "image_key": left["image_key"],
+                        "work_id": int(left["work_id"]),
+                        "page_index": int(left["page_index"]),
+                        "distance": 0,
+                    },
+                    {
+                        "image_key": right["image_key"],
+                        "work_id": int(right["work_id"]),
+                        "page_index": int(right["page_index"]),
+                        "distance": min(d_dist, p_dist),
+                    },
+                ],
             }
         )
-    for members in anchors.values():
-        if len(members) > 1:
-            groups.append({"kind": "near", "items": members})
         if len(groups) >= MAX_DUPLICATE_GROUPS:
             return groups[:MAX_DUPLICATE_GROUPS]
     return groups[:MAX_DUPLICATE_GROUPS]
@@ -741,6 +736,37 @@ def list_unindexed(
     ]
 
 
+def collect_items_by_keys(
+    conn: sqlite3.Connection,
+    keys: list[dict[str, int]],
+    *,
+    images_dir: Path | None = None,
+) -> list[IndexImage]:
+    items: list[IndexImage] = []
+    for key in keys:
+        row = conn.execute(
+            """
+            SELECT work_id, page_index, local_path, source_sha256
+            FROM work_images
+            WHERE downloaded = 1 AND work_id = ? AND page_index = ?
+            """,
+            (int(key["work_id"]), int(key["page_index"])),
+        ).fetchone()
+        if row is None:
+            continue
+        relative = str(row["local_path"] or "")
+        items.append(
+            IndexImage(
+                work_id=int(row["work_id"]),
+                page_index=int(row["page_index"] or 0),
+                relative_path=relative,
+                source_sha256=str(row["source_sha256"] or ""),
+                path=resolve_index_image_path(relative, images_dir),
+            )
+        )
+    return items
+
+
 def list_stale(
     conn: sqlite3.Connection,
     *,
@@ -845,6 +871,23 @@ def run_incremental(
         result["item_limit"] = MAX_INCREMENTAL_ITEMS
         result["cursor"] = encode_index_cursor(*after) if after else None
         result["next_cursor"] = next_cursor if truncated else None
+        result["backfilled"] = 0
+        if not truncated:
+            missing = list_unindexed(db.conn, work_ids=ids, limit=MAX_INCREMENTAL_ITEMS)
+            if missing:
+                extra_items = collect_items_by_keys(db.conn, missing, images_dir=images_dir)
+                extra = index_images(
+                    db.conn,
+                    extra_items,
+                    visual_enabled=visual,
+                    sync_text=sync_text,
+                )
+                for field in ("scanned", "text_dirty", "visual_dirty", "errors"):
+                    result[field] = int(result.get(field) or 0) + int(extra.get(field) or 0)
+                works = set(result.get("works") or [])
+                works.update(extra.get("works") or [])
+                result["works"] = sorted(works)
+                result["backfilled"] = int(extra.get("scanned") or 0)
         visibility = visibility_counts(db.conn)
         result.update(visibility)
         db.conn.commit()

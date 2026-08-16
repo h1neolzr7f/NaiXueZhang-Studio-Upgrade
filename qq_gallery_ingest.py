@@ -474,6 +474,7 @@ def import_parsed_nai(
     )
     dest = images_root / preview_rel
     dest.parent.mkdir(parents=True, exist_ok=True)
+    existed = dest.exists()
     if not dest.exists() or dest.stat().st_size != src.stat().st_size:
         if hardlink:
             try:
@@ -486,35 +487,42 @@ def import_parsed_nai(
             shutil.copy2(src, dest)
 
     storage_metadata = parsed.storage_metadata()
-    upsert_local_work(
-        GALLERY_QQ,
-        work_id=work_id,
-        title=src.stem,
-        caption=f"来自 {identity.group_label} / {identity.account_label}",
-        tags=(
-            f"qqgroup,NAI,group:{identity.group_key},"
-            f"account:{identity.account_key}"
-        ),
-        prompt_text=parsed.prompt,
-        model=parsed.model,
-        ai_json=json.dumps(storage_metadata, ensure_ascii=False),
-        preview_rel=preview_rel,
-        account_key=identity.account_key,
-        account_label=identity.account_label,
-        source=(
-            f"qq-crawler:{identity.group_key}:{identity.account_key}"
-        ),
-        extra={
-            "source_file": src.name,
-            "group_key": identity.group_key,
-            "group_label": identity.group_label,
-            "metadata_source": parsed.metadata_source,
-            "metadata_parser": PARSER_VERSION,
-            "nai_seed": parsed.seed,
-            "nai_model": parsed.model,
-        },
-        commit=commit,
-    )
+    try:
+        upsert_local_work(
+            GALLERY_QQ,
+            work_id=work_id,
+            title=src.stem,
+            caption=f"来自 {identity.group_label} / {identity.account_label}",
+            tags=(
+                f"qqgroup,NAI,group:{identity.group_key},"
+                f"account:{identity.account_key}"
+            ),
+            prompt_text=parsed.prompt,
+            model=parsed.model,
+            ai_json=json.dumps(storage_metadata, ensure_ascii=False),
+            preview_rel=preview_rel,
+            account_key=identity.account_key,
+            account_label=identity.account_label,
+            source=(
+                f"qq-crawler:{identity.group_key}:{identity.account_key}"
+            ),
+            extra={
+                "source_file": src.name,
+                "group_key": identity.group_key,
+                "group_label": identity.group_label,
+                "metadata_source": parsed.metadata_source,
+                "metadata_parser": PARSER_VERSION,
+                "nai_seed": parsed.seed,
+                "nai_model": parsed.model,
+            },
+            commit=commit,
+        )
+    except Exception:
+        if not existed:
+            from library_writer import discard_unreferenced_file
+
+            discard_unreferenced_file(GALLERY_QQ, preview_rel, dest)
+        raise
     return work_id
 
 

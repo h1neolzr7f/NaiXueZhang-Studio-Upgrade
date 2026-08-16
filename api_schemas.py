@@ -27,6 +27,7 @@ class CharSwapBatchRunRequest(BaseModel):
     generate: bool = True
     preview_only: bool = False
     authorization_ticket: str = ""
+    confirmed: bool = False
 
 
 class NaiGenerateRequest(BaseModel):
@@ -47,3 +48,4 @@ class NaiGenerateRequest(BaseModel):
     prompt_profile: str = "native"
     token_id: str = ""
     authorization_ticket: str = ""
+    confirmed: bool = False

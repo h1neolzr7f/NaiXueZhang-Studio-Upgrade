@@ -12,7 +12,9 @@ from nai_authorization import (
     compile_batch_authorization,
     consume_ticket,
     issue_for_preview,
+    issue_http_preview,
     reset_authorization_state_for_tests,
+    target_fingerprints,
 )
 from nai_batch import start_batch, start_studio_generate
 from nai_char_modules import generation
@@ -44,6 +46,65 @@ class PaidAuthorizationTests(unittest.TestCase):
         )
         self.assertTrue(preview["free_eligible"])
         self.assertFalse(preview["requires_ticket"])
+
+    def test_smea_requires_ticket_and_changes_hashes(self) -> None:
+        smea = {"prompt": "1girl", "width": 832, "height": 1216, "steps": 23, "sm": True, "sm_dyn": True, "autoSmea": True}
+        compiled = generation.build_generate_payload(smea, force_free=True)
+        self.assertFalse(compiled["free_eligible"])
+        preview = compile_batch_authorization(
+            [{"patched_comment": smea, "work_id": 1}],
+            {"copies": 1},
+            force_free=True,
+            action=ACTION_STUDIO,
+        )
+        self.assertTrue(preview["requires_ticket"])
+        self.assertFalse(preview["free_eligible"])
+        result = start_studio_generate(smea, copies=1, force_free=True)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "ticket_invalid")
+        paid = compile_batch_authorization(
+            [{"patched_comment": self._paid_comment(), "work_id": 1}],
+            {"copies": 1},
+            force_free=True,
+            action=ACTION_STUDIO,
+        )
+        smea_on_paid = compile_batch_authorization(
+            [{"patched_comment": {**self._paid_comment(), "sm": True, "autoSmea": True}, "work_id": 1}],
+            {"copies": 1},
+            force_free=True,
+            action=ACTION_STUDIO,
+        )
+        self.assertNotEqual(paid["payload_hash"], smea_on_paid["payload_hash"])
+        self.assertNotEqual(paid["manifest_hash"], smea_on_paid["manifest_hash"])
+        ticket = issue_for_preview(paid)["ticket"]
+        with self.assertRaises(AuthorizationError) as exc:
+            consume_ticket(ticket, smea_on_paid)
+        self.assertEqual(exc.exception.error_code, "ticket_hash_mismatch")
+
+    def test_http_authorize_issues_ticket_only_after_confirm(self) -> None:
+        preview = compile_batch_authorization(
+            [{"patched_comment": self._paid_comment()}],
+            {"copies": 1},
+            force_free=True,
+            action=ACTION_STUDIO,
+        )
+        unseen = issue_http_preview(preview, confirmed=False)
+        self.assertTrue(unseen["needs_confirmation"])
+        self.assertEqual(unseen["ticket"], "")
+        self.assertTrue(unseen["local_trust"])
+        issued = issue_http_preview(preview, confirmed=True)
+        self.assertTrue(issued["ticket"])
+        self.assertFalse(issued["needs_confirmation"])
+        over = compile_batch_authorization(
+            [{"patched_comment": self._paid_comment()}],
+            {"copies": 99},
+            force_free=True,
+            action=ACTION_STUDIO,
+            copies=99,
+        )
+        capped = issue_http_preview(over, confirmed=True)
+        self.assertEqual(capped["error"], "quantity_limit")
+        self.assertEqual(capped["ticket"], "")
 
     def test_image_input_is_not_free_even_with_force_free(self) -> None:
         compiled = generation.build_generate_payload(self._paid_comment(), force_free=True)
@@ -286,6 +347,54 @@ class PaidAuthorizationTests(unittest.TestCase):
         self.assertFalse(retried["ok"])
         self.assertEqual(retried["error"], "ticket_hash_mismatch")
 
+    def test_retry_rejects_recomputed_expensive_fingerprints(self) -> None:
+        from nai_authorization import ACTION_CHAR_SWAP
+        from nai_batch import _JOB_MANAGER, retry_batch
+
+        comment = self._paid_comment()
+        targets = [
+            {"patched_comment": comment, "work_id": 1, "page_index": 0, "_target_index": 0},
+        ]
+        preview = compile_batch_authorization(
+            targets,
+            {},
+            force_free=True,
+            action=ACTION_CHAR_SWAP,
+        )
+        ticket = issue_for_preview(preview)["ticket"]
+        with patch("nai_batch.generation_concurrency_for_batch", return_value=1), patch(
+            "nai_batch._launch_job"
+        ):
+            started = start_batch(
+                targets,
+                {},
+                force_free=True,
+                authorization_ticket=ticket,
+                authorization_action=ACTION_CHAR_SWAP,
+            )
+        self.assertTrue(started["ok"], started)
+        job = _JOB_MANAGER.get_job(started["task_id"])
+        request = dict(job.state.get("_request") or {})
+        expensive = {
+            **comment,
+            "width": 1472,
+            "height": 1472,
+            "steps": 40,
+            "sm": True,
+            "autoSmea": True,
+        }
+        mutated = dict((request.get("targets") or [targets[0]])[0])
+        mutated["patched_comment"] = expensive
+        request["targets"] = [mutated]
+        request["target_fingerprints"] = target_fingerprints([mutated])
+        _JOB_MANAGER.update(job, _request=request, items=[
+            {"target_index": 0, "work_id": 1, "ok": False, "error": "busy", "failure_reason": "busy"},
+        ])
+        _JOB_MANAGER.finish(job, status="error", message="partial")
+        retried = retry_batch(started["task_id"])
+        self.assertFalse(retried["ok"])
+        self.assertEqual(retried["error"], "ticket_hash_mismatch")
+
     def test_generate_http_rejects_paid_without_ticket(self) -> None:
         from tests.asgi_client import TestClient
 
@@ -300,6 +409,22 @@ class PaidAuthorizationTests(unittest.TestCase):
             },
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_authorize_http_requires_confirmed_to_issue_ticket(self) -> None:
+        from tests.asgi_client import TestClient
+
+        import server
+
+        client = TestClient(server.app)
+        body = {"patched_comment": self._paid_comment(), "force_free": True}
+        preview = client.post("/api/nai/authorize", json=body)
+        self.assertEqual(preview.status_code, 200)
+        self.assertTrue(preview.json()["requires_ticket"])
+        self.assertTrue(preview.json()["needs_confirmation"])
+        self.assertEqual(preview.json()["ticket"], "")
+        issued = client.post("/api/nai/authorize", json={**body, "confirmed": True})
+        self.assertEqual(issued.status_code, 200)
+        self.assertTrue(issued.json()["ticket"])
 
 
 if __name__ == "__main__":

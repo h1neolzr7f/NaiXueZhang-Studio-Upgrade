@@ -71,6 +71,7 @@ class StudioCanvasTests(unittest.TestCase):
         self.assertIn("/api/studio/source-image", js)
         self.assertIn("/api/nai/authorize", page)
         self.assertIn("/api/nai/authorize", js)
+        self.assertIn("confirmed: true", js)
 
     def test_absolute_and_traversal_paths_cannot_leave_gallery(self) -> None:
         with tempfile.TemporaryDirectory() as gallery_raw, tempfile.TemporaryDirectory() as evil_raw:

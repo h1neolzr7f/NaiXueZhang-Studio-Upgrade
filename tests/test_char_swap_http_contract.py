@@ -138,9 +138,11 @@ def test_char_swap_ui_authorizes_before_paid_run() -> None:
     assert "authorizeAndRunBatch" in batch
     assert "authorization_ticket" in remix
     assert "authorization_ticket" in classic
+    assert "confirmed: true" in remix
+    assert "confirmed: true" in classic
 
 
-def test_batch_authorize_issues_ticket_for_image_input() -> None:
+def test_batch_authorize_issues_ticket_only_after_confirm() -> None:
     request = {
         "targets": [
             {
@@ -155,7 +157,15 @@ def test_batch_authorize_issues_ticket_for_image_input() -> None:
         "recipe": {"copies": 1},
         "force_free": True,
     }
-    response = client.post("/api/plugin/char-swap/batch/authorize", json=request)
+    preview = client.post("/api/plugin/char-swap/batch/authorize", json=request)
+    assert preview.status_code == 200
+    assert preview.json()["requires_ticket"] is True
+    assert preview.json()["needs_confirmation"] is True
+    assert preview.json()["ticket"] == ""
+    response = client.post(
+        "/api/plugin/char-swap/batch/authorize",
+        json={**request, "confirmed": True},
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["ok"] is True

@@ -115,10 +115,16 @@ export async function authorizeAndRunBatch(body) {
       method: "POST",
       body: JSON.stringify(body),
     });
-    if (preview.requires_ticket && !window.confirm(preview.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会出图。")) {
-      return null;
+    if (preview.requires_ticket) {
+      if (!window.confirm(preview.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会签发一次性授权。")) {
+        return null;
+      }
+      const issued = await api("/api/plugin/char-swap/batch/authorize", {
+        method: "POST",
+        body: JSON.stringify({ ...body, confirmed: true }),
+      });
+      ticket = issued.ticket || "";
     }
-    ticket = preview.ticket || "";
   }
   return api("/api/plugin/char-swap/batch/run", {
     method: "POST",

@@ -308,7 +308,8 @@ def _import_drop_files(
             preview_rel = f"{category_safe}/{work_id}_p0{ext}".replace("\\", "/")
             dest = _safe_child_file(spec.images_dir, preview_rel)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        if not dest.exists() or dest.stat().st_size != len(data):
+        existed = dest.exists()
+        if not existed or dest.stat().st_size != len(data):
             atomic_write_bytes(dest, data)
         extra = {
             "group_key": folder,
@@ -322,22 +323,29 @@ def _import_drop_files(
             extra["account_label"] = "本地拖入"
             qq_account = "local-drop"
             qq_label = "本地拖入"
-        upsert_local_work(
-            gid,
-            work_id=work_id,
-            title=Path(name).stem[:80] or "dropped",
-            caption=f"本地拖入导入 · 文件夹 {folder}",
-            tags=f"drop,local,NAI,category:{folder}",
-            prompt_text=parsed.prompt,
-            model=parsed.model,
-            ai_json=json.dumps(parsed.storage_metadata(), ensure_ascii=False),
-            preview_rel=preview_rel,
-            category=folder,
-            account_key=qq_account,
-            account_label=qq_label,
-            source=f"local-drop:{folder}",
-            extra=extra,
-        )
+        try:
+            upsert_local_work(
+                gid,
+                work_id=work_id,
+                title=Path(name).stem[:80] or "dropped",
+                caption=f"本地拖入导入 · 文件夹 {folder}",
+                tags=f"drop,local,NAI,category:{folder}",
+                prompt_text=parsed.prompt,
+                model=parsed.model,
+                ai_json=json.dumps(parsed.storage_metadata(), ensure_ascii=False),
+                preview_rel=preview_rel,
+                category=folder,
+                account_key=qq_account,
+                account_label=qq_label,
+                source=f"local-drop:{folder}",
+                extra=extra,
+            )
+        except Exception:
+            if not existed:
+                from library_writer import discard_unreferenced_file
+
+                discard_unreferenced_file(gid, preview_rel, dest)
+            raise
         accepted.append(
             {
                 "file": name,

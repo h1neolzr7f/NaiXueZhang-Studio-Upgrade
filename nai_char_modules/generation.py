@@ -55,6 +55,7 @@ KNOWN_COMMENT_KEYS = frozenset(
         "prefer_brownian",
         "sm",
         "sm_dyn",
+        "smea",
         "request_type",
         "image",
         "mask",
@@ -303,6 +304,17 @@ def fit_opus_free_size(width: int, height: int) -> tuple[int, int, bool]:
     return new_width, new_height, True
 
 
+def _truthy(value: Any) -> bool:
+    if value in (None, "", False, 0, "0", "false", "False", "no", "off"):
+        return False
+    return bool(value)
+
+
+def _smea_enabled(params: dict[str, Any] | None) -> bool:
+    source = params if isinstance(params, dict) else {}
+    return any(_truthy(source.get(key)) for key in ("sm", "sm_dyn", "autoSmea", "smea"))
+
+
 def build_generate_payload(
     patched_comment: dict,
     *,
@@ -401,12 +413,14 @@ def build_generate_payload(
         or patched_comment.get("mask")
         or http_action in COMPILED_IMAGE_ACTIONS
     )
+    smea_on = _smea_enabled(patched_comment) or _smea_enabled(parameters)
     free_eligible = (
         force_free
         and steps <= MAX_FREE_STEPS
         and max(width, height) <= MAX_FREE_LONG_EDGE
         and width * height <= MAX_FREE_PIXELS
         and not has_image_input
+        and not smea_on
     )
     return {
         "input": base,

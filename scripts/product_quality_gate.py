@@ -122,7 +122,7 @@ def collect_findings(root: Path) -> dict:
     ):
         p1.append("START_GALLERY.bat 必须验证端口进程归属且不得直接 taskkill")
 
-    for rel in ("web/app.js", "web/app-core.js", "web/pixiv.js"):
+    for rel in ("web/app.js", "web/app-core.js", "web/pixiv.js", "web/online-discover.js"):
         if count_pattern(root / rel, r"\bfetch\s*\("):
             p1.append(f"{rel} 仍有未迁移的同源裸 fetch")
     if not file_contains(root / "web/index.html", "/assets/shared/api-client.js"):

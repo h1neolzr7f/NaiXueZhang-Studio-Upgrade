@@ -386,21 +386,28 @@ export function StudioPage({ search }: { search: string }) {
         ticket?: string;
         message?: string;
         free_eligible?: boolean;
+        needs_confirmation?: boolean;
       }>("/api/nai/authorize", body);
+      let ticket = "";
       if (preview.requires_ticket) {
         const ok = window.confirm(
-          preview.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会拿到一次性授权并出图。",
+          preview.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会签发一次性授权。",
         );
         if (!ok) {
           setStatus("");
           setError("已取消非免费出图");
           return;
         }
+        const issued = await post<{ ticket?: string }>("/api/nai/authorize", {
+          ...body,
+          confirmed: true,
+        });
+        ticket = issued.ticket || "";
       }
       setStatus("正在提交冻结快照…");
       const result = await post<GenerateResult>("/api/nai/generate", {
         ...body,
-        authorization_ticket: preview.ticket || "",
+        authorization_ticket: ticket,
       });
       if (!result.ok) {
         throw new Error(String(result.message || result.error || "生成失败"));

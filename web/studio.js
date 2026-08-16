@@ -952,13 +952,19 @@
           prompt_profile: "native",
       };
       const preview = await api("/api/nai/authorize", { method: "POST", body: generateBody });
+      let ticket = "";
       if (preview && preview.requires_ticket) {
-        const ok = window.confirm(preview.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会授权出图。");
+        const ok = window.confirm(preview.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会签发一次性授权。");
         if (!ok) throw new Error("已取消非免费出图");
+        const issued = await api("/api/nai/authorize", {
+          method: "POST",
+          body: Object.assign({}, generateBody, { confirmed: true }),
+        });
+        ticket = (issued && issued.ticket) || "";
       }
       const res = await api("/api/nai/generate", {
         method: "POST",
-        body: Object.assign({}, generateBody, { authorization_ticket: (preview && preview.ticket) || "" }),
+        body: Object.assign({}, generateBody, { authorization_ticket: ticket }),
       });
       if (!res.ok) throw new Error(res.message || res.error || "生成失败");
       const taskId = res.task_id || (res.batch && res.batch.task_id) || "";

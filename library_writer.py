@@ -261,3 +261,27 @@ def _write_library_rows(
     db._sync_prompt_fts(work_id)
     if commit:
         db.conn.commit()
+
+
+def discard_unreferenced_file(
+    gallery_id: str,
+    relative_path: str,
+    dest: Path,
+    *,
+    db: Any = None,
+) -> bool:
+    """Delete a newly written file only when no library row references it."""
+
+    rel = relative_path.replace("\\", "/")
+    try:
+        database = db or get_db(gallery_id)
+        row = database.conn.execute(
+            "SELECT 1 FROM work_images WHERE local_path = ? LIMIT 1",
+            (rel,),
+        ).fetchone()
+        if row:
+            return False
+    except Exception:
+        pass
+    dest.unlink(missing_ok=True)
+    return True
