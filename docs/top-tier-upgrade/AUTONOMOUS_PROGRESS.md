@@ -8,7 +8,7 @@ Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/12
 ## Loop status
 
 - Peer review of `7e963da` disagreed with Cloud RC (P0/P1). That call was correct.
-- This loop closed those holes and re-attacked. Linux review-closure is recorded in `AUTONOMOUS_FINAL_REPORT.md`.
+- This loop closed those holes and re-attacked. Snapshot for humans: `AUTONOMOUS_STATUS_REPORT.md`.
 - User remaining work: Windows / real accounts / real paid / subjective UX (`AUTONOMOUS_PENDING_WINDOWS.md`).
 
 ## Landed this loop
