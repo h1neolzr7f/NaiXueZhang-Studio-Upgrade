@@ -1,5 +1,5 @@
 import { state, saveCurrentDraftToCache, loadDraftFromCache, clearDraftCacheForWork, BATCH_MAX_DEFAULT, normalizeWorkId, normalizeGalleryId } from "./state.js?v=f80b97d795";
-import { api, $, deepClone, setMsg, flashMsg, copyText, loadPluginConfig, esc } from "./api.js?v=980573fcbd";
+import { api, $, deepClone, setMsg, flashMsg, copyText, loadPluginConfig, esc, authorizeAndRunBatch } from "./api.js?v=0411b73ad6";
 import { fillStylePresetSelects } from "./presets.js?v=f16dbe971d";
 import { buildRecipeFromForm, syncBatchTargetSlot } from "./batch_recipe.js?v=cde99cf67e";
 import { draftCommentForPage, getBatchMax } from "./draft_helpers.js?v=71bb7ead54";
@@ -392,31 +392,14 @@ export async function startBatch(opts) {
       if (!queue.length) { alert("批量队列为空"); return; }
       await loadPluginConfig();
       const recipe = buildRecipeFromForm();
-      const body = {
+      const res = await authorizeAndRunBatch({
         targets: mapQueueToTargets(),
         recipe,
         force_free: document.getElementById("batchForceFree").checked,
         generate: opts.generate !== false,
         preview_only: !!opts.preview_only,
-      };
-      let ticket = "";
-      if (!body.preview_only) {
-        const preview = await api("/api/plugin/char-swap/batch/authorize", {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-        if (preview.requires_ticket && !window.confirm(preview.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会出图。")) {
-          return;
-        }
-        ticket = preview.ticket || "";
-      }
-      const res = await api("/api/plugin/char-swap/batch/run", {
-        method: "POST",
-        body: JSON.stringify({
-          ...body,
-          authorization_ticket: ticket,
-        }),
       });
+      if (!res) return;
       if (!res.ok) throw new Error(res.message || "启动失败");
       if (state.batchPollTimer) clearTimeout(state.batchPollTimer);
       pollBatchStatus();

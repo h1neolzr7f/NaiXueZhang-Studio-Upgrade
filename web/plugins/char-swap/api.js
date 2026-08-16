@@ -107,3 +107,21 @@ export async function loadPluginConfig(force) {
 export function invalidatePluginConfig() {
   state.pluginConfig = null;
 }
+
+export async function authorizeAndRunBatch(body) {
+  let ticket = "";
+  if (!body.preview_only) {
+    const preview = await api("/api/plugin/char-swap/batch/authorize", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    if (preview.requires_ticket && !window.confirm(preview.message || "这次不是免费标准路径，可能消耗 Anlas。确认后才会出图。")) {
+      return null;
+    }
+    ticket = preview.ticket || "";
+  }
+  return api("/api/plugin/char-swap/batch/run", {
+    method: "POST",
+    body: JSON.stringify({ ...body, authorization_ticket: ticket }),
+  });
+}

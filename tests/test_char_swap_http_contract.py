@@ -131,9 +131,11 @@ def test_batch_status_wraps_the_stable_generation_job_shape() -> None:
 
 def test_char_swap_ui_authorizes_before_paid_run() -> None:
     remix = Path("frontend/src/pages/RemixPage.tsx").read_text(encoding="utf-8")
-    classic = Path("web/plugins/char-swap/batch.js").read_text(encoding="utf-8")
+    classic = Path("web/plugins/char-swap/api.js").read_text(encoding="utf-8")
+    batch = Path("web/plugins/char-swap/batch.js").read_text(encoding="utf-8")
     assert "/api/plugin/char-swap/batch/authorize" in remix
     assert "/api/plugin/char-swap/batch/authorize" in classic
+    assert "authorizeAndRunBatch" in batch
     assert "authorization_ticket" in remix
     assert "authorization_ticket" in classic
 

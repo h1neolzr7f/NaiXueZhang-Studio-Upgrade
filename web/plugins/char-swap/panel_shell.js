@@ -3,7 +3,7 @@
 // and settings-side effects.
 
 import { state } from "./state.js?v=f80b97d795";
-import { api, loadPluginConfig } from "./api.js?v=980573fcbd";
+import { api, loadPluginConfig } from "./api.js?v=0411b73ad6";
 import {
   deleteStylePreset,
   presetStyle,

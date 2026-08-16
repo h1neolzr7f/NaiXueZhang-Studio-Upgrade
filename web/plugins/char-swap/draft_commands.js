@@ -11,7 +11,7 @@ import {
   buildStyleBundleFallback,
   normalizeGalleryId,
 } from "./state.js?v=f80b97d795";
-import { api, deepClone, loadPluginConfig } from "./api.js?v=980573fcbd";
+import { api, deepClone, loadPluginConfig } from "./api.js?v=0411b73ad6";
 import { attachDraftToPayload } from "./draft_helpers.js?v=71bb7ead54";
 
 export function activeGalleryId(explicitGalleryId) {

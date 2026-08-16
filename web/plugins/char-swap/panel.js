@@ -1,5 +1,5 @@
 import { state, saveCurrentDraftToCache, loadDraftFromCache, clearDraftCacheForPage, clearDraftCacheForWork, buildStyleBundleFallback, extractCache, draftPageCache, draftCacheKey, saveSource, loadSource, clearSource, persistDraftCache } from "./state.js?v=f80b97d795";
-import { api, $, deepClone, setMsg, flashMsg, copyText, instructionFromAiJson, loadPluginConfig, esc } from "./api.js?v=980573fcbd";
+import { api, $, deepClone, setMsg, flashMsg, copyText, instructionFromAiJson, loadPluginConfig, esc } from "./api.js?v=0411b73ad6";
 import { 
     showPresetModal, showMultiSlotPresetModal, showStylePresetModal, 
     upsertStylePreset, deleteStylePreset, saveStylePresetsViaConfig, 
@@ -12,7 +12,7 @@ import {
     addToBatch, addAllWorkPagesToBatch, removeWorkFromBatch, 
     isBatchMode, loadBatchQueue, refreshBatchCardChecks, updateQuickAddHint,
     addManyToBatch, buildBatchEntry, refreshGenSidebar
-} from "./batch.js?v=3395f919a3";
+} from "./batch.js?v=78189662ea";
 import {
     applyGenderSwapTarget,
     countGenderSlots,

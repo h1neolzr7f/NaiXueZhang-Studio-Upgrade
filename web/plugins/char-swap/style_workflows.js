@@ -1,7 +1,7 @@
 // Production owner for style preset CRUD and draft style replacement workflows.
 
 import { state, saveCurrentDraftToCache, buildStyleBundleFallback, draftPageCache, draftCacheKey, persistDraftCache, loadDraftFromCache } from "./state.js?v=f80b97d795";
-import { api, $, deepClone, setMsg, flashMsg, copyText, loadPluginConfig, invalidatePluginConfig } from "./api.js?v=980573fcbd";
+import { api, $, deepClone, setMsg, flashMsg, copyText, loadPluginConfig, invalidatePluginConfig } from "./api.js?v=0411b73ad6";
 import {
   presetStyle as readPresetStyle,
   stylePresetDetail as describeStyleReference,

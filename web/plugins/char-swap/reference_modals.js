@@ -1,7 +1,7 @@
 // Production owner for character/reference picker modals and selection scope.
 
 import { state } from "./state.js?v=f80b97d795";
-import { api, $, setMsg, loadPluginConfig } from "./api.js?v=980573fcbd";
+import { api, $, setMsg, loadPluginConfig } from "./api.js?v=0411b73ad6";
 import {
   applyGenderSwapTarget,
   countGenderSlots,
