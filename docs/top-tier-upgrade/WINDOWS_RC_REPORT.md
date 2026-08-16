@@ -123,7 +123,7 @@ Windows 比 Linux 多跑启动器/DPAPI，所以是 1269/14 而不是云端的 1
 
 ## 最终 commit
 
-见本分支最新 commit（提交本报告后的 SHA）。
+`9226c5e55bcdcd4761345f4e1404703882c9dd1f` — `fix: close Windows CI timezone, one-click log lock, and local RC holes`
 
 ## 是否建议 merge
 
