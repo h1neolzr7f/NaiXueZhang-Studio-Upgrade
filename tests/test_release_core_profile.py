@@ -40,6 +40,7 @@ class CoreDependencyProfileTests(unittest.TestCase):
             "psutil",
             "python-multipart",
             "pyyaml",
+            "tzdata",
             "uvicorn",
         ):
             self.assertIn(package, requirements.casefold())

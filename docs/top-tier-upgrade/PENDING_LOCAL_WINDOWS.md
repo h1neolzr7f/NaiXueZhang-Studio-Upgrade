@@ -12,7 +12,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: all tests pass
 - Failure meaning: one-click start contract broken
 - Responsible local role: W4 / local Lead
-- Status: queued
+- Status: done (2026-08-16 Windows RC)
 
 ## WIN-002 One-click first run
 
@@ -24,7 +24,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: health OK, browser opens or GALLERY_NO_BROWSER respected
 - Failure meaning: first-run bootstrap failed
 - Responsible local role: local Lead
-- Status: queued
+- Status: done (2026-08-16; port 8803 cold start + 8798 already-running)
 
 ## WIN-003 EXE / one-click zip
 
@@ -36,7 +36,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: zip + release_manifest.json, verify_release_stage passes
 - Failure meaning: cannot ship Windows package
 - Responsible local role: W4
-- Status: queued
+- Status: deferred (full zip not cut this RC)
 
 ## WIN-004 Console hidden / taskbar
 
@@ -48,7 +48,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: hidden console, app reachable
 - Failure meaning: beginner UX regression
 - Responsible local role: local Lead
-- Status: queued
+- Status: done (wscript hidden launch on 8803)
 
 ## WIN-005 Chinese / long path / NTFS
 
@@ -60,7 +60,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: exit 0
 - Failure meaning: install breaks on real user paths
 - Responsible local role: W4
-- Status: queued
+- Status: done (startup fixture + 501 Chinese/apostrophe index path)
 
 ## WIN-006 File watch / junction / network drive
 
@@ -72,7 +72,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: fail closed with readable error
 - Failure meaning: index/file identity corruption
 - Responsible local role: W2
-- Status: queued
+- Status: deferred (no extra product value this RC)
 
 ## WIN-007 Defender / signature
 
@@ -84,7 +84,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: documented, not silently blocked without notice
 - Failure meaning: users cannot start
 - Responsible local role: local Lead
-- Status: queued
+- Status: noted (source start has no SmartScreen; zip still unsigned)
 
 ## WIN-008 DirectML / ONNX
 
@@ -96,7 +96,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: engine declared; no hidden quality loss
 - Failure meaning: post remains ANR-blocked
 - Responsible local role: W4
-- Status: queued
+- Status: deferred (no upscale run this RC)
 
 ## WIN-009 Live2D
 
@@ -108,7 +108,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: one model, recoverable from error
 - Failure meaning: companion dock broken
 - Responsible local role: local Lead
-- Status: queued
+- Status: assets present; subjective motion not scored
 
 ## WIN-010 Real large gallery
 
@@ -120,7 +120,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: numbers with hardware notes
 - Failure meaning: performance claims unverified
 - Responsible local role: W2
-- Status: queued
+- Status: partial (36-work old copy + 501 path; not 10k disk)
 
 ## WIN-011 GPU and memory
 
@@ -132,7 +132,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: UI stays responsive; no unbounded growth
 - Failure meaning: production path not local-viable
 - Responsible local role: local Lead
-- Status: queued
+- Status: deferred (no long GPU curve)
 
 ## WIN-012 Controlled real NAI
 
@@ -168,7 +168,7 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: schema upgrades; user files remain
 - Failure meaning: data loss risk
 - Responsible local role: local Lead
-- Status: queued
+- Status: done on isolated copy (schema open + unindexed=0)
 
 ## WIN-015 doctor / verify / DPAPI
 
@@ -180,4 +180,4 @@ Cloud cannot claim these verified. Each item must be run on Windows 10/11, prefe
 - Expected result: doctor read-only; verify green; tokens stored as dpapi:v1:
 - Failure meaning: Windows quality gate failed
 - Responsible local role: W4
-- Status: queued
+- Status: done (doctor encoding fix; dpapi:v1 token prefix; plaintext tests)

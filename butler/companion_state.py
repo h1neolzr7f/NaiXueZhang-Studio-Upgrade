@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+try:
+    import tzdata as _tzdata  # IANA database; Windows/CI have no system zoneinfo
+except ImportError:  # pragma: no cover - core lock installs tzdata
+    _tzdata = None
+
 from atomic_io import atomic_write_text
 from paths import data_dir
 

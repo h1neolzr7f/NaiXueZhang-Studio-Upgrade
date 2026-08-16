@@ -23,6 +23,8 @@ def test_primary_launcher_supports_bundled_runtime_and_first_run_bootstrap() -> 
     assert "GALLERY_BOOTSTRAP" in launcher
     assert 'call "%~dp0INSTALL.bat"' in launcher
     assert "Automatic first-run setup failed" in launcher
+    assert "for /L %%I in (1,1,60) do (" in launcher
+    assert "server-%GALLERY_PORT%.log" in launcher
 
 
 def test_beginner_facing_launchers_delegate_to_the_safe_startup_path() -> None:

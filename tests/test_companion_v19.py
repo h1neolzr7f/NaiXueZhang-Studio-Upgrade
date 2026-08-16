@@ -86,6 +86,16 @@ class CompanionV19Tests(unittest.TestCase):
         self.assertEqual(ack.status_code, 200)
         self.assertEqual(ack.json().get("ack", {}).get("key"), "token_missing")
 
+    def test_iana_timezone_database_resolves_asia_tokyo(self) -> None:
+        from zoneinfo import ZoneInfo
+
+        tokyo = ZoneInfo("Asia/Tokyo")
+        stamp = datetime(2026, 8, 15, 13, 30, tzinfo=timezone.utc)
+        self.assertEqual(stamp.astimezone(tokyo).hour, 22)
+        self.assertIsNotNone(companion_state._tzdata)
+        zone = companion_state._quiet_timezone("Asia/Tokyo")
+        self.assertEqual(getattr(zone, "key", None), "Asia/Tokyo")
+
     def test_quiet_hours_use_configured_non_utc_timezone(self) -> None:
         companion_state.update_quiet(
             {"enabled": True, "start": "22:00", "end": "23:00", "timezone": "Asia/Tokyo"}

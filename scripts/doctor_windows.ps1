@@ -42,7 +42,7 @@ if ($node) {
     Write-Check "node" "FAIL" "Node.js 20+ required for verify.ps1"
 }
 
-foreach ($name in @("requirements.core.lock.txt", "requirements.lock.txt", "INSTALL.bat", "START_GALLERY.bat", "一键启动.bat")) {
+foreach ($name in @("requirements.core.lock.txt", "requirements.lock.txt", "INSTALL.bat", "START_GALLERY.bat", "ONE_CLICK_START.bat")) {
     $path = Join-Path $root $name
     if (Test-Path -LiteralPath $path) {
         Write-Check "file.$name" "OK" "present"
@@ -51,9 +51,34 @@ foreach ($name in @("requirements.core.lock.txt", "requirements.lock.txt", "INST
     }
 }
 
+# PS 5.x on Chinese Windows reads this file as ANSI; do not embed the
+# Chinese launcher name as a UTF-8 source literal.
+$oneClickZh = -join ([char]0x4E00, [char]0x952E, [char]0x542F, [char]0x52A8) + ".bat"
+$oneClickZhPath = Join-Path $root $oneClickZh
+if (Test-Path -LiteralPath $oneClickZhPath) {
+    Write-Check "file.one_click_zh" "OK" $oneClickZh
+} else {
+    Write-Check "file.one_click_zh" "FAIL" "missing Chinese one-click launcher"
+}
+
 if ($resolvedPython) {
+    $pipPython = $resolvedPython
+    $portableHasPip = $true
     try {
-        & $resolvedPython -m pip check | Out-Null
+        & $resolvedPython -c "import pip" 2>$null | Out-Null
+        if ($LASTEXITCODE -ne 0) { $portableHasPip = $false }
+    } catch {
+        $portableHasPip = $false
+    }
+    if (-not $portableHasPip) {
+        $venvPython = Join-Path $root ".venv\Scripts\python.exe"
+        if (Test-Path -LiteralPath $venvPython) {
+            $pipPython = $venvPython
+            Write-Check "pip.runtime" "WARN" "portable runtime has no pip; checking .venv"
+        }
+    }
+    try {
+        & $pipPython -m pip check | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-Check "pip.check" "OK" "no broken requirements"
         } else {

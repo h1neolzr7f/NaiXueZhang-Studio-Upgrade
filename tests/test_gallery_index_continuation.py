@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -88,6 +89,29 @@ class IndexContinuationAndVisibilityTests(unittest.TestCase):
                 self.assertEqual(visibility_counts(db.conn)["unindexed"], 0)
             finally:
                 db.close()
+
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS / Chinese path continuation")
+    def test_501_continues_on_windows_chinese_and_apostrophe_path(self) -> None:
+        parent = Path(tempfile.mkdtemp(prefix="安装's 图库-"))
+        root = parent / "旧库 续扫"
+        root.mkdir()
+        db = Database(root / "gallery.db")
+        try:
+            self._fill(db, root, 501)
+            first = run_incremental(db, images_dir=root, visual=False)
+            self.assertTrue(first["truncated"])
+            second = run_incremental(db, cursor=first["next_cursor"], images_dir=root, visual=False)
+            self.assertFalse(second["truncated"])
+            self.assertEqual(visibility_counts(db.conn)["unindexed"], 0)
+            self.assertGreaterEqual(
+                db.conn.execute("SELECT COUNT(*) AS n FROM gallery_index_files").fetchone()["n"],
+                501,
+            )
+        finally:
+            db.close()
+            import shutil
+
+            shutil.rmtree(parent, ignore_errors=True)
 
     def test_pre_cursor_insert_is_backfilled_when_scan_finishes(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

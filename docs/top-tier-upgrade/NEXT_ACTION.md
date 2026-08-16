@@ -1,7 +1,5 @@
 # NEXT_ACTION
 
-Copy-paste into the next Cloud or Windows Lead:
+Copy-paste for the next human or agent:
 
-> 先读 docs/top-tier-upgrade/CLOUD_CHECKPOINT_REPORT.md。这是云端检查点，不是整个升级完成。再读 GATE_REVIEW.md、RUN_STATE.json、STATUS.md、OWNERSHIP.md、DECISIONS.md、CAPABILITY_MATRIX.md。CLOUD_COMPLETE_REPORT.md 是上一波交接，后半过期。执行模式继续为 CLOUD_WEB，除非本机已按 HANDOFF 切到 LOCAL_WINDOWS。唯一仓库是 h1neolzr7f/NaiXueZhang-Studio-Upgrade。不要连接 Manga。不要重做 Phase 0。checkout `cursor/cloud-top-tier-integration-f036`，以远程 tip 为准。v1.6 画布 / v1.7 HTTP / v1.8 chat 接入 / v1.9 记忆已在云端落地。不要把 tooling 写入 planning.py。不要把 TTS 和记忆合成一个木桶项。不要合并 main、不要发 Release、不要用真实 NAI Token。Windows WIN-001..015 留给本地接管。
-
-If starting a new Cloud Agent, bind it to **NaiXueZhang-Studio-Upgrade**, not the frozen v1.4 Studio repo.
+> 先读 `docs/top-tier-upgrade/WINDOWS_RC_REPORT.md`。Windows 源码 RC 已过。checkout `cursor/autonomous-next-architecture-96fe`。不要重做架构，不要开 LingChat/Persona 大升级。下一步只做：1) push 后确认 PR #12 GitHub pytest 绿；2) 你决定是否 merge Upgrade `main`；3) 若要对外 Release，再打 zip / 看 SmartScreen；4) 若要真实付费抽检，只跑 1 次并说明目的。Pixiv 仍延期。不要改冻结 v1.4 仓库。

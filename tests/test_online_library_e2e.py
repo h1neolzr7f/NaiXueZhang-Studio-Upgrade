@@ -36,7 +36,10 @@ class OnlineLibraryE2ETests(unittest.TestCase):
                     found = search_online("角色")
                     self.assertTrue(found["ok"])
                     self.assertGreaterEqual(len(found["items"]), 1)
-                    fav = favorite_remote("syn-1")
+                    # Favorite lifecycle must not read the process config.json
+                    # gallery (Windows RC / live data_dir can already hold syn-1).
+                    with patch("online_library._is_materialized", return_value=False):
+                        fav = favorite_remote("syn-1")
                     self.assertTrue(fav["favorite"])
                     self.assertEqual(fav["item"]["lifecycle"], "remote")
                     with patch("online_library._cache", return_value=cache), patch(
@@ -109,4 +112,6 @@ class ClassicGalleryOnlineUiTests(unittest.TestCase):
         self.assertIn("/api/online/search", script)
         self.assertIn("加入我的图库", script)
         self.assertIn("收藏（不下载）", script)
+        self.assertIn("/api/online/search?q=", script)
+        self.assertIn("当前检索词没有在线结果，已显示全部在线引用", script)
         self.assertNotIn('label: "在线发现"', nav)

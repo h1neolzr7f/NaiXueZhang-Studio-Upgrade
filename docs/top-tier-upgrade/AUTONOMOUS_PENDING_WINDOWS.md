@@ -1,6 +1,8 @@
 # Autonomous pending Windows
 
-Cloud Linux cannot claim these. Existing `PENDING_LOCAL_WINDOWS.md` WIN-001…WIN-015 still apply. This file adds only what this branch introduced or newly depends on.
+Updated: 2026-08-16. Windows Final QA closed the local-completable items. See `WINDOWS_RC_REPORT.md`.
+
+Remaining user-gated / optional: WIN-012 paid NAI, WIN-013 Pixiv, WIN-003 signed zip, WIN-010 real 10k/100k, subjective Live2D/GPU.
 
 Do not treat Linux 10k/100k synthetic numbers as Windows results.
 

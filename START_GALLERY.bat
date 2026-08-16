@@ -171,7 +171,9 @@ goto :watch_loop
 
 :start_server
 echo Starting Nai学长工作室 with %GALLERY_PYTHON_MODE%...
-wscript.exe "%LAUNCH_HELPER%" "%GALLERY_PYTHON_EXE%" "%~dp0server.py" "%~dp0." "%~dp0logs\server.log"
+if not exist "%~dp0logs" mkdir "%~dp0logs"
+set "GALLERY_LOG=%~dp0logs\server-%GALLERY_PORT%.log"
+wscript.exe "%LAUNCH_HELPER%" "%GALLERY_PYTHON_EXE%" "%~dp0server.py" "%~dp0." "%GALLERY_LOG%"
 if errorlevel 1 (
   echo [ERROR] The hidden server process could not be launched.
   if not defined GALLERY_NONINTERACTIVE pause
@@ -181,7 +183,7 @@ if errorlevel 1 (
 
 echo Waiting for the server to be ready...
 set "READY=0"
-for /L %%I in (1,1,15) do (
+for /L %%I in (1,1,60) do (
   call :check_health
   if not errorlevel 1 (
     set "READY=1"
@@ -202,7 +204,7 @@ if "%READY%"=="1" (
 
 call :open_browser
 echo Open: %GALLERY_URL%/
-echo Log: %~dp0logs\server.log
+echo Log: %GALLERY_LOG%
 if /I "%MODE%"=="restart" echo Restart complete. Hard-refresh the browser if the UI looks stale.
 endlocal
 exit /b 0

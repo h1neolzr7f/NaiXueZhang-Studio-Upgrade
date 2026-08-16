@@ -159,7 +159,7 @@ class StartupScriptContractTests(unittest.TestCase):
 
                 self.assertEqual(0, result.returncode, output)
                 self.assertIn("Server is up", output)
-                server_log = (fixture / "logs" / "server.log").read_text(
+                server_log = (fixture / "logs" / f"server-{port}.log").read_text(
                     encoding="utf-8",
                     errors="replace",
                 )

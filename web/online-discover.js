@@ -73,17 +73,31 @@
     const query = String(($("q") && $("q").value) || "").trim();
     if (status) status.textContent = "正在搜索在线引用…";
     try {
-      const data = await api.get("/api/online/search?q=" + encodeURIComponent(query));
+      let data = await api.get("/api/online/search?q=" + encodeURIComponent(query));
       if (!data.ok) {
         if (status) status.textContent = data.message || "在线来源暂不可用，本地图库仍可继续用。";
         render([]);
         return;
       }
-      render(data.items || []);
+      let items = data.items || [];
+      let usedFallback = false;
+      if (!items.length && query) {
+        const fallback = await api.get("/api/online/search?q=");
+        if (fallback && fallback.ok && (fallback.items || []).length) {
+          data = fallback;
+          items = fallback.items || [];
+          usedFallback = true;
+        }
+      }
+      render(items);
       if (status) {
-        status.textContent = (data.items || []).length
-          ? "收藏只记引用；加入我的图库才会下载入库。"
-          : "在线区还没有结果。换个词搜索，或先回我的图库。";
+        if (usedFallback) {
+          status.textContent = "当前检索词没有在线结果，已显示全部在线引用。本地图库不受影响。";
+        } else if (items.length) {
+          status.textContent = "收藏只记引用；加入我的图库才会下载入库。";
+        } else {
+          status.textContent = "在线区还没有结果。换个词搜索，或先回我的图库。";
+        }
       }
     } catch (error) {
       if (status) status.textContent = error instanceof Error ? error.message : String(error);

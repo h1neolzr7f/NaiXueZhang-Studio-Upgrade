@@ -85,7 +85,19 @@ class NoDirectLibraryWriteGuardTests(unittest.TestCase):
         r"\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(works|work_images)\b",
         re.IGNORECASE,
     )
-    SKIP_PARTS = {".git", "node_modules", "__pycache__", "tests", "frontend"}
+    SKIP_PARTS = {
+        ".git",
+        "node_modules",
+        "__pycache__",
+        "tests",
+        "frontend",
+        "runtime",
+        ".venv",
+        ".tmp",
+        "site-packages",
+        "dist",
+        "build",
+    }
 
     def test_provider_modules_do_not_insert_library_rows(self) -> None:
         forbidden = []
@@ -99,6 +111,11 @@ class NoDirectLibraryWriteGuardTests(unittest.TestCase):
             if self.WRITE_RE.search(text):
                 forbidden.append(rel)
         self.assertEqual(forbidden, [])
+
+    def test_write_guard_skips_windows_portable_runtime_tree(self) -> None:
+        self.assertTrue({"runtime", ".venv", ".tmp", "site-packages"} <= self.SKIP_PARTS)
+        planted = Path("runtime/Lib/site-packages/torch/_functorch/config.py")
+        self.assertTrue(any(part in self.SKIP_PARTS for part in planted.parts))
 
     def test_allowed_writers_are_explicit(self) -> None:
         for name in self.ALLOWED:

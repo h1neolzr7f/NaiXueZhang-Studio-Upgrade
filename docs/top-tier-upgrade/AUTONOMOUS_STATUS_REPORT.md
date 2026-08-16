@@ -4,16 +4,18 @@
 读者：dick（产品方）  
 作者：实现轮（已接受同行审查打穿）  
 分支：`cursor/autonomous-next-architecture-96fe`  
-HEAD：`8ab7ffdba014124a154c6b9a9a1223f1a57cb3ed`  
+HEAD：以 `git rev-parse HEAD` 为准（Windows RC 提交之后）  
 Draft PR：https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/12  
 基线：`cursor/cloud-top-tier-integration-f036` @ `0e6564b`  
-**不要合 `main`。不要发 Release。不要在云端跑真实付费 NAI / 真实 Pixiv。**
+**Windows 源码 RC 已过。不要发 GitHub Release。不要在未确认时跑真实付费 NAI / 真实 Pixiv。**
+
+权威报告：`docs/top-tier-upgrade/WINDOWS_RC_REPORT.md`
 
 ---
 
 ## 一句话
 
-上一轮 Cloud RC 被打穿是对的；审查里的 P0/P1 已在 Linux 修完并再攻击。现在可以认为 **Linux 审查项已闭环**，但仍不是 Windows 发布，也不是付费 NAI Transform 完成。
+上一轮 Cloud RC 被打穿是对的；Linux 审查项已闭环。本轮在 Windows 上修了 CI 时区、一键启动日志锁、Doctor 编码和在线发现空结果，并声明 **LOCAL WINDOWS RC: PASS**。仍不是对外 Release，也不是付费 NAI Transform 完成。
 
 ---
 

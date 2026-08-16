@@ -69,13 +69,13 @@ Capability Gateway remains a **decision prototype** (`EXECUTION_WIRED=False`). F
 | Matrix unverified AT-RISK | False |
 | Known P0/P1 from the review | Closed |
 
-## Not claimed / leave to Windows
+## Windows Final QA (2026-08-16)
 
-- DPAPI, 中文路径, 一键启动, 真实旧图库升级
-- 真实 NAI / Pixiv，用户主动选择的付费验证
-- 真机 10k/100k 与主观 UI/UX
-- Capability 审计/执行接线
-- Pixiv intake 仍走自己的 SQL writer
+`LOCAL WINDOWS RC: PASS`. Details: `WINDOWS_RC_REPORT.md`.
+
+Closed on this machine: tzdata CI, one-click per-port log, doctor GBK filename, online empty-query fallback, write-guard runtime skip, old-gallery copy index, Studio/char-swap ticket preview.
+
+Still not claimed: public Release zip, real paid NAI, Pixiv login, Capability execution, 10k disk bench.
 
 ## Rollback
 

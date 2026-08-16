@@ -8,8 +8,9 @@ Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/12
 ## Loop status
 
 - Peer review of `7e963da` disagreed with Cloud RC (P0/P1). That call was correct.
-- This loop closed those holes and re-attacked. Snapshot for humans: `AUTONOMOUS_STATUS_REPORT.md`.
-- User remaining work: Windows / real accounts / real paid / subjective UX (`AUTONOMOUS_PENDING_WINDOWS.md`).
+- Review-closure loop closed those holes on Linux.
+- Windows Final QA loop: `LOCAL WINDOWS RC: PASS`. Report: `WINDOWS_RC_REPORT.md`.
+- Still not a public Release. Paid NAI / Pixiv remain user-gated.
 
 ## Landed this loop
 
