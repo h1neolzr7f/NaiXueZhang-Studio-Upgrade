@@ -14,7 +14,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from db_compression import compress_text
 from gallery_catalog import ensure_gallery_dirs, get_db  # noqa: E402
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
@@ -196,161 +195,58 @@ def upsert_local_work(
     extra: dict[str, Any] | None = None,
     commit: bool = True,
 ) -> None:
+    from library_writer import MaterializePage, materialize_asset
+    from remote_asset import RemoteAssetRef
+
     ensure_gallery_dirs(gallery_id)
     db = get_db(gallery_id)
     crawled_at = now_iso()
-    user_id = account_user_id(account_key) if account_key else 0
-    item: dict[str, Any] = {
-        "id": work_id,
-        "userId": user_id or None,
-        "title": title,
-        "caption": caption,
-        "tags": tags,
-        "AI_type": "NAI",
-        "ai_type": "NAI",
-        "create_date": crawled_at,
-        "image_count": 1,
-        "total_view": 0,
-        "total_bookmarks": 0,
-        "account_key": account_key,
-        "account_label": account_label or account_key,
-        "category": category,
-        "rating": rating,
-        "source": source,
-        "gallery": gallery_id,
-    }
-    if extra:
-        item.update(extra)
-
-    detail = {
-        "work": item,
-        "images": [
-            {
-                "page_index": 0,
-                "image_type": "NAI",
-                "author_id": user_id or None,
-                "file_name": Path(preview_rel).name,
-                "image_path": preview_rel.replace("\\", "/"),
-                "local_path": preview_rel.replace("\\", "/"),
-                "model": model,
-                "ai_json": ai_json,
-                "prompt_text": prompt_text,
-            }
-        ],
-    }
-
-    db._run(
-        lambda: _upsert_full(
-            db,
-            work_id,
-            item,
-            detail,
-            preview_rel,
-            prompt_text,
-            model,
-            ai_json,
-            crawled_at,
-            commit,
+    remote = None
+    extra_payload = dict(extra or {})
+    raw_remote = extra_payload.pop("remote_ref", None)
+    if isinstance(raw_remote, RemoteAssetRef):
+        remote = raw_remote
+    elif isinstance(raw_remote, dict):
+        remote = RemoteAssetRef.from_dict(raw_remote)
+    elif source.startswith("local-drop:"):
+        remote = RemoteAssetRef(
+            provider_id="local-drop",
+            remote_id=str(work_id),
+            source_key=str(source),
         )
+    elif source.startswith("qq") or gallery_id == "qqgroup":
+        remote = RemoteAssetRef.for_qq(str(work_id), path=str(source or preview_rel))
+    elif gallery_id == "codex":
+        remote = RemoteAssetRef.for_codex(str(work_id), source_key=str(source or preview_rel))
+    source_sha256 = str(extra_payload.pop("source_sha256", "") or "")
+    materialize_asset(
+        gallery_id,
+        work_id=work_id,
+        title=title,
+        remote_ref=remote,
+        pages=[
+            MaterializePage(
+                relative_path=preview_rel,
+                page_index=0,
+                source_sha256=source_sha256,
+                file_name=Path(preview_rel).name,
+                prompt_text=prompt_text,
+                model=model,
+                ai_json=ai_json,
+            )
+        ],
+        caption=caption,
+        tags=tags,
+        account_key=account_key,
+        account_label=account_label,
+        category=category,
+        rating=rating,
+        source=source,
+        extra=extra_payload or None,
+        commit=commit,
+        db=db,
+        acquired_at=crawled_at,
     )
-
-
-def _upsert_full(
-    db: Any,
-    work_id: int,
-    item: dict[str, Any],
-    detail: dict[str, Any],
-    preview_rel: str,
-    prompt_text: str,
-    model: str,
-    ai_json: str,
-    crawled_at: str,
-    commit: bool,
-) -> None:
-    existing = db.conn.execute(
-        "SELECT create_date FROM works WHERE id = ?",
-        (work_id,),
-    ).fetchone()
-    if existing and existing["create_date"]:
-        item["create_date"] = existing["create_date"]
-        work = detail.get("work")
-        if isinstance(work, dict):
-            work["create_date"] = existing["create_date"]
-    list_json = json.dumps(item, ensure_ascii=False)
-    detail_json = compress_text(json.dumps(detail, ensure_ascii=False))
-    rel = preview_rel.replace("\\", "/")
-    db.conn.execute(
-        """
-        INSERT INTO works(
-            id, user_id, title, caption, tags, ai_type, create_date,
-            image_count, total_view, total_bookmarks, list_json, detail_json,
-            preview_path, preview_downloaded, crawled_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-        ON CONFLICT(id) DO UPDATE SET
-            user_id = excluded.user_id,
-            title = excluded.title,
-            caption = excluded.caption,
-            tags = excluded.tags,
-            ai_type = excluded.ai_type,
-            create_date = excluded.create_date,
-            -- Keep existing engagement / multi-image counters on re-import.
-            image_count = MAX(works.image_count, excluded.image_count),
-            total_view = MAX(works.total_view, excluded.total_view),
-            total_bookmarks = MAX(works.total_bookmarks, excluded.total_bookmarks),
-            list_json = excluded.list_json,
-            detail_json = excluded.detail_json,
-            preview_path = excluded.preview_path,
-            preview_downloaded = 1,
-            crawled_at = excluded.crawled_at
-        """,
-        (
-            work_id,
-            item.get("userId"),
-            item.get("title"),
-            item.get("caption"),
-            item.get("tags"),
-            "NAI",
-            item.get("create_date"),
-            1,
-            0,
-            0,
-            list_json,
-            detail_json,
-            rel,
-            crawled_at,
-        ),
-    )
-    db.conn.execute(
-        """
-        INSERT INTO work_images(
-            id, work_id, author_id, image_type, file_name, image_path,
-            model, ai_json, prompt_text, page_index, local_path, downloaded
-        ) VALUES (?, ?, ?, 'NAI', ?, ?, ?, ?, ?, 0, ?, 1)
-        ON CONFLICT(work_id, page_index) DO UPDATE SET
-            file_name = excluded.file_name,
-            image_path = excluded.image_path,
-            model = excluded.model,
-            ai_json = excluded.ai_json,
-            prompt_text = excluded.prompt_text,
-            local_path = excluded.local_path,
-            downloaded = 1
-        """,
-        (
-            work_id,
-            work_id,
-            item.get("userId"),
-            Path(rel).name,
-            rel,
-            model or None,
-            compress_text(ai_json) if ai_json else None,
-            prompt_text,
-            rel,
-        ),
-    )
-    db._sync_work_fts(work_id)
-    db._sync_prompt_fts(work_id)
-    if commit:
-        db.conn.commit()
 
 
 def save_group_index(gallery_id: str, groups: list[dict[str, Any]]) -> None:

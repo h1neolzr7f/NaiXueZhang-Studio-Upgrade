@@ -8,3 +8,4 @@ Pillow>=10.0.0
 numpy>=2.0.0
 PyYAML>=6.0.0
 psutil>=7.0.0
+tzdata>=2024.1

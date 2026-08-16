@@ -241,7 +241,7 @@
     if (path === "/butler" || path.startsWith("/app/butler")) return;
     if (document.querySelector("script[data-companion-dock]")) return;
     const script = document.createElement("script");
-    script.src = "/assets/shared/companion-dock.js?v=ab14b1b2ff";
+    script.src = "/assets/shared/companion-dock.js?v=fd74fe1d8d";
     script.dataset.companionDock = "1";
     script.async = true;
     document.head.appendChild(script);

@@ -105,6 +105,7 @@ class ButlerAgentTests(unittest.TestCase):
             "list_generated",
             "list_queue",
             "compare_gallery_candidates",
+            "gallery_index_preview",
         })
 
     def test_execute_auto_refuses_foreign_tools(self) -> None:

@@ -120,6 +120,48 @@ def test_prune_backups_keeps_newest_and_only_tool_owned_names(tmp_path: Path) ->
     assert all(BACKUP_NAME_RE.match(path.name) for path in removed)
 
 
+def test_current_schema_v2_snapshot_rollback_rehearsal(tmp_path: Path) -> None:
+    from db import SCHEMA_VERSION, Database
+
+    data = tmp_path / "data"
+    images = data / "images"
+    images.mkdir(parents=True)
+    (images / "keep.bin").write_bytes(b"keep")
+    db_path = data / "gallery.db"
+    db = Database(db_path)
+    try:
+        version = int(db.conn.execute("PRAGMA user_version").fetchone()[0])
+        assert version == SCHEMA_VERSION == 2
+        db.conn.execute(
+            "INSERT INTO works(id, title, caption, tags, ai_type) VALUES (1, 'before', '', 't', 'nai')"
+        )
+        db.conn.commit()
+    finally:
+        db.close()
+    snapshot = tmp_path / "current-schema.zip"
+    manager = GallerySnapshotManager(
+        db_path, images, crawler_stopper=lambda: {"crawler_pixiv": []}
+    )
+    manager.create(snapshot)
+    db = Database(db_path)
+    try:
+        db.conn.execute("UPDATE works SET title='after' WHERE id=1")
+        db.conn.commit()
+    finally:
+        db.close()
+    (images / "orphan.bin").write_bytes(b"orphan")
+    restored = manager.restore(snapshot, confirm=True)
+    assert restored["ok"] is True
+    db = Database(db_path)
+    try:
+        assert int(db.conn.execute("PRAGMA user_version").fetchone()[0]) == 2
+        assert db.conn.execute("SELECT title FROM works WHERE id=1").fetchone()[0] == "before"
+    finally:
+        db.close()
+    assert (images / "keep.bin").read_bytes() == b"keep"
+    assert not (images / "orphan.bin").exists()
+
+
 def test_prune_backups_noop_when_within_retention(tmp_path: Path) -> None:
     backups = tmp_path / "backups"
     backups.mkdir()

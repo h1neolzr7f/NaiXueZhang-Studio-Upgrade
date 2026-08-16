@@ -662,6 +662,22 @@ class GenerationJobManager:
                     }
                 )
                 recovered_running = True
+            elif restored_state.get("status") == "queued":
+                # Never sent to the provider. Keep them from blocking the
+                # post-restart queue forever — nothing calls activate_next()
+                # until an in-process job finishes.
+                restored_state.update(
+                    {
+                        "status": "cancelled",
+                        "message": "进程重启，未发出的排队任务已取消。",
+                        "current_work_id": None,
+                        "current_page_index": None,
+                        "current_phase": "",
+                        "active": [],
+                        "finished_at": _now(),
+                    }
+                )
+                recovered_running = True
             job = GenerationJob(task_id=task_id, state=restored_state)
             self._jobs[task_id] = job
             self._order.append(task_id)

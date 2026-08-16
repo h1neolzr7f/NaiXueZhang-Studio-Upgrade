@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +23,8 @@ def test_primary_launcher_supports_bundled_runtime_and_first_run_bootstrap() -> 
     assert "GALLERY_BOOTSTRAP" in launcher
     assert 'call "%~dp0INSTALL.bat"' in launcher
     assert "Automatic first-run setup failed" in launcher
+    assert "for /L %%I in (1,1,60) do (" in launcher
+    assert "server-%GALLERY_PORT%.log" in launcher
 
 
 def test_beginner_facing_launchers_delegate_to_the_safe_startup_path() -> None:
@@ -155,6 +160,7 @@ def test_all_beginner_entrypoints_share_runtime_then_venv_then_global_selection(
     assert '"scripts\\select_python_runtime.bat"' in release
 
 
+@pytest.mark.skipif(os.name != "nt", reason="select_python_runtime.bat requires cmd.exe")
 def test_runtime_selector_observably_prefers_runtime_then_venv() -> None:
     with tempfile.TemporaryDirectory() as temp:
         package = Path(temp) / "便携 gallery package"

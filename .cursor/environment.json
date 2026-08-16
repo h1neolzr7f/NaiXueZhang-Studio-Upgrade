@@ -1,0 +1,3 @@
+{
+  "install": "python3 -m pip install --upgrade pip\npython3 -m pip install -r requirements.core.lock.txt pytest langgraph langgraph-checkpoint-sqlite aiosqlite"
+}

@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -47,6 +48,7 @@ def accounts_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Pixiv account restore encrypts with Windows DPAPI")
 def test_corrupt_main_accounts_file_recovers_from_backup(
     accounts_paths: Path,
 ) -> None:
@@ -81,6 +83,7 @@ def test_load_accounts_returns_empty_only_when_both_copies_fail(
     assert data["accounts"] == []
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Pixiv account writes encrypt with Windows DPAPI")
 def test_save_accounts_file_writes_backup_atomically(accounts_paths: Path) -> None:
     first = {
         "active_id": "a1",

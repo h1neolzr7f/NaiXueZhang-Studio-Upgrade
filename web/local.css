@@ -1103,3 +1103,20 @@
     padding-bottom: 56px;
   }
 }
+
+.gallery-grid.is-online-hidden,
+#onlineDiscover.hidden {
+  display: none;
+}
+
+.online-discover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.online-discover-placeholder {
+  min-height: 160px;
+  background: #141a24;
+}

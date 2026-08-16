@@ -286,9 +286,26 @@ async def generate_image(
     source_title: str = "",
     source_thumb: str = "",
     remote_work_id: str = "",
+    paid_authorized: bool = False,
 ) -> dict[str, Any]:
     if api._JOB.get("status") == "error":
         api._JOB.update({"status": "idle", "message": "idle"})
+
+    profiled_comment, profile_info = apply_prompt_profile_to_comment(
+        patched_comment,
+        prompt_profile,
+    )
+    payload_info = build_generate_payload(profiled_comment, force_free=force_free)
+    if not payload_info.get("free_eligible") and not paid_authorized:
+        return {
+            "ok": False,
+            "error": "authorization_required",
+            "message": "非免费请求需要有效的一次性服务端授权票据",
+            "request_attempted": False,
+            "retry_safe": True,
+            "billing_uncertain": False,
+            "free_eligible": False,
+        }
 
     try:
         if token_id:
@@ -322,11 +339,6 @@ async def generate_image(
             "queue": api.queue_status(),
         }
 
-    profiled_comment, profile_info = apply_prompt_profile_to_comment(
-        patched_comment,
-        prompt_profile,
-    )
-    payload_info = build_generate_payload(profiled_comment, force_free=force_free)
     params = {
         k: v
         for k, v in (payload_info["parameters"] or {}).items()

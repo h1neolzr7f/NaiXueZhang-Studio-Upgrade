@@ -24,6 +24,8 @@ class CompanionDockUiTests(unittest.TestCase):
         self.assertIn("sakiko/causal/model.json", js)
         self.assertIn("tomori/casual/model.json", js)
         self.assertIn("/api/butler/chat", js)
+        self.assertIn("/api/companion/events", js)
+        self.assertIn("/api/companion/handoff", js)
         self.assertIn("agent: agentId", js)
         self.assertIn("menus: { items: [] }", js)
         self.assertIn("createWidget", js)

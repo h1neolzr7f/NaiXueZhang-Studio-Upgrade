@@ -7,6 +7,7 @@ main file, backup file and temp file are all asserted plaintext-free.
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,6 +19,7 @@ PLAIN_NOVELAI = "pst-PLAINTEXT-NOVELAI-TOKEN-123456"
 PLAIN_PIXIV = "PIXIV-PLAINTEXT-REFRESH-TOKEN-123456"
 
 
+@unittest.skipUnless(os.name == "nt", "DPAPI token-at-rest checks are Windows-only")
 class PlaintextAtRestTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp())

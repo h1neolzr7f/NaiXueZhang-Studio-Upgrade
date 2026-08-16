@@ -179,8 +179,10 @@ class Database:
         self._ensure_columns()
         self.conn.executescript(FTS_SCHEMA)
         from nai_tag_index import ensure_nai_tag_schema
+        from gallery_index import ensure_schema as ensure_gallery_index_schema
 
         ensure_nai_tag_schema(self.conn)
+        ensure_gallery_index_schema(self.conn)
         self._prompt_work_fts_ready = (
             self.get_state("prompt_work_fts_ready", "0") == "1"
         )

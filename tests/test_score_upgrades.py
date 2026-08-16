@@ -7,6 +7,7 @@ legacy secret deletion, data_dir routing, schema v2, and UI contracts.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -112,6 +113,7 @@ def test_paid_append_item_requires_persistence(tmp_path: Path) -> None:
         manager.append_item(job, {"target_index": 0, "ok": True}, count_done=True)
 
 
+@pytest.mark.skipif(os.name != "nt", reason="legacy Pixiv secret migration writes via Windows DPAPI")
 def test_legacy_pixiv_secret_is_deleted_after_migrate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
