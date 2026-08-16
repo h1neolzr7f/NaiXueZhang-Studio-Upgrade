@@ -28,6 +28,7 @@ Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/12
 - Sensitive scan clean; compileall clean
 - Mutation 7/7 RED then restored
 - Details: `AUTONOMOUS_TEST_EVIDENCE.md`
+- 给其他模型的对账简报：`AUTONOMOUS_PEER_REVIEW_BRIEF.md`
 
 ## Not claimed
 
