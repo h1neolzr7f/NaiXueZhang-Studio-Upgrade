@@ -27,3 +27,15 @@ Remote / Cached / Materialized are derived. Cache eviction cannot delete materia
 ## AD-007 Capability ≠ Persona
 
 Orchestrator is deny-all for execution. Service persona cannot generate or delete. Cross-domain work uses short-lived delegation tokens.
+
+## AD-008 Retry reuses the frozen job, not a caller flag
+
+`start_batch(..., _paid_authorized=True)` is ignored. Reuse happens only when `_retry_of` is a persisted job that was already `paid_authorized` and the remaining targets' fingerprints are a subset of that job. Mutated comments fail closed.
+
+## AD-009 Online lives on classic `/`
+
+The React workspace gallery is not the product `/` shell (`/app` still redirects). Online / My Library is a「在线发现」control on the classic atlas source bar. Primary nav stays 8 items.
+
+## AD-010 Tickets are process-local
+
+HMAC secret and consumed nonces live in process memory. Restart drops unused tickets. That matches the single-process local app. Unused tickets are not durable across crash.

@@ -2,26 +2,36 @@
 
 Updated: 2026-08-16  
 Branch: `cursor/autonomous-next-architecture-96fe`  
-Base: `cursor/cloud-top-tier-integration-f036` @ `0e6564b`
+Base: `cursor/cloud-top-tier-integration-f036` @ `0e6564b`  
+Draft PR: https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/pull/12
 
 ## Loop status
 
-- Implementation wave 1 landed; BREAK found paid subset-retry hash miss and char-swap UI missing tickets
-- Wave 2: retry reuses frozen job fingerprints only; char-swap authorize+403; classic gallery Online discover
-- Self-test: Red→Green→Break in progress; Cloud RC not claimed until two full green passes
+- Cloud RC claimed in `AUTONOMOUS_FINAL_REPORT.md` after two full greens and a mutation BREAK that stayed red-on-break.
+- User remaining work: Windows / real accounts / real paid / subjective UX (`AUTONOMOUS_PENDING_WINDOWS.md`).
 
 ## Landed
 
-- Server-side one-time NAI tickets (`nai_authorization.py`), checked before token pick and NovelAI HTTP
-- Studio / classic Studio / Butler confirm / char-swap batch consume the same ticket
-- `library_writer.materialize_asset` is the QQ/drop/Codex write boundary
-- Gallery index keyset continuation, unindexed/stale anti-join, multi-band near-dup recall
+- Server-side one-time NAI tickets; authorize before token pick and HTTP
+- Studio / classic Studio / char-swap / Butler share the same ticket
+- Paid retry reuses frozen-job fingerprints only
+- `library_writer.materialize_asset` for QQ / drop / Codex / synthetic
+- Gallery index keyset, anti-join visibility, multi-band near-dup
 - Source-qualified `RemoteAssetRef`
-- Remote/Cached/Materialized facts + synthetic Online → Favorite → Add to My Library
-- Capability Gateway + delegation + orchestrator (no God Agent)
+- Classic gallery「在线发现」+ synthetic Online → Favorite → Add to My Library
+- Capability Gateway + delegation + orchestrator deny-execute
+
+## Evidence
+
+- Pytest ×2: 1202 passed, 68 skipped
+- Quality gate ×2: p0=p1=p2=0
+- Sensitive scan clean; compileall clean
+- Mutation 7/7 RED then restored
+- Details: `AUTONOMOUS_TEST_EVIDENCE.md`
 
 ## Not claimed
 
 - Windows / DPAPI / real NAI / real Pixiv
-- Pixiv intake still writes library SQL (allowed until that adapter moves)
+- Pixiv intake still writes library SQL
 - 100k result is Linux metadata scan only
+- React `GalleryPage` is not mounted on `/`
