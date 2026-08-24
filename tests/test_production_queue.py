@@ -50,8 +50,8 @@ class ProductionQueueTests(unittest.TestCase):
         studio = nav.find('id: "studio"')
         self.assertGreater(gallery, 0)
         self.assertLess(gallery, generated)
-        # 待生成提升到主导航；完整对话收进「更多」
-        self.assertIn('{ href: "/queue", id: "queue", label: "待生成" }', nav)
+        # 待生成仍在导航里，收进「更多」；完整对话也在「更多」
+        self.assertIn('{ href: "/queue", id: "queue", label: "待生成", group: "创作" }', nav)
         self.assertLess(generated, studio)
         self.assertLess(studio, queue)
         self.assertIn("本地图库资产", nav)

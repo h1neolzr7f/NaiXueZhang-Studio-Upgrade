@@ -5,8 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import shutil
+import subprocess
+import sys
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -23,10 +27,13 @@ _SCAN_CACHE: dict[str, Any] = {"sig": None, "items": None, "groups": None}
 _LEGACY_META_MIGRATED = False
 META_SUFFIX = ".meta.json"
 STEM_RE = re.compile(r"^(\d{8})_(\d{6})(?:_(\d+))?$")
+_DERIVED_SUFFIX_RE = re.compile(r"(?:_up\d+x|_clean|_final|_mosaic)+$", re.I)
+_REVEAL_TTL_SECONDS = 3600.0
 
 DATA_DIR = DeferredDataPath(lambda: data_dir())
 GENERATED_DIR = DeferredDataPath(lambda: data_dir() / "generated")
 _CACHE_DIR = DeferredDataPath(lambda: data_dir() / "cache")
+_REVEAL_DIR = DeferredDataPath(lambda: data_dir() / "cache" / "reveal")
 _ITEMS_CACHE_FILE = DeferredDataPath(lambda: data_dir() / "cache" / "generated_gallery.items.json")
 _GROUPS_CACHE_FILE = DeferredDataPath(lambda: data_dir() / "cache" / "generated_gallery.groups.json")
 
@@ -83,6 +90,24 @@ def _is_primary_stem(stem: str) -> bool:
     return bool(STEM_RE.match(str(stem or "").strip()))
 
 
+def primary_stem(stem: str) -> str:
+    """Map a processed filename back to the original generated stem."""
+
+    raw = Path(str(stem or "").strip()).name
+    if raw.lower().endswith(".png.meta.json"):
+        raw = raw[: -len(".png.meta.json")]
+    elif raw.lower().endswith(".thumb.webp"):
+        raw = raw[: -len(".thumb.webp")]
+    else:
+        raw = Path(raw).stem
+    while True:
+        nxt = _DERIVED_SUFFIX_RE.sub("", raw)
+        if nxt == raw:
+            break
+        raw = nxt
+    return raw
+
+
 def _paths_for_stem(stem: str) -> list[Path]:
     """主图 + meta + 后处理衍生 png。"""
     safe = Path(stem).stem
@@ -115,6 +140,95 @@ def _paths_for_stem(stem: str) -> list[Path]:
             meta = _meta_path(path)
             if meta.exists():
                 _add(meta)
+    return paths
+
+
+def _prune_reveal_dirs(*, now: float | None = None) -> int:
+    root = Path(_REVEAL_DIR)
+    if not root.is_dir():
+        return 0
+    current = time.time() if now is None else float(now)
+    removed = 0
+    for entry in root.iterdir():
+        if not entry.is_dir():
+            continue
+        try:
+            if current - entry.stat().st_mtime <= _REVEAL_TTL_SECONDS:
+                continue
+            shutil.rmtree(entry, ignore_errors=True)
+            removed += 1
+        except OSError:
+            continue
+    return removed
+
+
+def _link_or_copy(source: Path, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(source, dest)
+    except OSError:
+        shutil.copy2(source, dest)
+
+
+def open_local_folder(folder: Path) -> bool:
+    if sys.platform != "win32":
+        return False
+    subprocess.Popen(["explorer", str(folder)])
+    return True
+
+
+def stage_reveal_folder(paths: list[Path], token: str) -> Path:
+    """Build a short-lived folder of hardlinks so Explorer only shows these files."""
+
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", str(token or "").strip())[:80] or "item"
+    _prune_reveal_dirs()
+    dest = Path(_REVEAL_DIR) / safe
+    if dest.exists():
+        shutil.rmtree(dest, ignore_errors=True)
+    dest.mkdir(parents=True, exist_ok=True)
+    seen: set[str] = set()
+    for path in paths:
+        if not path.is_file():
+            continue
+        name = path.name
+        if name in seen:
+            continue
+        seen.add(name)
+        _link_or_copy(path, dest / name)
+    if not seen:
+        shutil.rmtree(dest, ignore_errors=True)
+        raise FileNotFoundError("generated files were not found")
+    return dest
+
+
+def files_for_generated_image(image_id: str) -> list[Path]:
+    stem = primary_stem(image_id)
+    if not _is_primary_stem(stem):
+        raise ValueError("generated image id is invalid")
+    paths = [path for path in _paths_for_stem(stem) if path.exists() and path.is_file()]
+    if not paths:
+        raise FileNotFoundError("generated image not found")
+    return paths
+
+
+def files_for_generated_group(group_id: str) -> list[Path]:
+    group = get_group(group_id)
+    if not group:
+        raise FileNotFoundError("generated group not found")
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for item in group.get("items") or []:
+        stem = primary_stem(str(item.get("id") or item.get("filename") or ""))
+        if not _is_primary_stem(stem):
+            continue
+        for path in _paths_for_stem(stem):
+            key = str(path)
+            if key in seen or not path.exists() or not path.is_file():
+                continue
+            seen.add(key)
+            paths.append(path)
+    if not paths:
+        raise FileNotFoundError("generated group files were not found")
     return paths
 
 
@@ -469,11 +583,18 @@ def _group_key(
     source_gallery_id: str = "site",
     generation_series_id: str = "",
 ) -> str:
-    base = (
-        f"run:{generation_series_id}:{work_id if work_id else 'standalone'}"
-        if generation_series_id
-        else (str(work_id) if work_id else "standalone")
-    )
+    """Cover-list grouping key.
+
+    Images that share a source work stay on one card across generation runs.
+    Standalone images (no work_id) still split by series so unrelated one-offs
+    do not collapse into a single pile.
+    """
+    if work_id:
+        base = str(work_id)
+    elif generation_series_id:
+        base = f"run:{generation_series_id}:standalone"
+    else:
+        base = "standalone"
     gallery_id = str(source_gallery_id or "site").strip() or "site"
     return base if gallery_id == "site" else f"gallery:{gallery_id}:{base}"
 

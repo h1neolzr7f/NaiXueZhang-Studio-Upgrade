@@ -565,6 +565,16 @@ def _record_token_failure(entry: dict[str, Any], message: str) -> bool:
         return False
     provider = api._provider_key(str(entry.get("provider") or PROVIDER_NOVELAI))
     text = str(message or "").lower()
+    # Client payload rejected by NAI (nested char_caption, etc.) is not a token fault.
+    if any(
+        part in text
+        for part in (
+            "cannot unmarshal",
+            "unmarshal object",
+            "json: cannot",
+        )
+    ):
+        return False
     if provider == PROVIDER_NOVELAI and (
         "not enough anlas" in text
         or "out of trial image generations" in text
@@ -942,6 +952,34 @@ def delete_token_entry(token_id: str) -> dict[str, Any]:
     api._write_token_entries(kept)
     api._TOKEN_FAILURES.pop(tid, None)
     return {"ok": True, "message": "token deleted", **api.token_status()}
+
+
+
+def update_token_network(token_id: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Update per-token outbound proxy / api_base without re-pasting the secret."""
+    tid = str(token_id or "").strip()
+    if not tid:
+        raise ValueError("token_id is required")
+    body = payload if isinstance(payload, dict) else {}
+    if "proxy" not in body and "api_base" not in body:
+        raise ValueError("proxy or api_base is required")
+    from network_safety import validate_outbound_proxy, validate_provider_api_base
+
+    entries = api._normalize_token_entries()
+    found = None
+    for entry in entries:
+        if str(entry.get("id") or "") == tid:
+            found = entry
+            break
+    if found is None:
+        raise ValueError("token not found")
+    if "proxy" in body:
+        found["proxy"] = validate_outbound_proxy(str(body.get("proxy") or ""))
+    if "api_base" in body:
+        found["api_base"] = validate_provider_api_base(str(body.get("api_base") or ""))
+    found["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    api._write_token_entries(entries)
+    return {"ok": True, "message": "token network updated", **api.token_status()}
 
 
 

@@ -1,6 +1,7 @@
 function isBlockedWork(w) {
   if (!state.blacklist.length) return false;
-  const hay = [w.title, w.caption, w.tags, w.AI_type].map((v) => String(v || '').toLowerCase()).join('\n');
+  const hay = [w.title, w.caption, w.tags, w.AI_type, w.ai_type, w.creator, w.userName, w.userId, w.user_id]
+    .map((v) => String(v || '').toLowerCase()).join('\n');
   return state.blacklist.some((kw) => kw && hay.includes(kw));
 }
 
@@ -143,15 +144,24 @@ function updateGallerySourceUi() {
   setText('#galleryResultsHelp', online
     ? '单击打开详情与全部图片；可在同一详情页建立草稿、识别角色槽并换角。'
     : (window.GalleryDropFolders && window.GalleryDropFolders.isDropGallery()
-      ? '把图片拖进下方区域解析入库；每次拖入收成一个文件夹，可折叠、合并，并一键加入批量换角。'
+      ? '把图片拖进下方区域解析入库；每次拖入收成一个文件夹，可折叠、合并。法典/Q群没有 v4 角色槽，不能同质量换角，打开详情后可「用此图生成」。'
       : '单击打开详情与全部图片；右侧灵感栏可直接送去生成、换角或队列。排序选「随机刷新」后点「换一批」，每次都能看到不同的图。'));
   setText('#searchStatus span', online ? '正在读取 AITag 在线库…' : '正在读取本地图谱…');
   setText('#inspirationEmpty', online
-    ? '单击在线作品查看详情与全部图片；在同一页面完成角色槽识别与换角'
+    ? '单击在线作品查看详情与全部图片；在同一页面完成角色槽识别与换角。待生成队列仅用于本地图库。'
     : '单击查看详情与全部图片；侧边栏可预览咒语并送去生成或洗稿');
   setText('#inspirationToStudio', online ? '建立原图草稿 →' : '用此图生成 →');
   setText('#inspirationToRemix', '角色换角 →');
   document.getElementById('inspirationToQueue')?.classList.toggle('hidden', online);
+  const dropGallery = !online && (currentGalleryId() === 'codex' || currentGalleryId() === 'qqgroup');
+  const remixBtn = document.getElementById('inspirationToRemix');
+  if (remixBtn) {
+    remixBtn.hidden = dropGallery;
+    remixBtn.classList.toggle('hidden', dropGallery);
+    remixBtn.title = dropGallery
+      ? '法典/Q群没有 NovelAI v4 角色槽，不能同质量换角'
+      : '';
+  }
 
   const signals = document.querySelectorAll('#galleryHeroSignals span');
   const signalText = online
@@ -200,6 +210,8 @@ function updateAdvancedFilterSummary() {
     aitagCreatorInput?.value ? `作者:${aitagCreatorInput.value.trim()}` : '',
     aitagTagsInput?.value ? `标签:${aitagTagsInput.value.trim()}` : '',
     aitagModelSelect?.value ? selectedOptionLabel(aitagModelSelect) : '',
+    aitagNaiOnlyInput && !aitagNaiOnlyInput.checked ? '含其它生成器' : '',
+    aitagSafeOnlyInput && aitagSafeOnlyInput.checked ? '隐藏成人' : '',
     aitagMinImagesInput?.value ? `≥${aitagMinImagesInput.value}张` : '',
     aitagMaxImagesInput?.value ? `≤${aitagMaxImagesInput.value}张` : '',
   ] : [];
@@ -211,6 +223,8 @@ function onlineAdvancedFilters() {
     creator: String(aitagCreatorInput?.value || '').trim(),
     tags: String(aitagTagsInput?.value || '').trim(),
     model: String(aitagModelSelect?.value || '').trim(),
+    naiOnly: !aitagNaiOnlyInput || !!aitagNaiOnlyInput.checked,
+    safeOnly: !!(aitagSafeOnlyInput && aitagSafeOnlyInput.checked),
     minImages: Math.max(0, Number.parseInt(aitagMinImagesInput?.value || '0', 10) || 0),
     maxImages: Math.max(0, Number.parseInt(aitagMaxImagesInput?.value || '0', 10) || 0),
   };
@@ -220,6 +234,8 @@ function resetOnlineAdvancedFilters() {
   if (aitagCreatorInput) aitagCreatorInput.value = '';
   if (aitagTagsInput) aitagTagsInput.value = '';
   if (aitagModelSelect) aitagModelSelect.value = '';
+  if (aitagNaiOnlyInput) aitagNaiOnlyInput.checked = true;
+  if (aitagSafeOnlyInput) aitagSafeOnlyInput.checked = false;
   if (aitagMinImagesInput) aitagMinImagesInput.value = '';
   if (aitagMaxImagesInput) aitagMaxImagesInput.value = '';
 }
@@ -355,17 +371,13 @@ function updateShuffleButton(mode) {
 }
 
 function updateGallerySortOptions(galleryId) {
-  const sortSel = document.getElementById('sortMode');
-  if (!sortSel) return;
   const gid = galleryId || currentGalleryId() || 'site';
   const options = GALLERY_SORT_OPTIONS[gid] || GALLERY_SORT_OPTIONS.site;
-  const currentVal = sortSel.value;
-  sortSel.innerHTML = options.map((opt) => `<option value="${opt.value}">${opt.label}</option>`).join('');
-  if (options.some((o) => o.value === currentVal)) {
-    sortSel.value = currentVal;
-  } else {
-    sortSel.value = options[0].value;
-  }
+  [document.getElementById('sortMode'), document.getElementById('sortMode2')].filter(Boolean).forEach((sortSel) => {
+    const currentVal = sortSel.value;
+    sortSel.innerHTML = options.map((opt) => `<option value="${opt.value}">${opt.label}</option>`).join('');
+    sortSel.value = options.some((opt) => opt.value === currentVal) ? currentVal : options[0].value;
+  });
 }
 
 async function loadGalleryHierarchy(
@@ -552,17 +564,19 @@ async function fetchWorks(
   if (!state.favoritesMode && !state.queueMode && state.prompt) url.searchParams.set('prompt', state.prompt);
   const tr = (timeRangeSel && timeRangeSel.value) || (isRank ? 'current' : 'all');
   if (onlineGallery) {
+    const filters = onlineAdvancedFilters();
     url.searchParams.set('sort', ['popular', 'recent', 'relevance'].includes(mode) ? mode : 'popular');
     url.searchParams.set('time_range', tr || 'all');
-    url.searchParams.set('nai_only', 'true');
-    url.searchParams.set('safe_only', 'false');
+    url.searchParams.set('safe_only', filters.safeOnly ? 'true' : 'false');
     if (!state.favoritesMode) {
-      const filters = onlineAdvancedFilters();
+      url.searchParams.set('nai_only', filters.naiOnly ? 'true' : 'false');
       if (filters.creator) url.searchParams.set('creator', filters.creator);
       if (filters.tags) url.searchParams.set('tags', filters.tags);
       if (filters.model) url.searchParams.set('model', filters.model);
       if (filters.minImages) url.searchParams.set('min_images', String(filters.minImages));
       if (filters.maxImages) url.searchParams.set('max_images', String(filters.maxImages));
+    } else {
+      url.searchParams.set('nai_only', 'true');
     }
   } else if (!state.favoritesMode && !state.queueMode && isRank) {
     // period 参数：current 或 YYYY-MM 或 older
@@ -861,7 +875,7 @@ function renderGallery(opts = {}) {
 
     try {
       const mode = (sortModeSel && sortModeSel.value) || (sortModeSel2 && sortModeSel2.value) || 'new';
-      if (mode === 'monthly') {
+      if (mode === 'monthly' || mode === 'popular') {
         const mets = document.createElement('div');
         mets.className = 'card-metrics';
         const v = document.createElement('span');
@@ -1023,6 +1037,8 @@ function triggerSearch() {
       model: onlineFilters.model,
       min_images: onlineFilters.minImages || '',
       max_images: onlineFilters.maxImages || '',
+      nai_only: onlineFilters.naiOnly ? '' : '0',
+      safe_only: onlineFilters.safeOnly ? '1' : '',
     };
     Object.entries(queryFilters).forEach(([key, value]) => {
       if (isAitagGallery() && value !== '') url.searchParams.set(key, String(value));
@@ -1054,7 +1070,18 @@ promptInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') triggerS
 [aitagCreatorInput, aitagTagsInput, aitagMinImagesInput, aitagMaxImagesInput].filter(Boolean).forEach((input) => {
   input.addEventListener('keydown', (event) => { if (event.key === 'Enter') triggerSearch(); });
 });
-aitagModelSelect?.addEventListener('change', updateAdvancedFilterSummary);
+aitagModelSelect?.addEventListener('change', () => {
+  updateAdvancedFilterSummary();
+  if (isAitagGallery()) triggerSearch();
+});
+aitagNaiOnlyInput?.addEventListener('change', () => {
+  updateAdvancedFilterSummary();
+  if (isAitagGallery()) triggerSearch();
+});
+aitagSafeOnlyInput?.addEventListener('change', () => {
+  updateAdvancedFilterSummary();
+  if (isAitagGallery()) triggerSearch();
+});
 saveBlacklistBtn.addEventListener('click', () => { saveBlacklist(); triggerSearch(); });
 const clearFiltersPanelBtn = document.getElementById('clearFiltersPanelBtn');
 if (clearFiltersBtn) {
@@ -1274,6 +1301,14 @@ function initFromQuery() {
   if (aitagCreatorInput) aitagCreatorInput.value = url.searchParams.get('creator') || '';
   if (aitagTagsInput) aitagTagsInput.value = url.searchParams.get('tags') || '';
   if (aitagModelSelect) aitagModelSelect.value = url.searchParams.get('model') || '';
+  if (aitagNaiOnlyInput) {
+    const naiOnlyQ = url.searchParams.get('nai_only');
+    aitagNaiOnlyInput.checked = naiOnlyQ !== '0' && naiOnlyQ !== 'false';
+  }
+  if (aitagSafeOnlyInput) {
+    const safeOnlyQ = url.searchParams.get('safe_only');
+    aitagSafeOnlyInput.checked = safeOnlyQ === '1' || safeOnlyQ === 'true';
+  }
   if (aitagMinImagesInput) aitagMinImagesInput.value = url.searchParams.get('min_images') || '';
   if (aitagMaxImagesInput) aitagMaxImagesInput.value = url.searchParams.get('max_images') || '';
   // 假值也要写回：后退到无 q/page 的 URL 时，旧搜索词与页码必须清掉
@@ -1606,6 +1641,7 @@ const galleryListRuntime = window.GalleryListRuntime.create({
   adaptAitagWork,
   getSortMode: () => (sortModeSel && sortModeSel.value) || (sortModeSel2 && sortModeSel2.value) || 'new',
   getTimeRange: () => (timeRangeSel && timeRangeSel.value) || (timeRangeSel2 && timeRangeSel2.value) || 'all',
+  getOnlineFilters: onlineAdvancedFilters,
   translate: t,
   currentLanguage: () => CURRENT_LANG,
   visibleWorks,

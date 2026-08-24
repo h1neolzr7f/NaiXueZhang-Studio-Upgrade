@@ -621,6 +621,15 @@
   content: "…";
   opacity: 0.4;
 }
+.detail-remix-unavailable {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  color: #9aa7bd;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  font-weight: 500;
+}
 .detail-send-row {
   display: flex;
   flex-wrap: wrap;

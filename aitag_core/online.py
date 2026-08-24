@@ -37,10 +37,13 @@ AITAG_TIMEOUT_SECONDS = 30.0
 AITAG_CACHE_TTL_SECONDS = 600.0
 AITAG_CACHE_MAX_BYTES = 64 * 1024 * 1024
 _WORK_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+_PERIOD_RE = re.compile(r"^\d{4}-\d{2}$")
 _SORT_MAP = {
     "recent": "new",
     "new": "new",
     "popular": "popular",
+    "hot": "popular",
+    "monthly": "popular",
     "relevance": "relevance",
 }
 _TIME_RANGE_MAP = {
@@ -77,10 +80,46 @@ class AitagSearchRequest:
         query = str(self.query or "").strip()[:2_000]
         prompt = str(self.prompt or "").strip()[:2_000]
         sort = _SORT_MAP.get(str(self.sort or "recent").strip().casefold(), "new")
-        time_range = _TIME_RANGE_MAP.get(
-            str(self.time_range or "all").strip().casefold(), "all"
-        )
+        raw_range = str(self.time_range or "all").strip()
+        if _PERIOD_RE.fullmatch(raw_range):
+            time_range = raw_range
+        else:
+            time_range = _TIME_RANGE_MAP.get(raw_range.casefold(), "all")
         return AitagSearchRequest(page, page_size, query, prompt, sort, time_range)
+
+
+def _upstream_search(request: AitagSearchRequest) -> tuple[str, dict[str, Any]]:
+    """Pick the official AITag endpoint that actually implements this sort.
+
+    ``/api/ai_works_search`` currently ignores ``sort`` and always returns the
+    newest ingest order. Official 热门 is the monthly rank board, not a search
+    sort alias.
+    """
+
+    if request.sort == "popular":
+        params: dict[str, Any] = {
+            "page": request.page,
+            "page_size": request.page_size,
+        }
+        if request.query:
+            params["q"] = request.query
+        if request.prompt:
+            params["prompt"] = request.prompt
+        if _PERIOD_RE.fullmatch(request.time_range):
+            params["period"] = request.time_range
+            return "/api/rank/monthly", params
+        return "/api/rank/monthly/real", params
+    return (
+        "/api/ai_works_search",
+        {
+            "page": request.page,
+            "page_size": request.page_size,
+            "q": request.query,
+            "prompt": request.prompt,
+            "sort": request.sort,
+            "time_range": request.time_range,
+        },
+    )
 
 
 def validate_aitag_base_url(value: str = AITAG_SITE_URL) -> str:
@@ -280,16 +319,10 @@ class AitagClient:
         safe_only: bool = True,
     ) -> AitagSearchPage:
         request = AitagSearchRequest(page, page_size, query, prompt, sort, time_range).normalized()
+        path, params = _upstream_search(request)
         payload = self._request_json(
-            "/api/ai_works_search",
-            params={
-                "page": request.page,
-                "page_size": request.page_size,
-                "q": request.query,
-                "prompt": request.prompt,
-                "sort": request.sort,
-                "time_range": request.time_range,
-            },
+            path,
+            params=params,
             allow_404=True,
         )
         result = normalize_aitag_search(

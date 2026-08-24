@@ -100,7 +100,8 @@
       else if (check.ok === false) meta.textContent = `不可用 · ${check.message || "检测失败"}`;
       else {
         const disabledText = enabled ? "已保存，尚未检测" : `已停用${slot.disabled_reason ? `：${slot.disabled_reason}` : ""}`;
-        meta.textContent = `${disabledText}${slot.updated_at ? ` · ${slot.updated_at}` : ""}`;
+        const proxyText = slot.has_proxy ? "已配置代理" : "未配置代理";
+        meta.textContent = `${disabledText} · ${proxyText}${slot.updated_at ? ` · ${slot.updated_at}` : ""}`;
       }
       main.appendChild(title);
       main.appendChild(meta);
@@ -118,8 +119,31 @@
       delBtn.addEventListener("click", () => deleteSlot(slot));
       actions.appendChild(checkBtn);
       actions.appendChild(delBtn);
+      if (slot.has_proxy) {
+        const clearBtn = document.createElement("button");
+        clearBtn.type = "button";
+        clearBtn.dataset.clearProxy = "1";
+        clearBtn.textContent = "清除代理";
+        clearBtn.addEventListener("click", () => clearSlotProxy(slot));
+        actions.appendChild(clearBtn);
+      }
+      const proxyRow = document.createElement("div");
+      proxyRow.className = "token-slot-proxy";
+      const proxyInput = document.createElement("input");
+      proxyInput.type = "text";
+      proxyInput.autocomplete = "off";
+      proxyInput.spellcheck = false;
+      proxyInput.placeholder = slot.has_proxy ? "已配置（不回显）。填写新地址可覆盖" : "http://127.0.0.1:7897";
+      const proxyBtn = document.createElement("button");
+      proxyBtn.type = "button";
+      proxyBtn.dataset.saveProxy = "1";
+      proxyBtn.textContent = "保存代理";
+      proxyBtn.addEventListener("click", () => saveSlotProxy(slot, proxyInput, proxyBtn));
+      proxyRow.appendChild(proxyInput);
+      proxyRow.appendChild(proxyBtn);
       row.appendChild(main);
       row.appendChild(actions);
+      row.appendChild(proxyRow);
       list.appendChild(row);
     });
   }
@@ -145,6 +169,51 @@
         button.disabled = false;
         button.textContent = "检测";
       }
+    }
+  }
+
+  async function saveSlotProxy(slot, input, button) {
+    if (!slot || !slot.id) return;
+    const proxy = String((input && input.value) || "").trim();
+    if (!proxy) {
+      setStatus("请先填写代理地址，例如 http://127.0.0.1:7897", false);
+      return;
+    }
+    if (button) {
+      button.disabled = true;
+      button.textContent = "保存中…";
+    }
+    try {
+      await api(`/api/nai/token/${encodeURIComponent(slot.id)}/network`, {
+        method: "POST",
+        body: { proxy },
+      });
+      if (input) input.value = "";
+      setStatus(`已为「${slot.label || slot.masked || "该槽位"}」保存代理`, true);
+      await load();
+    } catch (error) {
+      setStatus(error.message || String(error), false);
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "保存代理";
+      }
+    }
+  }
+
+  async function clearSlotProxy(slot) {
+    if (!slot || !slot.id) return;
+    const name = slot.label || slot.masked || "该槽位";
+    if (!window.confirm(`清除生图槽位「${name}」的出站代理？国内网络直连 NovelAI 通常会失败。`)) return;
+    try {
+      await api(`/api/nai/token/${encodeURIComponent(slot.id)}/network`, {
+        method: "POST",
+        body: { proxy: "" },
+      });
+      setStatus(`已清除「${name}」的代理`, true);
+      await load();
+    } catch (error) {
+      setStatus(error.message || String(error), false);
     }
   }
 

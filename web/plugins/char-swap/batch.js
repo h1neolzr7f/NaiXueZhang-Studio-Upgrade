@@ -397,7 +397,7 @@ export async function startBatch(opts) {
         body: JSON.stringify({
           targets: mapQueueToTargets(),
           recipe,
-          force_free: document.getElementById("batchForceFree").checked,
+          force_free: true,
           generate: opts.generate !== false,
           preview_only: !!opts.preview_only,
         }),
@@ -710,7 +710,7 @@ export function mountBatchDrawer() {
             </div>
             <label class="char-swap-check"><input type="checkbox" id="batchSanitize" checked /> 自动净化（不含贵物）</label>
             <label class="char-swap-check"><input type="checkbox" id="batchReplaceCreature" /> 贵物/异种换成搭档（保留人类角色，默认博士）</label>
-            <label class="char-swap-check"><input type="checkbox" id="batchForceFree" checked /> Opus 免费路径</label>
+            <label class="char-swap-check"><input type="checkbox" id="batchForceFree" checked disabled /> Opus 免费路径（与工作台一致）</label>
           </div>
         </div>
         <div class="char-swap-batch-actions">
@@ -869,7 +869,7 @@ export function mountBatchDrawer() {
       try {
         const st = await api("/api/nai/status");
         if (!st.has_token) {
-          alert("请先在设置 → 角色插件 中填写 NAI Token");
+          alert("请先在设置中心配置 NAI Token");
           return;
         }
         slotN = Math.max(1, Number(st.concurrency || st.enabled_count || 1) || 1);

@@ -68,8 +68,11 @@ class GalleryFiltersUiTests(unittest.TestCase):
         self.assertIn("if (isAitagGallery()) return", app)
         self.assertIn("!isAitagGallery() && window.GalleryBootstrap", app)
         self.assertIn("单击在线作品查看详情与全部图片", app)
+        self.assertIn("待生成队列仅用于本地图库", app)
         self.assertIn("建立原图草稿 →", app)
         self.assertIn("角色换角 →", app)
+        self.assertIn("detail-remix-unavailable", app)
+        self.assertIn("法典/Q群没有 NovelAI v4 角色槽", app)
         self.assertIn("generateOnlineCurrentDraft", app)
         self.assertIn("inspirationToQueue')?.classList.toggle('hidden', online)", app)
 

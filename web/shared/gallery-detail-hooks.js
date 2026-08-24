@@ -45,6 +45,10 @@
     const online = source === "aitag-online"
       || (typeof window.isAitagGallery === "function" && window.isAitagGallery());
     if (online) return;
+    const galleryId = String(
+      detail.galleryId || detail.gallery_id || (typeof window.currentGalleryId === "function" ? window.currentGalleryId() : "site")
+    ).trim();
+    if (galleryId === "codex" || galleryId === "qqgroup") return;
     if (!workId || !data) return;
     try {
       const plugin = await loadCharSwapPlugin();

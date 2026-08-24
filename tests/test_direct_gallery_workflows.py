@@ -12,8 +12,10 @@ def read(path: str) -> str:
 def test_character_swap_stays_in_primary_and_full_chats_live_under_more():
     nav = read("web/shared/site-nav.js")
     primary = nav.split("const NAV_SECONDARY", 1)[0]
-    assert '{ href: "/queue", id: "queue", label: "待生成" }' in primary
+    assert '{ href: "/queue", id: "queue", label: "待生成" }' not in primary
+    assert '{ href: "/settings", id: "settings", label: "设置" }' in primary
     assert '{ href: "/remix", id: "remix", label: "换角" }' in primary
+    assert '{ href: "/queue", id: "queue", label: "待生成", group: "创作" }' in nav
     assert "butler-sakiko" not in primary
     assert '{ href: "/butler?agent=sakiko", id: "butler-sakiko", label: "客服小祥", group: "对话" }' in nav
     assert '{ href: "/butler?agent=tomori", id: "butler-tomori", label: "助手凑企鹅", group: "对话" }' in nav

@@ -48,6 +48,12 @@ function initInspirationSidebar() {
       return;
     }
     const gid = typeof currentGalleryId === "function" ? currentGalleryId() : "site";
+    if (gid === "codex" || gid === "qqgroup") {
+      if (typeof reportAsyncError === "function") {
+        reportAsyncError("法典/Q群没有 NovelAI v4 角色槽，不能同质量换角。请改用「用此图生成」。");
+      }
+      return;
+    }
     window.WorkBridge.go('/remix', inspirationState.workId, 0, gid);
   });
   openDetailBtn?.addEventListener('click', () => {
@@ -729,6 +735,8 @@ const promptInput = document.getElementById('prompt');
 const aitagCreatorInput = document.getElementById('aitagCreator');
 const aitagTagsInput = document.getElementById('aitagTags');
 const aitagModelSelect = document.getElementById('aitagModel');
+const aitagNaiOnlyInput = document.getElementById('aitagNaiOnly');
+const aitagSafeOnlyInput = document.getElementById('aitagSafeOnly');
 const aitagMinImagesInput = document.getElementById('aitagMinImages');
 const aitagMaxImagesInput = document.getElementById('aitagMaxImages');
 const searchBtn = document.getElementById('searchBtn');
@@ -1432,8 +1440,12 @@ function applyListShelfModeUi({ modeClass, title, description, emptyText }) {
   ['localBanner', 'setupBanner', 'advancedFilters'].forEach((id) => {
     document.getElementById(id)?.classList.add('hidden');
   });
-  document.querySelector('.atlas-search-deck')?.classList.add('hidden');
-  document.querySelector('.gallery-source-bar')?.classList.add('hidden');
+  document.querySelector('.atlas-search-deck')?.classList.remove('hidden');
+  if (modeClass === 'mode-queue') {
+    document.querySelector('.gallery-source-bar')?.classList.add('hidden');
+  } else {
+    document.querySelector('.gallery-source-bar')?.classList.remove('hidden');
+  }
   const empty = document.getElementById('inspirationEmpty');
   if (empty && emptyText) empty.textContent = emptyText;
   try { window.GalleryDropFolders && window.GalleryDropFolders.sync(); } catch { }
@@ -1444,7 +1456,7 @@ function applyFavoritesModeUi() {
   applyListShelfModeUi({
     modeClass: 'mode-favorites',
     title: '我的收藏 | Nai学长工作室',
-    description: '本地收藏的作品保存在 data/favorites.json，可随时回来查看。',
+    description: '收藏保存在本机；可用上方数据域切换本地与 AITag 在线收藏。',
     emptyText: '收藏为空时，从图库详情点星标加入。',
   });
 }
@@ -1510,8 +1522,8 @@ function applyQueueModeUi() {
   if (!state.queueMode) return;
   applyListShelfModeUi({
     modeClass: 'mode-queue',
-    title: '待生成队列 | Nai学长redu',
-    description: '从图库详情加入待生成，再批量送入工作台 / 换角。数据保存在 data/production_queue.json。',
+    title: '待生成队列 | Nai学长工作室',
+    description: '从图库详情加入待生成，再用上方检索框筛选队列。数据保存在 data/production_queue.json。',
     emptyText: '队列中的作品单击可看详情；侧边栏可送去生图或换角。',
   });
 }

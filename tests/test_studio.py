@@ -123,6 +123,71 @@ class StudioServiceTests(unittest.TestCase):
         self.assertTrue(result.get("ok"))
         self.assertTrue(result.get("has_prompt"))
         self.assertIn("surtr", result.get("snippet", ""))
+        self.assertEqual(result.get("gallery_id"), "site")
+
+    def test_preview_work_prompt_uses_requested_gallery(self) -> None:
+        other = type("DB", (), {
+            "get_work_prompt_snippet": staticmethod(
+                lambda work_id, page: {"snippet": "codex prompt", "page_index": page, "source": "codex"}
+            )
+        })()
+        with patch("studio_service._gallery_db", return_value=other):
+            result = preview_work_prompt(99, 1, "codex")
+        self.assertEqual(result.get("gallery_id"), "codex")
+        self.assertEqual(result.get("snippet"), "codex prompt")
+
+    def test_import_from_work_returns_all_local_pages(self) -> None:
+        from gallery_cache import clear_all
+        from studio_service import import_from_work
+
+        clear_all()
+        details = {
+            "work": {"title": "series"},
+            "images": [
+                {"page_index": 0, "local_path": "NAI/1/a_p0.webp"},
+                {"page_index": 1, "local_path": "NAI/1/a_p1.webp"},
+                {"page_index": 2, "local_path": "NAI/1/a_p2.webp"},
+            ],
+        }
+
+        def extract(work_id, page_index, gallery_id="site"):
+            return {
+                "comment": {"prompt": f"page {page_index}"},
+                "params": {"width": 832},
+                "chars": [],
+                "base_caption": f"base {page_index}",
+            }
+
+        db = type("DB", (), {"get_work_detail": staticmethod(lambda _id: details)})()
+        with patch("studio_service.extract_chars", side_effect=extract), patch(
+            "studio_service._gallery_db", return_value=db
+        ):
+            result = import_from_work(99, 1, "site")
+
+        self.assertEqual(result["page_index"], 1)
+        self.assertEqual(result["page_count"], 3)
+        self.assertEqual([page["image_index"] for page in result["pages"]], [0, 1, 2])
+        self.assertEqual(result["texts"]["prompt"], "page 1")
+        self.assertEqual(result["pages"][2]["draft"]["texts"]["prompt"], "page 2")
+        self.assertEqual(result["gallery_id"], "site")
+
+    def test_vibe_image_path_must_stay_inside_data_dir(self) -> None:
+        from studio_service import apply_vibe_to_comment
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = root / "data"
+            (data / "images").mkdir(parents=True)
+            inside = data / "images" / "ref.png"
+            inside.write_bytes(b"\x89PNG\r\n\x1a\n")
+            outside = root / "secret.png"
+            outside.write_bytes(b"secret")
+            with patch("studio_service.DATA_DIR", data):
+                ok = apply_vibe_to_comment({"prompt": "1girl"}, image_path=str(inside))
+                self.assertTrue(ok.get("ok"))
+                self.assertTrue(ok["comment"]["xianyun_vibe"]["reference_images"][0].startswith("data:image/"))
+                with self.assertRaises(ValueError):
+                    apply_vibe_to_comment({"prompt": "1girl"}, image_path=str(outside))
 
     def test_attach_char_reference(self) -> None:
         from studio_service import attach_image_reference

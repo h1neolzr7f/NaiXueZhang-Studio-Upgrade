@@ -16,6 +16,10 @@
     sessionTokenPromise = null;
   }
   function getSessionToken() {
+    const injected = typeof window !== "undefined" ? window.__NAI_SESSION_TOKEN__ : "";
+    if (typeof injected === "string" && injected.trim()) {
+      return Promise.resolve(injected.trim());
+    }
     if (!sessionTokenPromise) {
       sessionTokenPromise = fetch("/api/session-token", { cache: "no-store" })
         .then((res) => {
@@ -54,7 +58,7 @@
     while (true) {
       const opts = Object.assign({}, baseOpts);
       opts.headers = Object.assign({}, baseOpts.headers || {});
-      if (mutating) {
+      if (mutating && !baseOpts.skipSessionToken) {
         try {
           const token = await getSessionToken();
           opts.headers = Object.assign({}, opts.headers, { "X-Session-Token": token });
@@ -65,6 +69,7 @@
           throw err;
         }
       }
+      delete opts.skipSessionToken;
       const timeout = withTimeout(opts.signal, opts.timeoutMs);
       delete opts.timeoutMs;
       opts.signal = timeout.signal;
@@ -94,6 +99,7 @@
       cache: opts.cache || "no-store",
       signal: opts.signal,
       timeoutMs: opts.timeoutMs,
+      skipSessionToken: !!opts.skipSessionToken,
     };
     if (opts.body !== undefined) {
       const isForm = typeof FormData !== "undefined" && opts.body instanceof FormData;

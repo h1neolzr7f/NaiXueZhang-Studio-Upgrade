@@ -69,6 +69,13 @@ class WorkflowPagesUiTests(unittest.TestCase):
                 self.assertIsNotNone(match)
                 self.assertNotIn(" open", match.group(0).split(">", 1)[0])
                 self.assertIn(f"<summary>{label}</summary>", match.group("body"))
+        self.assertIn('id="studioResumeBanner"', html)
+        self.assertIn('id="studioRetryFailed"', html)
+        script = (ROOT / "web" / "studio.js").read_text(encoding="utf-8")
+        self.assertIn("jobCancelledByRestart", script)
+        self.assertIn("不按张扣付费 Anlas", script)
+        self.assertIn("不按张扣付费 Anlas", html)
+        self.assertNotIn("按张扣 Anlas。", html)
 
     def test_remix_empty_state_offers_a_primary_gallery_path_and_secondary_id_path(self) -> None:
         html = (ROOT / "web" / "remix.html").read_text(encoding="utf-8")
@@ -104,6 +111,15 @@ class WorkflowPagesUiTests(unittest.TestCase):
         self.assertIsNotNone(operations)
         self.assertNotIn(" open", operations.group(0).split(">", 1)[0])
         self.assertIn("<summary>后处理与任务状态</summary>", operations.group("body"))
+        self.assertIn('id="genQueuePanel"', html)
+        self.assertIn('id="genRetryFailedBtn"', html)
+        self.assertIn("/api/nai/jobs/retry", html)
+        self.assertIn('id="genTrash"', html)
+        self.assertIn("不会自动清空或过期", html)
+        self.assertIn("/api/generated/trash", html)
+        self.assertIn("/api/pipeline/cancel", html)
+        self.assertLess(html.index('id="genQueuePanel"'), html.index('id="genOperations"'))
+        self.assertIn("生成任务队列", html)
         self.assertIn('<h2 class="gen-results-title">最近生成</h2>', html)
 
         empty = re.search(

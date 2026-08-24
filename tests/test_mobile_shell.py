@@ -105,7 +105,7 @@ class MobileShellTests(unittest.TestCase):
     def test_desktop_nav_count_unchanged(self) -> None:
         nav = (WEB / "shared" / "site-nav.js").read_text(encoding="utf-8")
         primary = nav.split("const NAV_SECONDARY", 1)[0]
-        self.assertEqual(primary.count("{ href:"), 8)
+        self.assertEqual(primary.count("{ href:"), 6)
 
 
 if __name__ == "__main__":

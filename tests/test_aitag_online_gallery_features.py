@@ -85,6 +85,41 @@ def test_online_search_supports_explicit_advanced_filters() -> None:
     }
 
 
+def test_online_search_forwards_author_and_tags_to_upstream_query() -> None:
+    calls: list[dict] = []
+
+    class _RecordingClient(_FilterClient):
+        def search(self, **kwargs):
+            calls.append(kwargs)
+            return super().search(**kwargs)
+
+    with patch.object(aitag_routes, "get_aitag_client", return_value=_RecordingClient()):
+        aitag_routes.api_aitag_search(
+            q="1girl",
+            prompt="",
+            page=1,
+            page_size=60,
+            sort="recent",
+            time_range="all",
+            nai_only=True,
+            safe_only=False,
+            creator="Willis",
+            tags="cat",
+            model="",
+            min_images=0,
+            max_images=0,
+        )
+
+    assert calls
+    assert calls[0]["query"] == "1girl Willis cat"
+    assert calls[0]["nai_only"] is False
+
+
+def test_compose_upstream_query_keeps_author_and_tags() -> None:
+    assert aitag_routes._compose_upstream_query("1girl", "Willis", ("cat", "night")) == "1girl Willis cat night"
+    assert aitag_routes._compose_upstream_query("Willis", "Willis", ()) == "Willis"
+
+
 def test_online_favorite_has_its_own_gallery_identity_and_snapshot(tmp_path: Path) -> None:
     favorite_path = tmp_path / "favorites.json"
     with patch.object(favorites, "FAV_PATH", favorite_path):
@@ -123,6 +158,9 @@ def test_home_gallery_exposes_online_filters_favorites_and_character_slots() -> 
     for element_id in (
         "aitagCreator",
         "aitagTags",
+        "aitagModel",
+        "aitagNaiOnly",
+        "aitagSafeOnly",
         "aitagMinImages",
         "aitagMaxImages",
     ):
@@ -140,6 +178,13 @@ def test_home_gallery_exposes_online_filters_favorites_and_character_slots() -> 
     assert "onlineUsableBadge" in app
     assert "generateOnlineCurrentDraft" in app
     assert "generateOnlineAllDrafts" in app
+    assert "buildOnlineSeriesPages" in app
+    start = app.index("async function generateOnlineAllDrafts")
+    nxt = app.find("\nasync function ", start + 10)
+    body = app[start:nxt if nxt > 0 else start + 4000]
+    assert "pages" in body
+    assert "generateOnlineDraftEntry" not in body
+    assert "pollJob" in body
     assert "单张试生成" in app
     assert "换男角·全部" in app
     assert "换女角·全部" in app

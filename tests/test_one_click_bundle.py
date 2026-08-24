@@ -41,6 +41,7 @@ def test_core_release_and_portable_builder_include_one_click_contract() -> None:
     assert '"ONE_CLICK_START.bat"' in release
     assert "[char]0x4E00" in release
     assert "$oneClickZhName" in release
+    assert "$mobileZhName" in release
     assert "requirements.lock.txt" in builder
     assert "runtime" in builder
     assert "server" in builder
@@ -125,6 +126,7 @@ def test_portable_builder_validates_full_profile_on_cpython_313_without_browser_
         "/api/product/health",
         "/api/crawler/pixiv/task",
         "/api/maintenance/storage",
+        "/m",
     ):
         assert route in builder
     assert 'browser_mode = "system_chrome_or_edge"' in builder

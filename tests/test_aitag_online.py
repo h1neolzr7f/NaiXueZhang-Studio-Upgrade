@@ -115,6 +115,69 @@ class AitagOnlineClientTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             AitagClient(base_url="https://example.test")
 
+    def test_popular_uses_monthly_rank_while_recent_uses_search(self):
+        class SplitHTTP(_HTTP):
+            def get(self, url, *, params):
+                self.calls.append((url, dict(params)))
+                if url.endswith("/api/rank/monthly/real"):
+                    return _Response(
+                        {
+                            "items": [
+                                {
+                                    "id": "hot-1",
+                                    "title": "Ranked work",
+                                    "AI_type": "NAI",
+                                    "total_bookmarks": 2144,
+                                }
+                            ],
+                            "total": 1,
+                        }
+                    )
+                if url.endswith("/api/ai_works_search"):
+                    return _Response(
+                        {
+                            "items": [
+                                {
+                                    "id": "new-1",
+                                    "title": "Newest work",
+                                    "AI_type": "NAI",
+                                }
+                            ],
+                            "total": 1,
+                        }
+                    )
+                if url.endswith("/api/rank/monthly"):
+                    return _Response(
+                        {
+                            "items": [
+                                {
+                                    "id": "july-1",
+                                    "title": "July rank",
+                                    "AI_type": "NAI",
+                                }
+                            ],
+                            "total": 1,
+                        }
+                    )
+                return _Response({}, status_code=404)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            http = SplitHTTP()
+            client = AitagClient(http_client=http, cache_root=Path(tmp))
+            popular = client.search(sort="popular")
+            recent = client.search(sort="recent")
+            historic = client.search(sort="hot", time_range="2026-07")
+
+        self.assertEqual([work.work_id for work in popular.works], ["hot-1"])
+        self.assertEqual([work.work_id for work in recent.works], ["new-1"])
+        self.assertEqual([work.work_id for work in historic.works], ["july-1"])
+        self.assertTrue(http.calls[0][0].endswith("/api/rank/monthly/real"))
+        self.assertNotIn("sort", http.calls[0][1])
+        self.assertTrue(http.calls[1][0].endswith("/api/ai_works_search"))
+        self.assertEqual(http.calls[1][1].get("sort"), "new")
+        self.assertTrue(http.calls[2][0].endswith("/api/rank/monthly"))
+        self.assertEqual(http.calls[2][1].get("period"), "2026-07")
+
 
 class AitagOnlineRouteTests(unittest.TestCase):
     def setUp(self):

@@ -9,9 +9,11 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from crawler_control import multi_crawler_status
 from pixiv_nai_crawler import (
     get_report,
+    list_presets,
     list_quarantined,
     load_state,
     load_task,
+    reset_search_progress,
     retry_quarantined,
     save_task,
 )
@@ -27,6 +29,7 @@ def api_pixiv_intake_task() -> dict:
     return {
         "ok": True,
         "task": load_task(root=ROOT),
+        "presets": list_presets(),
         "state": {
             "updated_at": str(load_state(root=ROOT).get("updated_at") or ""),
         },
@@ -37,15 +40,22 @@ def api_pixiv_intake_task() -> dict:
 def api_pixiv_intake_task_save(
     payload: dict = Body(default_factory=dict),
 ) -> dict:
+    reset_search = bool(payload.pop("reset_search", False))
     try:
         task = save_task(payload, root=ROOT)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {
+    result = {
         "ok": True,
         "task": task,
+        "reset_search": False,
         "message": "Pixiv NAI intake settings saved; start the Pixiv crawler to apply.",
     }
+    if reset_search:
+        reset_search_progress(root=ROOT)
+        result["reset_search"] = True
+        result["message"] = "Pixiv NAI intake settings saved; discovery cursor reset."
+    return result
 
 
 @router.get("/report")

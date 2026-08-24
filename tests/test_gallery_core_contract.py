@@ -116,6 +116,11 @@ process.stdout.write(JSON.stringify({
         self.assertIn("detail-image-summary", app)
         self.assertIn("detail-page-index", app)
         self.assertIn("copy_all_image_links", app)
+        self.assertIn("detailRevealBtn", app)
+        self.assertIn("detailCompareBtn", app)
+        self.assertIn("ComparisonWorkspace", app)
+        self.assertIn("/api/work/", app)
+        self.assertIn("/reveal", app)
         self.assertRegex(app, r"\(data\.images \|\| \[\]\)\.slice\(\)\.sort")
 
     def test_detail_local_cache_count_uses_local_path_not_file_name(self) -> None:

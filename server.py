@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import secrets
@@ -114,12 +115,16 @@ def _start_char_swap_warmup_once() -> None:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    from nai_batch import bind_event_loop
+
+    bind_event_loop(asyncio.get_running_loop())
     try:
         RUNTIME_RESOURCES.start()
         _start_generated_maintenance_once()
         _start_char_swap_warmup_once()
         yield
     finally:
+        bind_event_loop(None)
         RUNTIME_RESOURCES.close()
 
 

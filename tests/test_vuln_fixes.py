@@ -66,3 +66,5 @@ def test_matches_group_coerces_string_work_id() -> None:
 def test_group_key_site_and_gallery() -> None:
     assert _group_key(1, source_gallery_id="site") == "1"
     assert _group_key(1, source_gallery_id="codex") == "gallery:codex:1"
+    assert _group_key(1, source_gallery_id="site", generation_series_id="task-a") == "1"
+    assert _group_key(1, source_gallery_id="codex", generation_series_id="task-a") == "gallery:codex:1"

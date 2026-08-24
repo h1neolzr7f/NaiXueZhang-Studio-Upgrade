@@ -24,6 +24,10 @@ class CrawlerControlUiTests(unittest.TestCase):
         self.assertIn("/api/crawler/autopilot", source)
         self.assertIn("/api/crawler/report", source)
         self.assertIn("采集交付报告", source)
+        self.assertIn('id="pixivResetSearch"', source)
+        self.assertIn('id="pixivTaskPresets"', source)
+        self.assertIn("reset_search", intake_script)
+        self.assertIn("renderPresets", intake_script)
 
 
 if __name__ == "__main__":

@@ -333,8 +333,13 @@ def _order_clause(self, sort: str, seed: int = 0) -> str:
         x = f"({x} * 2246822519) % 2147483648"
         x = f"({x} + ({x} >> 13)) % 2147483648"
         return f"ORDER BY {x}, works.id"
-    if sort == "monthly":
+    if sort in {"monthly", "bookmarks"}:
         return "ORDER BY works.total_bookmarks DESC, works.create_date DESC, works.id DESC"
+    if sort == "views":
+        return (
+            "ORDER BY COALESCE(works.total_view, 0) DESC, "
+            "works.create_date DESC, works.id DESC"
+        )
     if sort == "count":
         return (
             "ORDER BY COALESCE(works.image_count, 0) DESC, "

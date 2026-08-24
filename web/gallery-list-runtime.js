@@ -27,9 +27,15 @@
         url.searchParams.set('page', Math.max(1, Number(page) || 1));
         url.searchParams.set('page_size', state.pageSize);
         url.searchParams.set('sort', ['popular', 'recent', 'relevance'].includes(mode) ? mode : 'popular');
-        url.searchParams.set('time_range', 'all');
-        url.searchParams.set('nai_only', 'true');
-        url.searchParams.set('safe_only', 'false');
+        url.searchParams.set('time_range', options.getTimeRange() || 'all');
+        const filters = typeof options.getOnlineFilters === 'function' ? options.getOnlineFilters() : {};
+        url.searchParams.set('nai_only', filters.naiOnly === false ? 'false' : 'true');
+        url.searchParams.set('safe_only', filters.safeOnly ? 'true' : 'false');
+        if (filters.creator) url.searchParams.set('creator', filters.creator);
+        if (filters.tags) url.searchParams.set('tags', filters.tags);
+        if (filters.model) url.searchParams.set('model', filters.model);
+        if (filters.minImages) url.searchParams.set('min_images', String(filters.minImages));
+        if (filters.maxImages) url.searchParams.set('max_images', String(filters.maxImages));
         if (state.q) url.searchParams.set('q', state.q);
         if (state.prompt) url.searchParams.set('prompt', state.prompt);
         return url;

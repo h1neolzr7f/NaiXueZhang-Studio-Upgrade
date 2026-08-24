@@ -17,7 +17,9 @@ def api_product_strategy() -> dict:
 
 @router.get("/health")
 def api_product_health() -> dict:
-    return {"ok": True, "health": build_product_health(CONFIG, ROOT)}
+    health = build_product_health(CONFIG, ROOT)
+    health.pop("paths", None)
+    return {"ok": True, "health": health}
 
 
 @router.get("/verification")

@@ -91,13 +91,32 @@
     };
   }
 
+  function renderPresets(presets) {
+    const box = byId("pixivTaskPresets");
+    if (!box) return;
+    box.replaceChildren();
+    (presets || []).forEach((preset) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-preset";
+      btn.textContent = preset.label || preset.id || "预设";
+      btn.addEventListener("click", () => {
+        if (preset.task) renderTask(preset.task);
+        setMessage(`已填入预设：${preset.label || preset.id}`, true);
+      });
+      box.appendChild(btn);
+    });
+  }
+
   async function save() {
+    const body = taskFromForm();
+    body.reset_search = Boolean(byId("pixivResetSearch")?.checked);
     const payload = await request("/api/crawler/pixiv/task", {
       method: "POST",
-      body: JSON.stringify(taskFromForm()),
+      body: JSON.stringify(body),
     });
     renderTask(payload.task);
-    setMessage("Pixiv 采集设置已保存", true);
+    setMessage(payload.reset_search ? "已保存并重置采集断点" : "Pixiv 采集设置已保存", true);
     return payload.task;
   }
 
@@ -222,6 +241,7 @@
     try {
       const payload = await request("/api/crawler/pixiv/task");
       renderTask(payload.task || {});
+      renderPresets(payload.presets || []);
       await loadReport();
       await loadQuarantine();
     } catch (error) {

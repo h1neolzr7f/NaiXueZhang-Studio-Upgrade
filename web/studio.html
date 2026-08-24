@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>生图工作台 | NAI Studio</title>
   <link rel="stylesheet" href="/assets/styles.css?v=1f1b43909b" />
-  <link rel="stylesheet" href="/assets/local.css?v=2e0bfcbad7" />
+  <link rel="stylesheet" href="/assets/local.css?v=7fc675925f" />
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
   <link rel="stylesheet" href="/assets/shared/motion.css?v=8cc6bd1e71" />
-  <link rel="stylesheet" href="/assets/studio.css?v=e72ee264f7" />
+  <link rel="stylesheet" href="/assets/studio.css?v=b30673e9c6" />
   <link rel="stylesheet" href="/assets/workflow-pages.css?v=d45735e67c" />
-  <link rel="stylesheet" href="/assets/studio-theme.css?v=51de05869a" />
+  <link rel="stylesheet" href="/assets/studio-theme.css?v=1b361985f1" />
 </head>
 <body class="studio-body">
   <div id="siteNav"></div>
@@ -53,7 +53,7 @@
         <div id="studioSourceThumb" class="studio-source-thumb"></div>
         <div class="studio-source-meta">
           <div id="studioSource" class="studio-source">未选择来源 · 从图库或待生成队列带入</div>
-          <div id="studioAitagPages" class="studio-aitag-pages hidden" aria-label="在线草稿多页"></div>
+          <div id="studioAitagPages" class="studio-aitag-pages hidden" aria-label="系列分页"></div>
           <div class="studio-source-actions">
             <a id="studioBackDetail" class="studio-btn ghost hidden" href="/">详情</a>
             <button type="button" class="studio-btn ghost hidden" id="studioRestoreOriginal">恢复原文</button>
@@ -154,10 +154,6 @@
             <select id="studioSampler"></select>
           </div>
           <div class="studio-field">
-            <label for="studioBatchCount">连续张数</label>
-            <input id="studioBatchCount" type="number" min="1" max="8" value="1" />
-          </div>
-          <div class="studio-field">
             <label for="studioOptimizeMode">提示词处理</label>
             <select id="studioOptimizeMode">
               <option value="smart">智能优化</option>
@@ -173,12 +169,40 @@
       <div class="studio-action-bar" id="studioGenerateStep">
         <div class="workflow-action-copy">
           <strong>最后检查</strong>
-          <span>可先处理提示词并对比，确认后再提交生成。</span>
+          <span>先选每页张数；多页作品可勾选一次生成本系列全部页。当前走 Opus 免费档，不按张扣付费 Anlas；超大尺寸/步数会压到最长边 1216、步数 28。</span>
+        </div>
+        <div class="studio-batch-bar">
+          <span class="studio-batch-label">批量张数</span>
+          <div class="studio-batch-presets" id="studioBatchPresets">
+            <button type="button" data-copies="1">1</button>
+            <button type="button" data-copies="2">2</button>
+            <button type="button" data-copies="4">4</button>
+            <button type="button" data-copies="8">8</button>
+            <button type="button" data-copies="16">16</button>
+          </div>
+          <label class="studio-batch-custom" for="studioBatchCount">
+            <span>自定义</span>
+            <input id="studioBatchCount" type="number" min="1" max="20" value="1" />
+          </label>
+          <label class="studio-series-toggle hidden" id="studioSeriesToggle" for="studioSeriesAll">
+            <input id="studioSeriesAll" type="checkbox" checked />
+            <span id="studioSeriesAllLabel">生成本系列全部页</span>
+          </label>
         </div>
         <div class="studio-actions">
           <button type="button" class="studio-btn" id="studioOptimize">应用所选优化</button>
           <button type="button" class="studio-btn ghost" id="studioUndo">撤销上一步</button>
-          <button type="button" class="studio-btn primary studio-gen-btn" id="studioGenerate">开始生成</button>
+          <button type="button" class="studio-btn primary studio-gen-btn" id="studioGenerate">开始生成 1 张</button>
+          <button type="button" class="studio-btn ghost hidden" id="studioRetryFailed">重试失败页</button>
+          <button type="button" class="studio-btn ghost hidden" id="studioCancelGenerate">取消任务</button>
+        </div>
+        <div id="studioResumeBanner" class="studio-resume-banner hidden" role="status"></div>
+        <div id="studioJobPanel" class="studio-job-panel">
+          <div class="studio-job-head">
+            <strong>生成队列</strong>
+            <span id="studioJobSummary">空闲</span>
+          </div>
+          <div id="studioJobLog" class="studio-job-log"></div>
         </div>
         <div id="studioToken" class="studio-token"></div>
       </div>
@@ -215,11 +239,11 @@
   </div>
 
   <script src="/assets/shared/work-bridge.js?v=e03f149e05"></script>
-  <script src="/assets/shared/site-nav.js?v=fe86cea773"></script>
+  <script src="/assets/shared/site-nav.js?v=825f467bc0"></script>
   <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
-  <script src="/assets/shared/api-client.js?v=2a8a70c746"></script>
+  <script src="/assets/shared/api-client.js?v=afd161a5c9"></script>
   <script src="/assets/shared/ui-toast.js?v=7f77b751fa"></script>
   <script src="/assets/shared/escape.js?v=cf491c2912"></script>
-  <script src="/assets/studio.js?v=519a8d06ed"></script>
+  <script src="/assets/studio.js?v=2a3e33539d"></script>
 </body>
 </html>

@@ -214,6 +214,9 @@ class ServerRuntimeIntegrationTests(unittest.IsolatedAsyncioTestCase):
             calls,
             ["runtime.start", "maintenance.start", "request", "runtime.close"],
         )
+        import nai_batch
+
+        self.assertIsNone(nai_batch._EVENT_LOOP)
 
     async def test_lifespan_closes_runtime_when_maintenance_start_fails(self) -> None:
         import server

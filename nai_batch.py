@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import concurrent.futures
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +44,25 @@ except ImportError:
 _JOB_MANAGER = GenerationJobManager(
     state_path=Path(data_dir()) / "generation_jobs.json",
 )
+_EVENT_LOOP: asyncio.AbstractEventLoop | None = None
+
+
+def bind_event_loop(loop: asyncio.AbstractEventLoop | None) -> None:
+    """Remember the server loop so worker threads can schedule generation tasks."""
+
+    global _EVENT_LOOP
+    _EVENT_LOOP = loop
+
+
+def _worker_loop() -> asyncio.AbstractEventLoop:
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    loop = _EVENT_LOOP
+    if loop is not None and loop.is_running():
+        return loop
+    raise RuntimeError("generation event loop is not running")
 _RETRYABLE_ERRORS = frozenset({"busy", "cooldown", "rate_limited", "connect_failed"})
 _RETRYABLE_TEXT = (
     "429",
@@ -108,6 +128,10 @@ def generation_concurrency_for_batch(
 
 def batch_status(task_id: str | None = None) -> dict[str, Any] | None:
     return _JOB_MANAGER.status(task_id)
+
+
+def batch_queue_status() -> dict[str, Any]:
+    return _JOB_MANAGER.queue_status()
 
 
 def _reset_running(*, total: int, generate: bool, preview_only: bool) -> dict[str, Any]:
@@ -594,11 +618,39 @@ def _launch_job(job: GenerationJob) -> None:
         job=job,
     )
     try:
-        task = asyncio.create_task(coroutine)
+        loop = _worker_loop()
     except Exception:
         coroutine.close()
         raise
-    _JOB_MANAGER.attach_task(job, task)
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if running is loop:
+        try:
+            task = asyncio.create_task(coroutine)
+        except Exception:
+            coroutine.close()
+            raise
+        _JOB_MANAGER.attach_task(job, task)
+        return
+    started: concurrent.futures.Future[None] = concurrent.futures.Future()
+
+    def _schedule() -> None:
+        try:
+            task = loop.create_task(coroutine)
+            _JOB_MANAGER.attach_task(job, task)
+            started.set_result(None)
+        except Exception as exc:
+            started.set_exception(exc)
+
+    loop.call_soon_threadsafe(_schedule)
+    try:
+        started.result(timeout=10)
+    except Exception:
+        if not started.done():
+            coroutine.close()
+        raise
 
 
 def start_batch(
@@ -671,6 +723,7 @@ def start_batch(
             _launch_job(job)
         except Exception as exc:
             _JOB_MANAGER.finish(job, status="error", message=str(exc))
+            resume_batch_queue()
             return {
                 "ok": False,
                 "error": "start_failed",
@@ -688,28 +741,38 @@ def start_batch(
 
 
 def resume_batch_queue() -> dict[str, Any]:
-    try:
-        job = _JOB_MANAGER.activate_next()
-    except JobPersistenceError as exc:
-        return {
-            "ok": False,
-            "resumed": False,
-            "error": "persistence_failed",
-            "message": str(exc),
-        }
-    if job is None:
-        return {"ok": True, "resumed": False}
-    try:
-        _launch_job(job)
-    except Exception as exc:
-        _JOB_MANAGER.finish(job, status="error", message=str(exc))
-        return {
-            "ok": False,
-            "resumed": False,
-            "error": "start_failed",
-            "message": str(exc),
-        }
-    return {"ok": True, "resumed": True, "task_id": job.task_id}
+    last_error = ""
+    for _ in range(max(1, int(_JOB_MANAGER.queue_status().get("pending_count") or 0) + 1)):
+        try:
+            job = _JOB_MANAGER.activate_next()
+        except JobPersistenceError as exc:
+            return {
+                "ok": False,
+                "resumed": False,
+                "error": "persistence_failed",
+                "message": str(exc),
+            }
+        if job is None:
+            if last_error:
+                return {
+                    "ok": False,
+                    "resumed": False,
+                    "error": "start_failed",
+                    "message": last_error,
+                }
+            return {"ok": True, "resumed": False}
+        try:
+            _launch_job(job)
+            return {"ok": True, "resumed": True, "task_id": job.task_id}
+        except Exception as exc:
+            last_error = str(exc)
+            _JOB_MANAGER.finish(job, status="error", message=last_error)
+    return {
+        "ok": False,
+        "resumed": False,
+        "error": "start_failed",
+        "message": last_error or "could not resume batch queue",
+    }
 
 
 def cancel_batch(task_id: str | None = None) -> dict[str, Any]:
@@ -721,13 +784,12 @@ def cancel_batch(task_id: str | None = None) -> dict[str, Any]:
             "message": "generation task not found",
             "batch": batch_status(),
         }
+    status = str(job.state.get("status") or "")
+    if status == "cancelled":
+        resume_batch_queue()
     return {
         "ok": True,
-        "message": (
-            "cancelling"
-            if job.state.get("status") == "running"
-            else "cancelled"
-        ),
+        "message": "cancelling" if status == "running" else "cancelled",
         "batch": batch_status(job.task_id),
     }
 
@@ -801,7 +863,87 @@ def retry_batch(task_id: str) -> dict[str, Any]:
     )
 
 
-STUDIO_COPY_MAX = 8
+STUDIO_COPY_MAX = 20
+
+
+def resolve_studio_copies(*values: Any, maximum: int = STUDIO_COPY_MAX) -> int:
+    """Pick the first positive copy count; ignore 0 / empty so aliases can fall back."""
+    cap = max(1, int(maximum or STUDIO_COPY_MAX))
+    for value in values:
+        if value in (None, ""):
+            continue
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            continue
+        if count <= 0:
+            continue
+        return max(1, min(cap, count))
+    return 1
+
+
+def _studio_seed_comment(
+    comment: dict[str, Any],
+    *,
+    policy: str,
+    seed_num: int | None,
+    index: int,
+) -> dict[str, Any]:
+    next_comment = copy.deepcopy(comment if isinstance(comment, dict) else {})
+    if policy == "random":
+        next_comment["seed"] = -1
+    elif policy == "increment" and seed_num is not None:
+        next_comment["seed"] = seed_num + index
+    elif policy == "fixed" and seed_num is not None:
+        next_comment["seed"] = seed_num
+    next_comment["_studio_snapshot"] = True
+    return next_comment
+
+
+def _studio_page_snapshots(
+    patched_comment: dict[str, Any],
+    *,
+    page_index: int,
+    page_snapshots: list[dict[str, Any]] | None,
+    source_title: str,
+    source_thumb: str,
+    remote_work_id: str,
+) -> list[dict[str, Any]]:
+    pages: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for raw in page_snapshots or []:
+        if not isinstance(raw, dict):
+            continue
+        comment = raw.get("patched_comment") or patched_comment
+        if not isinstance(comment, dict) or not comment:
+            continue
+        try:
+            idx = int(raw.get("page_index") or 0)
+        except (TypeError, ValueError):
+            continue
+        if idx < 0 or idx in seen:
+            continue
+        seen.add(idx)
+        pages.append(
+            {
+                "page_index": idx,
+                "patched_comment": copy.deepcopy(comment),
+                "source_title": str(raw.get("source_title") or source_title or ""),
+                "source_thumb": str(raw.get("source_thumb") or source_thumb or ""),
+                "remote_work_id": str(raw.get("remote_work_id") or remote_work_id or ""),
+            }
+        )
+    if pages:
+        return pages
+    return [
+        {
+            "page_index": int(page_index or 0),
+            "patched_comment": copy.deepcopy(patched_comment if isinstance(patched_comment, dict) else {}),
+            "source_title": str(source_title or ""),
+            "source_thumb": str(source_thumb or ""),
+            "remote_work_id": str(remote_work_id or ""),
+        }
+    ]
 
 
 def start_studio_generate(
@@ -810,6 +952,7 @@ def start_studio_generate(
     work_id: int | None = None,
     page_index: int = 0,
     copies: int = 1,
+    page_snapshots: list[dict[str, Any]] | None = None,
     source_gallery_id: str = "site",
     seed_policy: str = "",
     force_free: bool = True,
@@ -821,9 +964,23 @@ def start_studio_generate(
 ) -> dict[str, Any]:
     """Enqueue a click-time snapshot as one durable job (1 copy still a job)."""
 
-    copies = max(1, min(STUDIO_COPY_MAX, int(copies or 1)))
-    snapshot = copy.deepcopy(patched_comment if isinstance(patched_comment, dict) else {})
-    raw_seed = snapshot.get("seed")
+    copies = resolve_studio_copies(copies)
+    pages = _studio_page_snapshots(
+        patched_comment if isinstance(patched_comment, dict) else {},
+        page_index=page_index,
+        page_snapshots=page_snapshots,
+        source_title=source_title,
+        source_thumb=source_thumb,
+        remote_work_id=remote_work_id,
+    )
+    if len(pages) * copies > BATCH_TARGET_MAX:
+        return {
+            "ok": False,
+            "error": "too_many_targets",
+            "message": f"本系列 {len(pages)} 页 × {copies} 张共 {len(pages) * copies} 张，超过单次上限 {BATCH_TARGET_MAX}",
+        }
+    first = pages[0]["patched_comment"]
+    raw_seed = first.get("seed")
     seed_num: int | None
     try:
         if raw_seed in (None, "", -1, "-1"):
@@ -841,34 +998,36 @@ def start_studio_generate(
     if gallery_id not in {"site", "aitag-online", "codex", "qqgroup"}:
         gallery_id = "site"
     targets: list[dict[str, Any]] = []
-    for index in range(copies):
-        comment = copy.deepcopy(snapshot)
-        if policy == "random":
-            comment["seed"] = -1
-        elif policy == "increment" and seed_num is not None:
-            comment["seed"] = seed_num + index
-        elif policy == "fixed" and seed_num is not None:
-            comment["seed"] = seed_num
-        comment["_studio_snapshot"] = True
-        targets.append(
-            {
-                "work_id": int(work_id or 0),
-                "page_index": int(page_index or 0),
-                "gallery_id": gallery_id,
-                "patched_comment": comment,
-                "frozen_comment": True,
-                "source_title": str(source_title or ""),
-                "source_thumb": str(source_thumb or ""),
-                "remote_work_id": str(remote_work_id or ""),
-                "_target_index": index,
-            }
-        )
+    cursor = 0
+    for snap in pages:
+        for _copy_i in range(copies):
+            comment = _studio_seed_comment(
+                snap["patched_comment"],
+                policy=policy,
+                seed_num=seed_num,
+                index=cursor,
+            )
+            targets.append(
+                {
+                    "work_id": int(work_id or 0),
+                    "page_index": int(snap["page_index"]),
+                    "gallery_id": gallery_id,
+                    "patched_comment": comment,
+                    "frozen_comment": True,
+                    "source_title": str(snap.get("source_title") or ""),
+                    "source_thumb": str(snap.get("source_thumb") or ""),
+                    "remote_work_id": str(snap.get("remote_work_id") or ""),
+                    "_target_index": cursor,
+                }
+            )
+            cursor += 1
     recipe = {
         "prompt_profile": str(prompt_profile or "native"),
         "token_id": str(token_id or ""),
-        "kind": "studio_snapshot",
+        "kind": "studio_series" if len(pages) > 1 else "studio_snapshot",
         "seed_policy": policy,
         "copies": copies,
+        "page_count": len(pages),
         "retry_policy": "no-5xx-retry",
         "source_gallery_id": gallery_id,
         "page_index": int(page_index or 0),
@@ -881,6 +1040,9 @@ def start_studio_generate(
         preview_only=False,
     )
     if started.get("ok"):
+        started["copies"] = copies
+        started["page_count"] = len(pages)
+        started["total"] = len(targets)
         started["message"] = (
             "generation queued" if started.get("queued") else "generation started"
         )

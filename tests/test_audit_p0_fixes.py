@@ -56,6 +56,15 @@ def test_group_key_prefixes_non_site_galleries() -> None:
     )
 
 
+def test_token_failure_ignores_payload_validation_500() -> None:
+    entry = {"id": "t-unmarshal", "provider": "novelai", "enabled": True, "token": "x"}
+    removed = _record_token_failure(
+        entry,
+        'NAI API error 500: {"statusCode":500,"message":"json: cannot unmarshal object into Go struct field V4ExternalCharacterCaption.parameters.v4_prompt.caption.char_captions.char_caption of type string"}',
+    )
+    assert removed is False
+
+
 def test_token_failure_does_not_remove_on_bare_400_substring() -> None:
     entry = {"id": "t1", "provider": "novelai", "enabled": True, "token": "x"}
     removed = _record_token_failure(entry, "HTTP 400: width must be multiple of 64 (got 400)")

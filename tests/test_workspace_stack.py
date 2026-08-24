@@ -69,13 +69,15 @@ def test_workspace_is_primary_nav() -> None:
     assert '{ href: "/", id: "gallery", label: "图库" }' in nav
     assert '{ href: "/studio", id: "studio", label: "工作台" }' in nav
     assert '{ href: "/generated", id: "generated", label: "生成库" }' in nav
-    assert '{ href: "/queue", id: "queue", label: "待生成" }' in primary
+    assert '{ href: "/queue", id: "queue", label: "待生成" }' not in primary
+    assert '{ href: "/settings", id: "settings", label: "设置" }' in primary
     assert '{ href: "/remix", id: "remix", label: "换角" }' in nav
     assert "remixHref" in nav
     assert "#onlineRemixPanel" in nav
-    assert '{ href: "/progress", id: "progress", label: "爬虫" }' in nav
+    assert '{ href: "/progress", id: "progress", label: "爬虫", group: "采集" }' in nav
     assert '{ href: "/pixiv", id: "pixiv", label: "发布" }' in nav
-    assert '{ href: "/nai-tags", id: "nai-tags", label: "分类" }' in nav
+    assert '{ href: "/nai-tags", id: "nai-tags", label: "分类", group: "创作" }' in nav
+    assert '{ href: "/queue", id: "queue", label: "待生成", group: "创作" }' in nav
     assert 'href: "/app/' not in primary
     assert 'p === "/" || p.startsWith("/i/") || p === "/app"' in nav
     assert 'id: "classic"' not in nav

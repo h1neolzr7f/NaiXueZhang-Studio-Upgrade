@@ -11,6 +11,7 @@ from nai_api import (
     save_token,
     add_token_entry,
     delete_token_entry,
+    update_token_network,
     check_token_pool,
 )
 from nai_char import clean_plain_ark_workbench_draft, extract_chars
@@ -23,9 +24,19 @@ from generated_gallery import (
     migrate_legacy_meta,
     restore_deleted,
     list_deleted,
+    files_for_generated_group,
+    open_local_folder,
+    stage_reveal_folder,
 )
 from post_pipeline import load_config
-from nai_batch import batch_status, start_studio_generate
+from nai_batch import (
+    batch_queue_status,
+    batch_status,
+    cancel_batch,
+    resolve_studio_copies,
+    retry_batch,
+    start_studio_generate,
+)
 from gallery_catalog import get_db as get_gallery_db, serialize_gallery_payload
 
 router = APIRouter(prefix="/api")
@@ -112,6 +123,14 @@ def api_nai_token_delete(token_id: str) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
 
+
+@router.post("/nai/token/{token_id}/network")
+def api_nai_token_network(token_id: str, payload: dict = Body(default_factory=dict)) -> dict:
+    try:
+        return update_token_network(token_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if "not found" in str(exc).lower() else 400, detail=str(exc)) from exc
+
 @router.post("/nai/token/check")
 def api_nai_token_check(payload: dict = Body(default_factory=dict)) -> dict:
     try:
@@ -131,7 +150,30 @@ def api_nai_jobs(task_id: str = Query("")) -> dict:
     job = batch_status(task_id or None)
     if task_id and job is None:
         raise HTTPException(status_code=404, detail="generation task not found")
-    return {"ok": True, "job": job}
+    return {"ok": True, "job": job, "queue": batch_queue_status()}
+
+
+@router.post("/nai/jobs/cancel")
+def api_nai_jobs_cancel(task_id: str = Query("")) -> dict:
+    result = cancel_batch(task_id or None)
+    if result.get("error") == "not_found":
+        raise HTTPException(status_code=404, detail=result.get("message") or "generation task not found")
+    return result
+
+
+@router.post("/nai/jobs/retry")
+def api_nai_jobs_retry(task_id: str = Query("")) -> dict:
+    if not str(task_id or "").strip():
+        raise HTTPException(status_code=400, detail="task_id is required")
+    result = retry_batch(task_id)
+    error = str(result.get("error") or "")
+    if error == "not_found":
+        raise HTTPException(status_code=404, detail=result.get("message") or "generation task not found")
+    if error == "not_retryable":
+        raise HTTPException(status_code=409, detail=result.get("message") or "job is not retryable")
+    if error in {"needs_review", "nothing_to_retry"}:
+        raise HTTPException(status_code=400, detail=result.get("message") or error)
+    return result
 
 
 @router.post("/nai/generate")
@@ -152,39 +194,77 @@ async def api_nai_generate(payload: NaiGenerateRequest) -> dict:
             raise HTTPException(status_code=400, detail="work_id must be an integer string") from exc
     page_index = int(data.get("page_index") or 0)
     source_gallery_id = str(data.get("source_gallery_id") or "site").strip() or "site"
-    comment = clean_plain_ark_workbench_draft(
-        comment,
-        work_id,
-        page_index,
-        gallery_id=source_gallery_id,
-    )
     remote_work_id = str(data.get("remote_work_id") or data.get("work_id_str") or "").strip()
     source_title = str(data.get("source_title") or "").strip()
     source_thumb = str(data.get("source_thumb") or "").strip()
-    if isinstance(comment, dict):
-        comment.setdefault("_aitag_source", {})
-        if isinstance(comment["_aitag_source"], dict):
+    gallery_id = source_gallery_id if source_gallery_id in {"site", "aitag-online", "codex", "qqgroup"} else "site"
+
+    def _prepare_page_comment(raw_comment: dict, raw_page_index: int, *, title: str, thumb: str) -> dict:
+        cleaned = clean_plain_ark_workbench_draft(
+            raw_comment,
+            work_id,
+            raw_page_index,
+            gallery_id=gallery_id,
+        )
+        if not isinstance(cleaned, dict):
+            return {}
+        cleaned.setdefault("_aitag_source", {})
+        if isinstance(cleaned["_aitag_source"], dict):
             if remote_work_id:
-                comment["_aitag_source"]["work_id"] = remote_work_id
-            comment["_aitag_source"]["page_index"] = page_index
-            if source_title:
-                comment["_aitag_source"]["title"] = source_title
-            if source_thumb:
-                comment["_aitag_source"]["thumb"] = source_thumb
-            source_title = str(comment["_aitag_source"].get("title") or source_title).strip()
-            source_thumb = str(comment["_aitag_source"].get("thumb") or source_thumb).strip()
-            remote_work_id = str(comment["_aitag_source"].get("work_id") or remote_work_id).strip()
-    try:
-        copies = int(data.get("copies") or data.get("batch_count") or 1)
-    except (TypeError, ValueError):
-        copies = 1
+                cleaned["_aitag_source"]["work_id"] = remote_work_id
+            cleaned["_aitag_source"]["page_index"] = raw_page_index
+            if title:
+                cleaned["_aitag_source"]["title"] = title
+            if thumb:
+                cleaned["_aitag_source"]["thumb"] = thumb
+        return cleaned
+
+    comment = _prepare_page_comment(
+        comment if isinstance(comment, dict) else {},
+        page_index,
+        title=source_title,
+        thumb=source_thumb,
+    )
+    if isinstance(comment.get("_aitag_source"), dict):
+        source_title = str(comment["_aitag_source"].get("title") or source_title).strip()
+        source_thumb = str(comment["_aitag_source"].get("thumb") or source_thumb).strip()
+        remote_work_id = str(comment["_aitag_source"].get("work_id") or remote_work_id).strip()
+    page_snapshots = []
+    for raw in data.get("pages") or []:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            raw_page = int(raw.get("page_index") or 0)
+        except (TypeError, ValueError):
+            continue
+        page_comment = raw.get("patched_comment") or comment
+        if not isinstance(page_comment, dict) or not page_comment:
+            continue
+        page_title = str(raw.get("source_title") or source_title or "").strip()
+        page_thumb = str(raw.get("source_thumb") or source_thumb or "").strip()
+        page_snapshots.append(
+            {
+                "page_index": raw_page,
+                "patched_comment": _prepare_page_comment(
+                    page_comment,
+                    raw_page,
+                    title=page_title,
+                    thumb=page_thumb,
+                ),
+                "source_title": page_title,
+                "source_thumb": page_thumb,
+                "remote_work_id": str(raw.get("remote_work_id") or remote_work_id or ""),
+            }
+        )
+    copies = resolve_studio_copies(data.get("copies"), data.get("batch_count"))
     result = await asyncio.to_thread(
         start_studio_generate,
         comment if isinstance(comment, dict) else {},
         work_id=work_id,
         page_index=page_index,
         copies=copies,
-        source_gallery_id=source_gallery_id if source_gallery_id in {"site", "aitag-online", "codex", "qqgroup"} else "site",
+        page_snapshots=page_snapshots or None,
+        source_gallery_id=gallery_id,
         seed_policy=str(data.get("seed_policy") or ""),
         force_free=bool(data.get("force_free", True)),
         prompt_profile=str(data.get("prompt_profile") or "native"),
@@ -268,6 +348,28 @@ def api_generated_delete_item(image_id: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@router.post("/generated/group/{group_id}/reveal")
+def api_generated_reveal_group(group_id: str) -> dict:
+    token = str(group_id or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="group_id cannot be empty")
+    try:
+        paths = files_for_generated_group(token)
+        folder = stage_reveal_folder(paths, f"group-{token}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    opened = open_local_folder(folder)
+    return {
+        "ok": True,
+        "opened": opened,
+        "count": len(paths),
+        "files": [path.name for path in paths],
+        "message": "已打开本组全部原文件" if opened else "Only Windows can reveal files automatically",
+    }
+
 
 @router.delete("/generated/group/{group_id}")
 def api_generated_delete_group(group_id: str) -> dict:

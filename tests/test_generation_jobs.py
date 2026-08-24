@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import tempfile
 import threading
 import time
@@ -148,6 +149,71 @@ class GenerationJobManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(recovered["recovered_after_restart"])
         self.assertIn("可能已扣费", recovered["message"])
         self.assertEqual(successor.state["status"], "running")
+
+    def test_queued_jobs_are_cancelled_on_restore_so_a_new_job_can_start(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            state_path = Path(temp) / "generation_jobs.json"
+            first_manager = GenerationJobManager(state_path=state_path)
+            active, started = first_manager.enqueue_job(
+                total=1, generate=True, preview_only=False
+            )
+            leftover, leftover_started = first_manager.enqueue_job(
+                total=1, generate=True, preview_only=False
+            )
+            first_manager.update(
+                leftover,
+                _request={"targets": [{"work_id": 1}], "generate": True},
+            )
+            self.assertTrue(started)
+            self.assertFalse(leftover_started)
+            self.assertEqual(leftover.state["status"], "queued")
+
+            restarted = GenerationJobManager(state_path=state_path)
+            recovered_active = restarted.status(active.task_id)
+            recovered_queued = restarted.status(leftover.task_id)
+            successor, successor_starts = restarted.enqueue_job(
+                total=1, generate=False, preview_only=True
+            )
+            persisted = json.loads(state_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(recovered_active["status"], "unknown")
+        self.assertEqual(recovered_queued["status"], "cancelled")
+        self.assertTrue(recovered_queued["terminal"])
+        self.assertIn("进程重启", recovered_queued["message"])
+        self.assertTrue(successor_starts)
+        self.assertEqual(successor.state["status"], "running")
+        self.assertEqual(restarted.queue_status()["pending_count"], 0)
+        self.assertFalse(
+            any(row.get("status") == "queued" for row in persisted.get("jobs") or [])
+        )
+
+    def test_persist_does_not_keep_disk_only_queued_jobs_runnable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            state_path = Path(temp) / "generation_jobs.json"
+            manager = GenerationJobManager(state_path=state_path)
+            job = manager.start_job(total=1, generate=False, preview_only=True)
+            payload = json.loads(state_path.read_text(encoding="utf-8"))
+            payload["jobs"].append(
+                {
+                    "id": "orphan-queued",
+                    "task_id": "orphan-queued",
+                    "status": "queued",
+                    "message": "waiting in batch queue",
+                    "generate": True,
+                    "preview_only": False,
+                }
+            )
+            state_path.write_text(json.dumps(payload), encoding="utf-8")
+            manager.append_item(job, {"work_id": 1, "ok": True}, count_done=True)
+            persisted = json.loads(state_path.read_text(encoding="utf-8"))
+
+        orphan = next(
+            row
+            for row in persisted["jobs"]
+            if row.get("task_id") == "orphan-queued"
+        )
+        self.assertEqual(orphan["status"], "cancelled")
+        self.assertIn("进程重启", orphan["message"])
 
     def test_start_is_atomic_across_threads(self) -> None:
         manager = GenerationJobManager()
@@ -581,6 +647,60 @@ class NaiBatchJobApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(captured["recipe"]["copies"], 4)
         self.assertEqual(captured["targets"][0]["patched_comment"]["seed"], 11)
         self.assertEqual(captured["targets"][3]["patched_comment"]["seed"], 14)
+        self.assertEqual(result["copies"], 4)
+        self.assertEqual(result["total"], 4)
+        self.assertEqual(result["page_count"], 1)
+        self.assertEqual(captured["recipe"]["kind"], "studio_snapshot")
+
+    def test_studio_generate_series_pages_times_copies(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_start_batch(targets, recipe, **kwargs):
+            captured["targets"] = list(targets)
+            captured["recipe"] = dict(recipe)
+            return {"ok": True, "task_id": "studio-series-1", "queued": False}
+
+        pages = [
+            {"page_index": 0, "patched_comment": {"prompt": "p0", "seed": 10}},
+            {"page_index": 1, "patched_comment": {"prompt": "p1", "seed": 10}},
+            {"page_index": 2, "patched_comment": {"prompt": "p2", "seed": 10}},
+        ]
+        with patch.object(nai_batch, "start_batch", side_effect=fake_start_batch):
+            result = nai_batch.start_studio_generate(
+                {"prompt": "p0", "seed": 10},
+                work_id=99,
+                page_index=0,
+                copies=2,
+                page_snapshots=pages,
+                source_gallery_id="aitag-online",
+                seed_policy="increment",
+                remote_work_id="148828440",
+            )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["copies"], 2)
+        self.assertEqual(result["page_count"], 3)
+        self.assertEqual(result["total"], 6)
+        self.assertEqual(len(captured["targets"]), 6)
+        self.assertEqual(captured["recipe"]["kind"], "studio_series")
+        self.assertEqual(captured["recipe"]["page_count"], 3)
+        self.assertEqual([t["page_index"] for t in captured["targets"]], [0, 0, 1, 1, 2, 2])
+        self.assertEqual(
+            [t["patched_comment"]["prompt"] for t in captured["targets"]],
+            ["p0", "p0", "p1", "p1", "p2", "p2"],
+        )
+        self.assertEqual(
+            [t["patched_comment"]["seed"] for t in captured["targets"]],
+            [10, 11, 12, 13, 14, 15],
+        )
+
+    def test_resolve_studio_copies_ignores_zero_and_clamps(self) -> None:
+        self.assertEqual(nai_batch.resolve_studio_copies(None, None), 1)
+        self.assertEqual(nai_batch.resolve_studio_copies(0, 8), 8)
+        self.assertEqual(nai_batch.resolve_studio_copies("", 6), 6)
+        self.assertEqual(nai_batch.resolve_studio_copies(4, 8), 4)
+        self.assertEqual(nai_batch.resolve_studio_copies(999), 20)
+        self.assertEqual(nai_batch.resolve_studio_copies("3"), 3)
 
     async def test_multiple_batches_run_in_reordered_fifo_sequence(self) -> None:
         manager = GenerationJobManager(cancel_poll_interval=0.01)
@@ -679,6 +799,104 @@ class NaiBatchJobApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(manager.status(result["task_id"])["status"], "error")
         successor = manager.start_job(total=1, generate=False, preview_only=True)
         self.assertEqual(manager.status()["task_id"], successor.task_id)
+
+    async def test_start_batch_from_worker_thread_uses_bound_loop(self) -> None:
+        manager = GenerationJobManager()
+        loop = asyncio.get_running_loop()
+        prepared = threading.Event()
+
+        def fake_prepare(work_id, page_index, recipe, patched_comment=None):
+            prepared.set()
+            return {
+                "ok": True,
+                "patched_comment": {"prompt": f"work {work_id}"},
+                "summary": f"work {work_id}",
+                "style_replacements": 0,
+            }
+
+        nai_batch.bind_event_loop(loop)
+        try:
+            with (
+                patch.object(nai_batch, "_JOB_MANAGER", manager),
+                patch.object(nai_batch, "prepare_work_draft", side_effect=fake_prepare),
+            ):
+                result = await asyncio.to_thread(
+                    nai_batch.start_batch,
+                    [{"work_id": 44, "page_index": 0}],
+                    {},
+                    generate=False,
+                    preview_only=True,
+                )
+                for _ in range(100):
+                    status = manager.status(result["task_id"])
+                    if status and status.get("status") == "done":
+                        break
+                    await asyncio.sleep(0.01)
+                final_status = manager.status(result["task_id"])
+        finally:
+            nai_batch.bind_event_loop(None)
+
+        self.assertTrue(result["ok"])
+        self.assertFalse(result.get("queued"))
+        self.assertTrue(prepared.is_set())
+        self.assertEqual(final_status["status"], "done")
+
+    async def test_cancelling_a_queued_blocker_starts_the_next_job(self) -> None:
+        manager = GenerationJobManager()
+        first, _ = manager.enqueue_job(total=1, generate=False, preview_only=True)
+        second, _ = manager.enqueue_job(total=1, generate=False, preview_only=True)
+        third, _ = manager.enqueue_job(total=1, generate=False, preview_only=True)
+        manager.update(
+            third,
+            _request={
+                "targets": [{"work_id": 3, "page_index": 0}],
+                "recipe": {},
+                "generate": False,
+                "preview_only": True,
+            },
+        )
+        manager.finish(first, status="cancelled", message="cancelled")
+        self.assertEqual(manager.status(second.task_id)["status"], "queued")
+        self.assertEqual(manager.queue_status()["pending_count"], 2)
+
+        launched: list[str] = []
+
+        def fake_launch(job):
+            launched.append(job.task_id)
+
+        with (
+            patch.object(nai_batch, "_JOB_MANAGER", manager),
+            patch.object(nai_batch, "_launch_job", side_effect=fake_launch),
+        ):
+            cancelled = nai_batch.cancel_batch(second.task_id)
+
+        self.assertTrue(cancelled["ok"])
+        self.assertEqual(cancelled["batch"]["status"], "cancelled")
+        self.assertEqual(launched, [third.task_id])
+        self.assertEqual(manager.status(third.task_id)["status"], "running")
+
+    async def test_launch_failure_on_resume_starts_the_next_queued_job(self) -> None:
+        manager = GenerationJobManager()
+        first, _ = manager.enqueue_job(total=1, generate=False, preview_only=True)
+        second, _ = manager.enqueue_job(total=1, generate=False, preview_only=True)
+        third, _ = manager.enqueue_job(total=1, generate=False, preview_only=True)
+        manager.finish(first, status="done", message="done")
+
+        def fake_launch(job):
+            if job.task_id == second.task_id:
+                raise RuntimeError("loop closed")
+
+        with (
+            patch.object(nai_batch, "_JOB_MANAGER", manager),
+            patch.object(nai_batch, "_launch_job", side_effect=fake_launch),
+        ):
+            resumed = nai_batch.resume_batch_queue()
+
+        self.assertTrue(resumed["ok"])
+        self.assertTrue(resumed["resumed"])
+        self.assertEqual(resumed["task_id"], third.task_id)
+        self.assertEqual(manager.status(second.task_id)["status"], "error")
+        self.assertEqual(manager.status(third.task_id)["status"], "running")
 
     async def test_unknown_task_id_does_not_cancel_current_job(self) -> None:
         manager = GenerationJobManager()

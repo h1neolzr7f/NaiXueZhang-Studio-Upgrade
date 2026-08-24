@@ -189,6 +189,14 @@ class FrontendSecurityContractTests(unittest.TestCase):
         panel = (ROOT / "web" / "plugins" / "char-swap" / "panel.js").read_text(encoding="utf-8")
         self.assertIn("esc(idTags)", panel)
         self.assertIn('src.summary || "角色"', panel)
+        self.assertIn("force_free: true", panel)
+        self.assertNotIn("Will consume Anlas", panel)
+        shell = (ROOT / "web" / "plugins" / "char-swap" / "panel_shell.js").read_text(encoding="utf-8")
+        self.assertIn("/settings#generation-service", shell)
+        self.assertIn('id="charSwapToken"', shell)
+        self.assertIn('id="charSwapAddToken"', shell)
+        self.assertIn('id="charSwapCheckTokens"', shell)
+        self.assertIn('id="charSwapReplaceTokens"', shell)
         pixiv_html = (ROOT / "web" / "pixiv.html").read_text(encoding="utf-8")
         self.assertIn('type="password"', pixiv_html)
         self.assertIn('id="pxRefresh"', pixiv_html)
@@ -211,6 +219,7 @@ class FrontendSecurityContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertNotIn('innerHTML = `<img src="${url}"', batch)
+        self.assertIn("force_free: true", batch)
         ops = (ROOT / "web" / "ops.html").read_text(encoding="utf-8")
         self.assertIn("/assets/shared/escape.js", ops)
         self.assertIn("escapeHtml(x)", ops)
@@ -225,6 +234,8 @@ class FrontendSecurityContractTests(unittest.TestCase):
         self.assertNotIn("for (let i = 0; i < copies", studio)
         self.assertIn("pollJob", studio)
         self.assertIn("copies", studio)
+        self.assertIn("/api/nai/jobs/cancel", studio)
+        self.assertIn("queue_position", studio)
 
 
 if __name__ == "__main__":

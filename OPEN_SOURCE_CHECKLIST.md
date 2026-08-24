@@ -31,12 +31,12 @@
 
 ## Public repository presentation
 
-- [ ] 仓库描述清楚说明这是升级版 v1.5.0，并链到本仓库 Releases 与稳定版 v1.4.0
+- [ ] 仓库描述清楚说明这是升级版 v1.5.1，并链到本仓库 Releases 与稳定版 v1.4.0
 - [ ] Topics 至少包含 `novelai`、`aigc`、`fastapi`、`local-first`、`image-management`
 - [ ] README 的下载、Roadmap 和贡献链接有效
 - [ ] 至少准备 3 张脱敏截图或 1 个短 Demo GIF
 - [ ] Issues、Discussions 或安全报告渠道已配置
-- [ ] 当前公开版本标记正确（本升级版一键包为 v1.5.0；稳定版冻结包为 v1.4.0 修复版）
+- [ ] 当前公开版本标记正确（本升级版一键包为 v1.5.1；稳定版冻结包为 v1.4.0 修复版）
 
 ## Release provenance
 

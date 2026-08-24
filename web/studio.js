@@ -2,6 +2,10 @@
   const $ = (id) => document.getElementById(id);
   const DRAFT_KEY = "aitag.studio.draft.v1";
   const HISTORY_KEY = "aitag.studio.history.v1";
+  const COPIES_KEY = "aitag.studio.copies.v1";
+  const SERIES_KEY = "aitag.studio.seriesAll.v1";
+  const JOB_KEY = "aitag.studio.job.v1";
+  let COPIES_MAX = 20;
 
   const state = {
     workId: 0,
@@ -10,6 +14,8 @@
     params: {},
     beforeTexts: null,
     generating: false,
+    currentTaskId: "",
+    lastTaskId: "",
     undoStack: [],
     defaultOptimizeMode: "smart",
     sizePresets: [],
@@ -25,6 +31,134 @@
     /** @type {Array<{image_index:number, draft:object, slot_indexes?:number[]}>} */
     aitagPages: [],
   };
+
+  function clampCopies(value) {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n)) return 1;
+    return Math.max(1, Math.min(COPIES_MAX, n));
+  }
+
+  function currentCopies() {
+    return clampCopies($("studioBatchCount")?.value || "1");
+  }
+
+  function persistCopies(n) {
+    try {
+      localStorage.setItem(COPIES_KEY, String(n));
+    } catch (_) { /* ignore */ }
+  }
+
+  function setCopies(value, persist) {
+    const n = clampCopies(value);
+    const input = $("studioBatchCount");
+    if (input) input.value = String(n);
+    document.querySelectorAll("#studioBatchPresets [data-copies]").forEach((btn) => {
+      btn.classList.toggle("is-active", clampCopies(btn.getAttribute("data-copies")) === n);
+    });
+    const gen = $("studioGenerate");
+    if (gen && !state.generating) {
+      gen.textContent = generateButtonLabel(n);
+    }
+    if (persist !== false) persistCopies(n);
+    return n;
+  }
+
+  function seriesPageCount() {
+    const pages = Array.isArray(state.aitagPages) ? state.aitagPages : [];
+    return pages.length;
+  }
+
+  function currentStudioGalleryId() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("gallery") || params.get("gallery_id");
+      if (fromUrl) return fromUrl;
+      const bridged = window.WorkBridge?.load?.();
+      if (bridged && bridged.galleryId) return bridged.galleryId;
+    } catch (_) { /* ignore */ }
+    if (state.sourceProvider && state.sourceProvider !== "aitag-online") {
+      return state.sourceProvider;
+    }
+    return "site";
+  }
+
+  function jobCanRetry(job) {
+    if (!job || !job.task_id) return false;
+    const status = String(job.status || "");
+    if (!["done", "error", "cancelled"].includes(status)) return false;
+    if (job.needs_review || Number(job.blocked_retry_count) > 0) return false;
+    const failed = Number(job.effective_fail_count || job.fail_count || 0);
+    const deferred = Number(job.deferred_unattempted_count || 0);
+    const unfinished = Math.max(0, Number(job.total || 0) - Number(job.done || 0));
+    return failed > 0 || deferred > 0 || unfinished > 0 || status === "cancelled";
+  }
+
+  function syncRetryButton(job) {
+    const btn = $("studioRetryFailed");
+    if (!btn) return;
+    const can = !state.generating && jobCanRetry(job);
+    btn.classList.toggle("hidden", !can);
+    if (can) {
+      const failed = Number((job && (job.effective_fail_count || job.fail_count)) || 0);
+      const unfinished = Math.max(0, Number((job && job.total) || 0) - Number((job && job.done) || 0));
+      btn.textContent = failed && unfinished
+        ? `重试失败/未完成（${failed + unfinished}）`
+        : (unfinished && !failed ? "继续未完成页" : "重试失败页");
+    }
+    syncResumeBanner(job);
+  }
+
+  function seriesAllEnabled() {
+    return seriesPageCount() > 1 && !!$("studioSeriesAll")?.checked;
+  }
+
+  function generateButtonLabel(copies) {
+    const n = clampCopies(copies);
+    const pages = seriesPageCount();
+    if (seriesAllEnabled()) {
+      return n > 1 ? `开始生成 本系列 ${pages} 页 × ${n}` : `开始生成 本系列 ${pages} 页`;
+    }
+    return `开始生成 ${n} 张`;
+  }
+
+  function syncSeriesToggle() {
+    const wrap = $("studioSeriesToggle");
+    const box = $("studioSeriesAll");
+    const label = $("studioSeriesAllLabel");
+    const pages = seriesPageCount();
+    if (wrap) wrap.classList.toggle("hidden", pages <= 1);
+    if (label && pages > 1) label.textContent = `生成本系列全部 ${pages} 页`;
+    if ($("studioGenerate") && !state.generating) {
+      $("studioGenerate").textContent = generateButtonLabel(currentCopies());
+    }
+  }
+
+  function persistSeriesPref() {
+    try {
+      localStorage.setItem(SERIES_KEY, $("studioSeriesAll")?.checked ? "1" : "0");
+    } catch (_) { /* ignore */ }
+  }
+
+  function restoreSeriesPref() {
+    const box = $("studioSeriesAll");
+    if (!box) return;
+    try {
+      const saved = localStorage.getItem(SERIES_KEY);
+      if (saved === "0") box.checked = false;
+      else if (saved === "1") box.checked = true;
+    } catch (_) { /* ignore */ }
+    syncSeriesToggle();
+  }
+
+  function restoreCopies() {
+    let saved = "";
+    try {
+      saved = localStorage.getItem(COPIES_KEY) || "";
+    } catch (_) {
+      saved = "";
+    }
+    setCopies(saved || $("studioBatchCount")?.value || "1", false);
+  }
 
   async function api(path, opts) {
     if (!window.ApiClient) throw new Error("ApiClient is not loaded");
@@ -76,9 +210,10 @@
     const host = $("studioAitagPages");
     if (!host) return;
     const pages = Array.isArray(state.aitagPages) ? state.aitagPages : [];
-    if (state.sourceProvider !== "aitag-online" || pages.length <= 1) {
+    if (pages.length <= 1) {
       host.classList.add("hidden");
       host.innerHTML = "";
+      syncSeriesToggle();
       return;
     }
     host.classList.remove("hidden");
@@ -93,10 +228,10 @@
         switchAitagPage(idx);
       });
     });
+    syncSeriesToggle();
   }
 
   function flushCurrentAitagPage() {
-    if (state.sourceProvider !== "aitag-online") return;
     if (!Array.isArray(state.aitagPages) || !state.aitagPages.length) return;
     const idx = Number(state.pageIndex) || 0;
     const texts = textsFromForm();
@@ -129,9 +264,12 @@
           refs: { ...(prev.refs || {}), ...refs },
           pageIndex: idx,
           source: prev.source || {
-            provider: "aitag-online",
+            provider: state.sourceProvider || "site",
             imageIndex: idx,
+            workId: state.workId || 0,
             workIdStr: state.onlineWorkIdStr || "",
+            title: state.onlineSourceTitle || "",
+            thumb: state.onlineSourceThumb || "",
           },
         },
       };
@@ -143,14 +281,19 @@
     const pages = Array.isArray(state.aitagPages) ? state.aitagPages : [];
     const hit = pages.find((p) => Number(p.image_index) === Number(pageIndex));
     if (!hit || !hit.draft || typeof hit.draft !== "object") {
-      setStatus(`没有 p${pageIndex} 的在线草稿`, false);
+      setStatus(`没有 p${pageIndex} 的草稿`, false);
       return false;
     }
     const pack = {
       ...hit.draft,
       draftId: state.draftId,
-      sourceKind: "aitag-online",
-      source: hit.draft.source || { provider: "aitag-online", imageIndex: pageIndex },
+      workId: state.workId,
+      sourceKind: state.sourceProvider || hit.draft.source?.provider || "",
+      source: hit.draft.source || {
+        provider: state.sourceProvider || "site",
+        imageIndex: pageIndex,
+        workId: state.workId || 0,
+      },
       pageIndex: Number(pageIndex) || 0,
       pages: state.aitagPages,
       texts: hit.draft.texts,
@@ -158,7 +301,7 @@
       refs: hit.draft.refs,
       comment: hit.draft.comment,
     };
-    return applyDraftObject(pack, `已切换到在线草稿 p${pageIndex}（未生成）`);
+    return applyDraftObject(pack, `已切换到 p${pageIndex}`);
   }
 
   function applyDraftObject(draft, statusText) {
@@ -174,7 +317,7 @@
           draft: p.draft || p,
         }))
         .filter((p) => p.draft && typeof p.draft === "object");
-    } else if (state.sourceProvider !== "aitag-online") {
+    } else if (!(Array.isArray(state.aitagPages) && state.aitagPages.length)) {
       state.aitagPages = [];
     }
     if (state.sourceProvider === "aitag-online") {
@@ -207,13 +350,14 @@
         || state.onlineSourceThumb
         || ""
       ).trim();
-    } else if (draft.workId) {
-      state.workId = draft.workId;
-      state.pageIndex = Number(draft.pageIndex || 0) || 0;
-      state.aitagPages = [];
-      state.onlineWorkIdStr = "";
-      state.onlineSourceTitle = "";
-      state.onlineSourceThumb = "";
+    } else {
+      const localId = draft.workId || source.workId || state.workId;
+      if (localId) state.workId = localId;
+      state.pageIndex = Number(draft.pageIndex || source.imageIndex || 0) || 0;
+      const pageN = state.aitagPages.length;
+      if (state.workId) {
+        state.sourceLabel = `来源 #${state.workId}${pageN > 1 ? ` · ${pageN} 页` : ""}`;
+      }
     }
     if (draft.comment && typeof draft.comment === "object") {
       state.comment = draft.comment;
@@ -241,6 +385,7 @@
       draftSaved = false;
     }
     renderAitagPageTabs();
+    syncSeriesToggle();
     refreshReady();
     if (!draftSaved) {
       // 静默吞掉会让用户以为草稿已持久化，刷新后才发现丢失
@@ -351,6 +496,39 @@
     if (state.undoStack.length > 12) state.undoStack.shift();
   }
 
+  function charCaptionText(value, depth) {
+    if ((depth || 0) > 4) return "";
+    if (typeof value === "string") return value;
+    if (!value || typeof value !== "object") return "";
+    if (value.char_caption != null && value.char_caption !== value) {
+      return charCaptionText(value.char_caption, (depth || 0) + 1);
+    }
+    return String(value.caption || value.text || "").trim();
+  }
+
+  function normalizeCharSlots(slots) {
+    if (!Array.isArray(slots)) return [];
+    return slots.map((item) => {
+      const prev = item && typeof item === "object" ? item : {};
+      const centers = Array.isArray(prev.centers) && prev.centers.length
+        ? prev.centers
+        : (prev.center ? [prev.center] : [{ x: 0.5, y: 0.5 }]);
+      return { char_caption: charCaptionText(item), centers };
+    });
+  }
+
+  function sanitizeCommentCaptions(comment) {
+    if (!comment || typeof comment !== "object") return comment;
+    ["v4_prompt", "v4_negative_prompt"].forEach((key) => {
+      const block = comment[key];
+      if (!block || typeof block !== "object") return;
+      const cap = block.caption;
+      if (!cap || typeof cap !== "object") return;
+      cap.char_captions = normalizeCharSlots(cap.char_captions);
+    });
+    return comment;
+  }
+
   function commentFromForm() {
     const base = copyComment(state.comment || {});
     const texts = textsFromForm();
@@ -364,11 +542,12 @@
       cap.char_captions = texts.char_captions.map((line, i) => {
         const prev = old[i] && typeof old[i] === "object" ? old[i] : {};
         const centers = prev.centers || (prev.center ? [prev.center] : [{ x: 0.5, y: 0.5 }]);
-        return { char_caption: line, centers };
+        return { char_caption: charCaptionText(line), centers };
       });
     }
     v4.caption = cap;
     base.v4_prompt = v4;
+    sanitizeCommentCaptions(base);
     base.width = parseInt($("studioWidth")?.value || state.params.width || 832, 10);
     base.height = parseInt($("studioHeight")?.value || state.params.height || 1216, 10);
     base.steps = parseInt($("studioSteps")?.value || state.params.steps || 28, 10);
@@ -394,6 +573,80 @@
       delete base.reference_strength_multiple;
     }
     return base;
+  }
+
+  function overlayCurrentParams(comment) {
+    const next = copyComment(comment || {});
+    next.width = parseInt($("studioWidth")?.value || next.width || 832, 10);
+    next.height = parseInt($("studioHeight")?.value || next.height || 1216, 10);
+    next.steps = parseInt($("studioSteps")?.value || next.steps || 28, 10);
+    next.scale = parseFloat($("studioScale")?.value || next.scale || 5);
+    next.sampler = ($("studioSampler") || {}).value || next.sampler || "k_euler_ancestral";
+    return next;
+  }
+
+  function commentHasPrompt(comment) {
+    if (!comment || typeof comment !== "object") return false;
+    const cap = (comment.v4_prompt && comment.v4_prompt.caption) || {};
+    const chars = Array.isArray(cap.char_captions) ? cap.char_captions : [];
+    const charText = chars.some((item) => String((item && item.char_caption) || item || "").trim());
+    return !!(
+      String(comment.prompt || "").trim()
+      || String(cap.base_caption || "").trim()
+      || charText
+    );
+  }
+
+  function commentFromPageDraft(page) {
+    const draft = (page && page.draft && typeof page.draft === "object") ? page.draft : {};
+    let comment;
+    if (draft.comment && typeof draft.comment === "object") {
+      comment = copyComment(draft.comment);
+    } else if (draft.prompt != null || draft.v4_prompt) {
+      comment = copyComment(draft);
+    } else {
+      comment = copyComment(state.comment || {});
+    }
+    const texts = draft.texts || {};
+    if (texts.prompt || texts.base_caption || (texts.char_captions || []).length) {
+      comment.prompt = texts.prompt || texts.base_caption || comment.prompt;
+      if (texts.uc != null) comment.uc = texts.uc;
+      const v4 = comment.v4_prompt || {};
+      const cap = v4.caption || {};
+      cap.base_caption = texts.base_caption || texts.prompt || cap.base_caption;
+      if (texts.char_captions && texts.char_captions.length) {
+        const old = cap.char_captions || [];
+        cap.char_captions = texts.char_captions.map((line, i) => {
+          const prev = old[i] && typeof old[i] === "object" ? old[i] : {};
+          const centers = prev.centers || (prev.center ? [prev.center] : [{ x: 0.5, y: 0.5 }]);
+          return { char_caption: charCaptionText(line), centers };
+        });
+      }
+      v4.caption = cap;
+      comment.v4_prompt = v4;
+    }
+    return sanitizeCommentCaptions(overlayCurrentParams(comment));
+  }
+
+  function buildSeriesPagePayloads() {
+    flushCurrentAitagPage();
+    const remoteId = String(state.onlineWorkIdStr || "").trim();
+    const pages = (Array.isArray(state.aitagPages) ? state.aitagPages : [])
+      .slice()
+      .sort((a, b) => Number(a.image_index || 0) - Number(b.image_index || 0));
+    return pages.map((page) => {
+      const comment = commentFromPageDraft(page);
+      if (!commentHasPrompt(comment)) return null;
+      const draft = page.draft || {};
+      const source = draft.source || {};
+      return {
+        page_index: Number(page.image_index || 0),
+        patched_comment: comment,
+        source_title: String(source.title || draft.sourceTitle || state.onlineSourceTitle || "").trim(),
+        source_thumb: String(source.thumb || draft.thumb || draft.sourceThumb || state.onlineSourceThumb || "").trim(),
+        remote_work_id: String(source.workIdStr || draft.workIdStr || remoteId || "").trim(),
+      };
+    }).filter(Boolean);
   }
 
   function copyComment(c) {
@@ -467,19 +720,54 @@
     if (lab && label) lab.textContent = label;
   }
 
-  async function loadImport(workId, pageIndex) {
+  async function loadImport(workId, pageIndex, galleryId) {
     const sourceWorkId = window.WorkBridge?.normalizeWorkId?.(workId) || String(workId || "");
+    const gid = String(galleryId || currentStudioGalleryId() || "site").trim() || "site";
     setStatus("正在导入作品咒语…", true);
-    const data = await api(`/api/studio/import?work_id=${encodeURIComponent(sourceWorkId)}&page_index=${pageIndex || 0}`);
+    const data = await api(`/api/studio/import?work_id=${encodeURIComponent(sourceWorkId)}&page_index=${pageIndex || 0}&gallery_id=${encodeURIComponent(gid)}`);
     state.workId = data.work_id;
     state.pageIndex = data.page_index;
     state.comment = data.comment;
     state.params = data.params || {};
+    state.sourceProvider = String(data.gallery_id || gid || "site").trim() || "site";
+    if (state.sourceProvider === "aitag-online") {
+      state.sourceLabel = `AITag #${sourceWorkId}`;
+    } else {
+      const pageN = Array.isArray(data.pages) ? data.pages.length : 0;
+      state.sourceLabel = `来源 #${data.work_id}${pageN > 1 ? ` · ${pageN} 页` : ""}`;
+    }
+    state.aitagPages = (Array.isArray(data.pages) ? data.pages : [])
+      .map((page) => ({
+        image_index: Number(page.image_index ?? page.draft?.pageIndex ?? 0) || 0,
+        slot_indexes: page.slot_indexes || [],
+        draft: page.draft || page,
+      }))
+      .filter((page) => page.draft && typeof page.draft === "object");
+    if (!state.aitagPages.length && data.comment) {
+      state.aitagPages = [{
+        image_index: Number(data.page_index || 0) || 0,
+        draft: {
+          texts: data.texts,
+          comment: data.comment,
+          params: data.params || {},
+          pageIndex: Number(data.page_index || 0) || 0,
+          source: {
+            provider: state.sourceProvider,
+            workId: data.work_id,
+            imageIndex: Number(data.page_index || 0) || 0,
+            title: data.title || "",
+            thumb: data.thumb || "",
+          },
+        },
+      }];
+    }
     state.beforeTexts = data.texts;
     state.undoStack = [];
     applyTextsToForm(data.texts);
     fillParams(state.params);
     renderCompare(data.texts, data.texts);
+    renderAitagPageTabs();
+    syncSeriesToggle();
     syncRefWorkId();
     const src = $("studioSource");
     if (src) {
@@ -514,6 +802,9 @@
   function clearSource() {
     state.workId = 0;
     state.pageIndex = 0;
+    state.sourceProvider = "";
+    state.sourceLabel = "";
+    state.aitagPages = [];
     state.comment = null;
     state.params = {};
     state.beforeTexts = null;
@@ -526,6 +817,8 @@
     if ($("studioThumb")) $("studioThumb").innerHTML = "";
     if ($("studioBackDetail")) $("studioBackDetail").classList.add("hidden");
     if ($("studioRestoreOriginal")) $("studioRestoreOriginal").classList.add("hidden");
+    renderAitagPageTabs();
+    syncSeriesToggle();
     setStatus("已切换为空白新建", true, true);
     refreshReady();
     saveDraftLocal();
@@ -602,6 +895,11 @@
       if ($("studioOptimizeMode")) $("studioOptimizeMode").value = state.defaultOptimizeMode;
       renderSizePresets(cfg.size_presets || []);
       fillSamplers(cfg.samplers || []);
+      const cap = parseInt(cfg.copy_max, 10);
+      if (Number.isFinite(cap) && cap > 0) {
+        COPIES_MAX = Math.max(1, Math.min(64, cap));
+        if ($("studioBatchCount")) $("studioBatchCount").max = String(COPIES_MAX);
+      }
       if (cfg.defaults) fillParams({ ...cfg.defaults, ...state.params });
       await refreshTokenStatus(cfg.token);
       if (!cfg.ai?.has_api_key) {
@@ -628,12 +926,14 @@
         btn.type = "button";
         btn.className = "studio-queue-item" + (String(it.work_id) === String(state.workId) ? " active" : "");
         btn.dataset.workId = String(it.work_id);
+        btn.dataset.galleryId = String(it.gallery_id || "site");
         const thumb = it.thumb
           ? `<img src="${escapeHtml(it.thumb)}" alt="" />`
           : `<img alt="" style="opacity:.3" />`;
-        btn.innerHTML = `${thumb}<div class="meta"><div class="title">${escapeHtml(it.title || ("作品 " + it.work_id))}</div><div class="sub">#${it.work_id} · 点击导入</div></div>`;
+        const gid = String(it.gallery_id || "site");
+        btn.innerHTML = `${thumb}<div class="meta"><div class="title">${escapeHtml(it.title || ("作品 " + it.work_id))}</div><div class="sub">#${it.work_id}${gid !== "site" ? ` · ${escapeHtml(gid)}` : ""} · 点击导入</div></div>`;
         btn.addEventListener("click", () => {
-          loadImport(it.work_id, 0).catch((e) => setStatus(String(e.message || e), false));
+          loadImport(it.work_id, 0, it.gallery_id || "site").catch((e) => setStatus(String(e.message || e), false));
         });
         host.appendChild(btn);
       });
@@ -823,6 +1123,137 @@
     }
   }
 
+  function persistJobId(id) {
+    const value = String(id || "");
+    try { sessionStorage.setItem(JOB_KEY, value); } catch (_) { /* ignore */ }
+    try { localStorage.setItem(JOB_KEY, value); } catch (_) { /* ignore */ }
+  }
+
+  function restoreJobId() {
+    try {
+      return sessionStorage.getItem(JOB_KEY) || localStorage.getItem(JOB_KEY) || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function jobCancelledByRestart(job) {
+    return String((job && job.status) || "") === "cancelled"
+      && String((job && job.message) || "").includes("进程重启");
+  }
+
+  function syncResumeBanner(job) {
+    const banner = $("studioResumeBanner");
+    const btn = $("studioRetryFailed");
+    const show = jobCancelledByRestart(job) && jobCanRetry(job) && !state.generating;
+    if (banner) {
+      banner.classList.toggle("hidden", !show);
+      if (show) {
+        banner.textContent = "服务重启后，未发出的排队任务已取消。已成功的不会再扣；点「继续未完成页」只补未发出的页。";
+      }
+    }
+    if (btn) {
+      btn.classList.toggle("ghost", !show);
+      btn.classList.toggle("primary", show);
+    }
+  }
+
+  function renderStudioJobPanel(job, queue) {
+    const summary = $("studioJobSummary");
+    const log = $("studioJobLog");
+    if (!summary || !log) return;
+    const status = String((job && job.status) || "");
+    const done = Number((job && job.done) || 0);
+    const total = Number((job && job.total) || 0);
+    const pending = Number((queue && queue.pending_count) || 0);
+    const failed = Number((job && (job.effective_fail_count || job.fail_count)) || 0);
+    const ok = Number((job && job.ok_count) || 0);
+    if (!status || status === "idle") {
+      summary.textContent = pending ? `空闲 · 排队 ${pending}` : "空闲";
+      syncRetryButton(job);
+      return;
+    }
+    if (status === "running" || status === "queued") {
+      summary.textContent = `${status === "queued" ? "排队中" : "进行中"} ${done}/${total || "?"}`
+        + (pending ? ` · 其后还有 ${pending} 个任务` : "");
+    } else {
+      summary.textContent = `${job.message || status} · 成功 ${ok} / 失败 ${failed} / 共 ${total || done}`;
+    }
+    const rows = [];
+    if (status === "running") {
+      rows.push(`<div class="active">… #${job.current_work_id ?? "studio"} p${job.current_page_index ?? 0} ${job.message || ""}</div>`);
+    }
+    (Array.isArray(job.items) ? job.items : []).slice().reverse().slice(0, 12).forEach((item) => {
+      const cls = item.ok ? "ok" : "fail";
+      rows.push(`<div class="${cls}">${item.ok ? "✓" : "✗"} p${item.page_index ?? 0} ${item.message || item.error || ""}</div>`);
+    });
+    log.innerHTML = rows.join("");
+    syncRetryButton(job);
+  }
+
+  async function refreshStudioJobPanel() {
+    try {
+      const id = state.currentTaskId || state.lastTaskId || restoreJobId();
+      const q = id ? ("?task_id=" + encodeURIComponent(id)) : "";
+      const data = await api("/api/nai/jobs" + q);
+      const job = data.job || {};
+      if (job.task_id) state.lastTaskId = job.task_id;
+      renderStudioJobPanel(job, data.queue || {});
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function resumeActiveJob() {
+    const stored = restoreJobId();
+    if (stored) state.lastTaskId = stored;
+    const data = await refreshStudioJobPanel();
+    const job = (data && data.job) || {};
+    const status = String(job.status || "");
+    const taskId = String(job.task_id || stored || "").trim();
+    if (taskId) state.lastTaskId = taskId;
+    if (jobCancelledByRestart(job) && jobCanRetry(job)) {
+      setStatus("服务重启后未发出任务已取消。点「继续未完成页」只补未发出的页，已成功的不会再扣。", false, true);
+    }
+    if (!taskId || (status !== "running" && status !== "queued")) return;
+    if (state.generating) return;
+    state.currentTaskId = taskId;
+    persistJobId(taskId);
+    state.generating = true;
+    if ($("studioGenerate")) $("studioGenerate").disabled = true;
+    if ($("studioCancelGenerate")) $("studioCancelGenerate").classList.remove("hidden");
+    const total = Number(job.total || 0);
+    showGenProgress(true, total > 1 ? `继续任务 ${job.done || 0}/${total}…` : "继续任务…");
+    setStatus("已恢复进行中的生成队列（离开页面不会中断）", true);
+    try {
+      const finished = await window.ApiClient.pollJob(taskId, (statusJob) => {
+        renderStudioJobPanel(statusJob, (data && data.queue) || {});
+        const done = Number(statusJob.done || 0);
+        const tot = Number(statusJob.total || total);
+        showGenProgress(true, tot > 1 ? `生成中 ${done}/${tot}…` : (statusJob.message || "生成中…"));
+        const items = Array.isArray(statusJob.items) ? statusJob.items : [];
+        const lastOk = [...items].reverse().find((item) => item && item.ok && item.image_url);
+        if (lastOk && lastOk.image_url) {
+          setPreviewImage(lastOk.image_url + (lastOk.image_url.includes("?") ? "&" : "?") + "t=" + Date.now());
+        }
+      });
+      const failed = Number(finished.effective_fail_count || finished.fail_count || 0);
+      const okItems = (finished.items || []).filter((item) => item && item.ok);
+      setStatus(finished.message || `队列结束 · 成功 ${okItems.length} · 失败 ${failed}`, !failed);
+    } catch (e) {
+      setStatus(String(e.message || e), false);
+    } finally {
+      state.generating = false;
+      state.currentTaskId = "";
+      if ($("studioGenerate")) $("studioGenerate").disabled = false;
+      if ($("studioCancelGenerate")) $("studioCancelGenerate").classList.add("hidden");
+      setCopies(currentCopies(), false);
+      showGenProgress(false);
+      refreshStudioJobPanel();
+    }
+  }
+
   async function onGenerate() {
     if (state.generating) return;
     const texts = textsFromForm();
@@ -830,8 +1261,33 @@
       setStatus("请先填写 Prompt / Base / 角色槽", false, true);
       return;
     }
-    const copies = Math.max(1, Math.min(8, parseInt($("studioBatchCount")?.value || "1", 10) || 1));
-    const snapshot = commentFromForm();
+    const copies = currentCopies();
+    const useSeries = seriesAllEnabled();
+    const seriesPages = useSeries ? buildSeriesPagePayloads() : [];
+    if (useSeries && !seriesPages.length) {
+      setStatus("本系列没有可生成的页（每页需要 Prompt）", false, true);
+      return;
+    }
+    const pageCount = seriesPages.length || 1;
+    const expectedTotal = pageCount * copies;
+    if (expectedTotal > 250) {
+      setStatus(`本系列 ${pageCount} 页 × ${copies} 张共 ${expectedTotal} 张，超过单次上限 250`, false, true);
+      return;
+    }
+    if (expectedTotal > 1) {
+      const skipped = useSeries ? (seriesPageCount() - pageCount) : 0;
+      const extra = skipped > 0 ? `\n（${skipped} 页没有咒语，已跳过）` : "";
+      const label = useSeries
+        ? `生成本系列 ${pageCount} 页 × ${copies} 张，共 ${expectedTotal} 张。当前走 Opus 免费档，不按张扣付费 Anlas；超大尺寸/步数会自动压到免费上限（最长边 1216、步数 28）。确认开始？${extra}`
+        : `生成本页 ${copies} 张。当前走 Opus 免费档，不按张扣付费 Anlas；超大尺寸/步数会自动压到免费上限（最长边 1216、步数 28）。确认开始？`;
+      if (!window.confirm(label)) {
+        return;
+      }
+    }
+    state.generating = true;
+    const snapshot = seriesPages.length
+      ? copyComment(seriesPages[0].patched_comment)
+      : commentFromForm();
     const seedVal = ($("studioSeed") || {}).value;
     const seedPolicy = (seedVal === "" || seedVal === "-1") ? "random" : "increment";
     const isAitag = state.sourceProvider === "aitag-online";
@@ -844,44 +1300,63 @@
     if (isAitag && snapshot && typeof snapshot === "object") {
       snapshot._aitag_source = {
         work_id: remoteId,
-        page_index: state.pageIndex || 0,
+        page_index: seriesPages.length ? seriesPages[0].page_index : (state.pageIndex || 0),
         title: state.onlineSourceTitle || "",
         thumb: state.onlineSourceThumb || "",
       };
     }
     const sourceGalleryId = isAitag ? "aitag-online" : (state.sourceProvider || "site");
-    state.generating = true;
+    state.currentTaskId = "";
     if ($("studioGenerate")) $("studioGenerate").disabled = true;
-    showGenProgress(true, copies > 1 ? `入队中 0/${copies}…` : "入队中…");
+    if ($("studioCancelGenerate")) $("studioCancelGenerate").classList.remove("hidden");
+    showGenProgress(true, expectedTotal > 1 ? `入队中 0/${expectedTotal}…` : "入队中…");
     try {
-      setStatus(copies > 1 ? `提交 ${copies} 张生成任务…` : "提交生成任务…", true);
+      setStatus(
+        useSeries
+          ? `提交本系列 ${pageCount} 页 × ${copies} 张…`
+          : (copies > 1 ? `提交 ${copies} 张生成任务…` : "提交生成任务…"),
+        true,
+      );
+      const body = {
+        patched_comment: snapshot,
+        work_id: workIdPayload,
+        work_id_str: isAitag ? remoteId : "",
+        remote_work_id: isAitag ? remoteId : "",
+        source_gallery_id: sourceGalleryId,
+        source_title: isAitag ? (state.onlineSourceTitle || "") : "",
+        source_thumb: isAitag ? (state.onlineSourceThumb || "") : "",
+        page_index: state.pageIndex || 0,
+        copies,
+        seed_policy: seedPolicy,
+        force_free: true,
+        prompt_profile: "native",
+      };
+      if (seriesPages.length > 1) body.pages = seriesPages;
       const res = await api("/api/nai/generate", {
         method: "POST",
-        body: {
-          patched_comment: snapshot,
-          work_id: workIdPayload,
-          work_id_str: isAitag ? remoteId : "",
-          remote_work_id: isAitag ? remoteId : "",
-          source_gallery_id: sourceGalleryId,
-          source_title: isAitag ? (state.onlineSourceTitle || "") : "",
-          source_thumb: isAitag ? (state.onlineSourceThumb || "") : "",
-          page_index: state.pageIndex || 0,
-          copies,
-          seed_policy: seedPolicy,
-          force_free: true,
-          prompt_profile: "native",
-        },
+        body,
       });
       if (!res.ok) throw new Error(res.message || res.error || "生成失败");
+      const accepted = Math.max(1, Number(res.total) || expectedTotal);
       const taskId = res.task_id || (res.batch && res.batch.task_id) || "";
       if (!taskId) throw new Error("未返回生成任务 ID");
-      setStatus("任务已入队，正在出图…", true);
+      state.currentTaskId = taskId;
+      state.lastTaskId = taskId;
+      persistJobId(taskId);
+      refreshStudioJobPanel();
+      setStatus(accepted > 1 ? `任务已入队，正在出 ${accepted} 张…` : "任务已入队，正在出图…", true);
       const job = await window.ApiClient.pollJob(taskId, (status) => {
         const done = Number(status.done || 0);
-        const total = Number(status.total || copies);
-        const msg = String(status.message || "");
+        const total = Number(status.total || accepted);
+        const pos = Number(status.queue_position || 0);
+        const queued = String(status.status || "") === "queued";
+        const rawMsg = String(status.message || "");
+        const msg = queued && pos
+          ? `排队中（第 ${pos} 位）${rawMsg ? " · " + rawMsg : ""}`
+          : rawMsg;
         showGenProgress(true, total > 1 ? `生成中 ${done}/${total}… ${msg}` : (msg || "生成中…"));
         setStatus(msg || (total > 1 ? `生成中 ${done}/${total}` : "生成中…"), true);
+        renderStudioJobPanel(status, {});
         const items = Array.isArray(status.items) ? status.items : [];
         const lastOk = [...items].reverse().find((item) => item && item.ok && item.image_url);
         if (lastOk && lastOk.image_url) {
@@ -912,7 +1387,7 @@
       }
       const doneMsg = failed
         ? `完成 ${okItems.length} 张，失败 ${failed}（5xx 未自动重试）`
-        : (copies > 1 ? `已生成 ${okItems.length} 张` : "生成完成");
+        : (accepted > 1 ? `已生成 ${okItems.length} 张` : "生成完成");
       setStatus(job.message || doneMsg, true);
       toast(doneMsg, failed ? "err" : "ok");
     } catch (e) {
@@ -920,9 +1395,99 @@
       toast(String(e.message || e), "err");
     } finally {
       state.generating = false;
+      state.currentTaskId = "";
       if ($("studioGenerate")) $("studioGenerate").disabled = false;
+      if ($("studioCancelGenerate")) $("studioCancelGenerate").classList.add("hidden");
+      setCopies(currentCopies(), false);
       showGenProgress(false);
       saveDraftLocal();
+      refreshStudioJobPanel();
+    }
+  }
+
+  async function onRetryFailed() {
+    const taskId = String(state.lastTaskId || restoreJobId() || "").trim();
+    if (!taskId || state.generating) return;
+    if (!window.confirm("只重试失败或未发出的页，已成功的不会再扣。确认继续？")) return;
+    state.generating = true;
+    if ($("studioGenerate")) $("studioGenerate").disabled = true;
+    if ($("studioRetryFailed")) $("studioRetryFailed").classList.add("hidden");
+    if ($("studioCancelGenerate")) $("studioCancelGenerate").classList.remove("hidden");
+    showGenProgress(true, "重试入队中…");
+    try {
+      setStatus("正在重试失败/未完成页…", true);
+      const res = await api("/api/nai/jobs/retry?task_id=" + encodeURIComponent(taskId), {
+        method: "POST",
+        body: {},
+      });
+      if (!res.ok) throw new Error(res.message || res.error || "重试失败");
+      const nextId = res.task_id || (res.batch && res.batch.task_id) || "";
+      if (!nextId) throw new Error("未返回重试任务 ID");
+      state.currentTaskId = nextId;
+      state.lastTaskId = nextId;
+      persistJobId(nextId);
+      const accepted = Math.max(1, Number(res.total) || 0);
+      setStatus(accepted > 1 ? `已重试入队 ${accepted} 张…` : "已重试入队…", true);
+      const job = await window.ApiClient.pollJob(nextId, (status) => {
+        const done = Number(status.done || 0);
+        const total = Number(status.total || accepted);
+        showGenProgress(true, total > 1 ? `重试中 ${done}/${total}…` : (status.message || "重试中…"));
+        setStatus(status.message || (total > 1 ? `重试中 ${done}/${total}` : "重试中…"), true);
+        renderStudioJobPanel(status, {});
+        const items = Array.isArray(status.items) ? status.items : [];
+        const lastOk = [...items].reverse().find((item) => item && item.ok && item.image_url);
+        if (lastOk && lastOk.image_url) {
+          setPreviewImage(lastOk.image_url + (lastOk.image_url.includes("?") ? "&" : "?") + "t=" + Date.now());
+        }
+      });
+      if (String(job.status || "") === "unknown") {
+        const warn = job.message || "这次可能已扣费，不要自动重试；要重出请再确认。";
+        setStatus(warn, false, true);
+        toast(warn, "err");
+        return;
+      }
+      const items = Array.isArray(job.items) ? job.items : [];
+      const okItems = items.filter((item) => item && item.ok && item.image_url);
+      if (okItems.length) {
+        const last = okItems[okItems.length - 1];
+        setPreviewImage(last.image_url + (last.image_url.includes("?") ? "&" : "?") + "t=" + Date.now());
+      }
+      if (job.status === "cancelled") {
+        throw new Error(job.message || "已取消");
+      }
+      const failed = Number(job.effective_fail_count || job.fail_count || 0);
+      if (!okItems.length) {
+        throw new Error(job.message || "重试后仍失败");
+      }
+      const doneMsg = failed
+        ? `重试完成 ${okItems.length} 张，仍失败 ${failed}`
+        : `重试完成 ${okItems.length} 张`;
+      setStatus(job.message || doneMsg, true);
+      toast(doneMsg, failed ? "err" : "ok");
+    } catch (e) {
+      setStatus(String(e.message || e), false);
+      toast(String(e.message || e), "err");
+    } finally {
+      state.generating = false;
+      state.currentTaskId = "";
+      if ($("studioGenerate")) $("studioGenerate").disabled = false;
+      if ($("studioCancelGenerate")) $("studioCancelGenerate").classList.add("hidden");
+      showGenProgress(false);
+      refreshStudioJobPanel();
+    }
+  }
+
+  async function onCancelGenerate() {
+    const taskId = String(state.currentTaskId || "").trim();
+    if (!taskId) return;
+    try {
+      await api("/api/nai/jobs/cancel?task_id=" + encodeURIComponent(taskId), {
+        method: "POST",
+        body: {},
+      });
+      setStatus("已请求取消", true);
+    } catch (e) {
+      setStatus(String(e.message || e), false);
     }
   }
 
@@ -930,6 +1495,19 @@
     $("studioOptimize")?.addEventListener("click", () => onOptimize(currentOptimizeMode()));
     $("studioUndo")?.addEventListener("click", onUndo);
     $("studioGenerate")?.addEventListener("click", onGenerate);
+    $("studioRetryFailed")?.addEventListener("click", onRetryFailed);
+    $("studioCancelGenerate")?.addEventListener("click", onCancelGenerate);
+    $("studioSeriesAll")?.addEventListener("change", () => {
+      persistSeriesPref();
+      syncSeriesToggle();
+    });
+    $("studioBatchPresets")?.addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-copies]");
+      if (!btn) return;
+      setCopies(btn.getAttribute("data-copies"));
+      refreshReady();
+      saveDraftLocal();
+    });
     $("studioApplyVibe")?.addEventListener("click", () => applyReference("vibe"));
     $("studioApplyCharRef")?.addEventListener("click", () => applyReference("char"));
     $("studioUseSourceRef")?.addEventListener("click", () => {
@@ -994,6 +1572,7 @@
     });
     ["studioPrompt", "studioBase", "studioCharCaptions", "studioUc", "studioWidth", "studioHeight", "studioSteps", "studioScale", "studioSeed", "studioSampler", "studioBatchCount"].forEach((id) => {
       $(id)?.addEventListener("input", () => {
+        if (id === "studioBatchCount") setCopies($("studioBatchCount").value);
         refreshReady();
         saveDraftLocal();
         if (id === "studioWidth" || id === "studioHeight") highlightSizePreset();
@@ -1017,11 +1596,15 @@
     const wantAitag = params.get("aitag") === "1" || params.get("source") === "aitag-online";
     let workId = window.WorkBridge?.normalizeWorkId?.(params.get("from") || params.get("work")) || String(params.get("from") || params.get("work") || "").trim();
     let pageIndex = parseInt(params.get("page") || "0", 10);
-    if (!workId && window.WorkBridge) {
+    let galleryId = params.get("gallery") || params.get("gallery_id") || "";
+    if (window.WorkBridge) {
       const bridged = window.WorkBridge.load();
-      if (bridged && bridged.workId) {
-        workId = bridged.workId;
-        pageIndex = bridged.pageIndex || 0;
+      if (bridged) {
+        if (!workId && bridged.workId) {
+          workId = bridged.workId;
+          pageIndex = bridged.pageIndex || 0;
+        }
+        if (!galleryId && bridged.galleryId) galleryId = bridged.galleryId;
       }
     }
     if (draftId) {
@@ -1033,7 +1616,7 @@
       }
     } else if (workId) {
       try {
-        await loadImport(workId, pageIndex);
+        await loadImport(workId, pageIndex, galleryId);
       } catch (e) {
         setStatus(String(e.message || e), false);
       }
@@ -1047,7 +1630,7 @@
           applyDraftObject(draft, "已恢复上次草稿（可继续编辑）");
         } else {
           try {
-            await loadImport(draft.workId, draft.pageIndex || 0);
+            await loadImport(draft.workId, draft.pageIndex || 0, draft.source?.provider || draft.galleryId);
             setStatus("已恢复上次草稿（可继续编辑）", true, true);
           } catch (_) {
             applyDraftObject(draft, "已恢复上次草稿（可继续编辑）");
@@ -1064,10 +1647,16 @@
         setStatus("从图库点「用此图生成」，或从左侧队列导入；Ctrl+Enter 快速生成", true, true);
       }
     }
+    restoreCopies();
+    restoreSeriesPref();
     refreshReady();
     if ($("studioVibeStrength") && $("studioStrengthVal")) {
       $("studioStrengthVal").textContent = Number($("studioVibeStrength").value || 0.6).toFixed(2);
     }
+    resumeActiveJob();
+    setInterval(() => {
+      if (!state.generating) refreshStudioJobPanel();
+    }, 3000);
   }
 
   if (document.readyState === "loading") {

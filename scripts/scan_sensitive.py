@@ -67,6 +67,7 @@ PUBLIC_DATA_FILES = {
     ".gitkeep",
     "ai.local.example.json",
     "ark_char_library.json",
+    "ark_cn_aliases.json",
     "butler_catalog.json",
     "char_presets.json",
     "char_tag_groups.json",

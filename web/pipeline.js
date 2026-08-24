@@ -16,6 +16,11 @@
   }
   document.addEventListener("DOMContentLoaded", () => {
     $("refreshPipeline").addEventListener("click", () => refresh().catch(err => show("pipelineStatus", { error: String(err.message || err) })));
+    $("cancelPipeline")?.addEventListener("click", () => {
+      window.ApiClient.request("/api/pipeline/cancel", { method: "POST" })
+        .then(() => refresh())
+        .catch((err) => show("pipelineStatus", { error: String(err.message || err) }));
+    });
     refresh().catch(err => show("pipelineStatus", { error: String(err.message || err) }));
   });
 })();

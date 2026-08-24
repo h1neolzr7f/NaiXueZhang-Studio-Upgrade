@@ -65,6 +65,20 @@ def _is_under(path: Path, root: Path) -> bool:
     return path_is_within(path, root)
 
 
+def _public_local_file(value: object) -> str:
+    """Return a data-dir relative path; never leak an absolute filesystem path."""
+    raw = str(value or "").replace("\\", "/").strip()
+    if not raw:
+        return ""
+    path = Path(raw)
+    if path.is_absolute():
+        try:
+            return relative_to_canonical(path, DATA_DIR)
+        except ValueError:
+            return path.name
+    return raw.lstrip("/")
+
+
 def _resolve_local_asset(raw_path: object) -> Path | None:
     """Resolve a stored asset path without permitting traversal outside data roots."""
     text = str(raw_path or "").strip()
@@ -467,7 +481,9 @@ def export_manifest(work_ids: str = "") -> dict:
                 "no_ai_notice": row["no_ai_notice"],
                 "crawled_at": row["crawled_at"],
                 "local_files": [
-                    image["local_path"] for image in images if image["local_path"]
+                    _public_local_file(image["local_path"])
+                    for image in images
+                    if image["local_path"]
                 ],
             }
         )

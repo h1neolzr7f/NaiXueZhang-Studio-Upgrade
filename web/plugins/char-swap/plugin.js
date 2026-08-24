@@ -21,7 +21,7 @@ import {
   mountSettings,
   bindToolbar,
   bindSeedControls
-} from "./panel.js?v=9ce9824be0";
+} from "./panel.js?v=bf7323ca1f";
 import { 
   fillStylePresetSelects,
   applyStylePreset
@@ -40,7 +40,7 @@ import {
   mountQuickFab, 
   unmountGenSidebar, 
   mountGenSidebar 
-} from "./batch.js?v=b2f9991491";
+} from "./batch.js?v=f9ac53a200";
 
 const PLUGIN_VERSION = "56-mount-gen";
 window.__CHAR_SWAP_PLUGIN_VERSION__ = PLUGIN_VERSION;

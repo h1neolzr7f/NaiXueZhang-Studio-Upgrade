@@ -812,6 +812,40 @@ async function generateOnlineCurrentDraft() {
   }
 }
 
+function buildOnlineSeriesPages(entries) {
+  const workIdStr = onlineWorkIdForGenerate();
+  const workMeta = (onlineRemixState.data && onlineRemixState.data.work) || {};
+  const images = Array.isArray(onlineRemixState.data?.images) ? onlineRemixState.data.images : [];
+  const sourceTitle = String(workMeta.title || workMeta.Title || '').trim();
+  return entries.map((entry) => {
+    const comment = onlineDraftComment(entry);
+    if (!comment) return null;
+    const pageIdx = Number(entry.imageIndex || 0);
+    const pageImg = images[pageIdx] || images[0] || {};
+    const sourceThumb = String(
+      pageImg.thumbnail_url || pageImg.thumb_url || pageImg.url || workMeta.thumbnail_url || ''
+    ).trim();
+    const snapshot = (typeof structuredClone === 'function')
+      ? structuredClone(comment)
+      : JSON.parse(JSON.stringify(comment));
+    if (snapshot && typeof snapshot === 'object') {
+      snapshot._aitag_source = {
+        work_id: workIdStr || '',
+        page_index: pageIdx,
+        title: sourceTitle,
+        thumb: sourceThumb,
+      };
+    }
+    return {
+      page_index: pageIdx,
+      patched_comment: snapshot,
+      source_title: sourceTitle,
+      source_thumb: sourceThumb,
+      remote_work_id: workIdStr || '',
+    };
+  }).filter(Boolean);
+}
+
 async function generateOnlineAllDrafts() {
   const status = document.getElementById('onlineRemixStatus');
   if (onlineRemixState.drafting) {
@@ -835,36 +869,80 @@ async function generateOnlineAllDrafts() {
     if (status) status.textContent = `NAI 状态读取失败：${error.message || error}`;
     return;
   }
-  if (!window.confirm(`批量生成 ${entries.length} 张已换角草稿？\n顺序与本地批量一致，原作品不变。`)) {
+  const pages = buildOnlineSeriesPages(entries);
+  if (!pages.length) {
+    if (status) status.textContent = '已换页草稿不完整，请先对每页应用换角。';
+    return;
+  }
+  if (!window.confirm(`批量生成本系列 ${pages.length} 页已换角草稿？\n同一任务入队，生成库会合成一套。当前走 Opus 免费档，不按张扣付费 Anlas；超大尺寸/步数会自动压到免费上限。`)) {
     return;
   }
   onlineRemixState.generating = true;
   syncOnlineGenerateButtons();
-  let ok = 0;
-  let lastUrl = '';
+  if (status) status.textContent = `本系列 ${pages.length} 页入队中…`;
   try {
-    for (let i = 0; i < entries.length; i += 1) {
-      const entry = entries[i];
-      if (status) status.textContent = `批量生图 ${i + 1}/${entries.length} · p${entry.imageIndex}…`;
-      const res = await generateOnlineDraftEntry(entry, { quiet: i < entries.length - 1 });
-      ok += 1;
-      if (res.image_url) lastUrl = res.image_url;
+    if (!window.ApiClient) throw new Error('ApiClient 未加载');
+    const workIdStr = onlineWorkIdForGenerate();
+    const workIdNum = onlineNumericWorkId();
+    const first = pages[0];
+    const res = await window.ApiClient.request('/api/nai/generate', {
+      method: 'POST',
+      body: {
+        patched_comment: first.patched_comment,
+        work_id: workIdNum != null ? workIdNum : (workIdStr || null),
+        work_id_str: workIdStr || '',
+        remote_work_id: workIdStr || '',
+        source_gallery_id: 'aitag-online',
+        source_title: first.source_title || '',
+        source_thumb: first.source_thumb || '',
+        page_index: first.page_index,
+        copies: 1,
+        pages,
+        force_free: true,
+        prompt_profile: 'native',
+      },
+      timeoutMs: 60000,
+    });
+    if (!res?.ok) {
+      throw new Error(res?.message || res?.detail || res?.error || '生图失败');
     }
-    if (lastUrl) {
+    const taskId = res.task_id || (res.batch && res.batch.task_id) || '';
+    if (!taskId) throw new Error('未返回生成任务 ID');
+    const job = await window.ApiClient.pollJob(taskId, (state) => {
+      const done = Number(state.done || 0);
+      const total = Number(state.total || pages.length);
+      if (status) status.textContent = `本系列生成中 ${done}/${total}…`;
+    });
+    if (String(job.status || '') === 'unknown') {
+      throw new Error(job.message || '这次可能已扣费，不要自动重试；要重出请再确认。');
+    }
+    if (String(job.status || '') === 'cancelled') {
+      throw new Error(job.message || '已取消');
+    }
+    const items = Array.isArray(job.items) ? job.items : [];
+    const okItems = items.filter((item) => item && item.ok && (item.image_url || item.gallery_url));
+    const lastOk = okItems.length ? okItems[okItems.length - 1] : null;
+    if (lastOk && lastOk.image_url) {
       const preview = document.getElementById('onlineGenPreview');
       const img = document.getElementById('onlineGenPreviewImg');
       if (preview && img) {
-        img.src = `${lastUrl}${lastUrl.includes('?') ? '&' : '?'}t=${Date.now()}`;
+        img.src = `${lastOk.image_url}${lastOk.image_url.includes('?') ? '&' : '?'}t=${Date.now()}`;
         preview.classList.remove('hidden');
       }
     }
+    if (!okItems.length) throw new Error(job.message || '生图失败');
+    const failed = Number(job.effective_fail_count || job.fail_count || 0);
+    const galleryUrl = lastOk.gallery_url || job.gallery_url || '/generated';
+    const doneMsg = failed
+      ? `完成 ${okItems.length}/${pages.length} 页，失败 ${failed}`
+      : `已生成本系列 ${okItems.length} 页`;
     if (status) {
-      status.innerHTML = `已生成 ${ok}/${entries.length} 张 · <a href="/generated" target="_blank" rel="noopener">打开生成库</a>`;
+      status.innerHTML = `${escapeHtml(doneMsg)} · <a href="${escapeHtml(galleryUrl)}" target="_blank" rel="noopener">打开生成库</a>`;
       status.classList.add('ok');
     }
   } catch (error) {
     if (status) {
-      status.textContent = `批量生图中断（已完成 ${ok}/${entries.length}）：${error.message || error}`;
+      status.textContent = `批量生图失败：${error.message || error}`;
       status.classList.remove('ok');
     }
   } finally {

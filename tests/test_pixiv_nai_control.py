@@ -44,9 +44,51 @@ def test_pixiv_task_api_round_trip_and_validation(tmp_path: Path) -> None:
 
     assert initial.status_code == 200
     assert initial.json()["task"]["enabled"] is False
+    assert initial.json()["presets"]
+    assert any(item["id"] == "arknights" for item in initial.json()["presets"])
     assert saved.status_code == 200
     assert saved.json()["task"]["scopes"][0]["type"] == "ranking"
     assert invalid.status_code == 400
+
+
+def test_pixiv_task_reset_search_clears_scope_cursors(tmp_path: Path) -> None:
+    from pixiv_nai_crawler import _save_state, load_state
+
+    with patch.object(pixiv_intake, "ROOT", tmp_path):
+        (tmp_path / "data").mkdir()
+        _save_state(
+            tmp_path,
+            {
+                "version": 1,
+                "scopes": {"novelai": {"cursor": "abc", "offset": 9}},
+                "failures": {},
+                "quarantine": {},
+            },
+        )
+        with _client() as client:
+            saved = client.post(
+                "/api/crawler/pixiv/task",
+                json={
+                    "enabled": True,
+                    "scopes": [
+                        {
+                            "id": "novelai",
+                            "type": "search",
+                            "query": "NovelAI",
+                            "sort": "date_desc",
+                            "search_target": "partial_match_for_tags",
+                            "enabled": True,
+                        }
+                    ],
+                    "reset_search": True,
+                },
+            )
+
+    assert saved.status_code == 200
+    assert saved.json()["reset_search"] is True
+    state = load_state(root=tmp_path)
+    assert state["scopes"]["novelai"]["cursor"] == ""
+    assert state["scopes"]["novelai"]["offset"] == 0
 
 
 def test_pixiv_report_api_contains_only_aggregate_receipts(tmp_path: Path) -> None:

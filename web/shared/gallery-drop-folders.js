@@ -100,6 +100,10 @@
 
   async function addFolderToBatch(item) {
     const gid = galleryId();
+    if (isDropGallery(gid)) {
+      setStatus("法典/Q群没有 NovelAI v4 角色槽，不能同质量换角。可在详情页「用此图生成」。", "fail");
+      return;
+    }
     const key = folderKeyOf(item);
     const plugin = await ensureCharSwap();
     if (!plugin || typeof plugin.addManyToBatch !== "function") {
@@ -199,13 +203,10 @@
       });
       const batchBtn = document.createElement("button");
       batchBtn.type = "button";
-      batchBtn.className = "gallery-folder-btn primary";
-      batchBtn.textContent = "加入批量换角";
-      batchBtn.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        Promise.resolve(addFolderToBatch(item)).catch((err) => setStatus(String(err.message || err), "fail"));
-      });
+      batchBtn.className = "gallery-folder-btn";
+      batchBtn.textContent = "换角不可用";
+      batchBtn.disabled = true;
+      batchBtn.title = "法典/Q群没有 NovelAI v4 角色槽，不能同质量换角";
       const mergeSelect = document.createElement("select");
       mergeSelect.className = "gallery-folder-merge";
       mergeSelect.setAttribute("aria-label", `把 ${key} 合并到`);

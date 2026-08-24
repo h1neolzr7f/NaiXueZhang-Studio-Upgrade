@@ -136,3 +136,17 @@ def test_retry_never_replays_a_billing_uncertain_job() -> None:
 
     assert response.status_code == 409
     assert response.json() == {"detail": "billing result needs manual review"}
+
+
+def test_char_swap_config_stays_on_studio_free_path(tmp_path, monkeypatch) -> None:
+    import char_swap_config as cfg
+
+    monkeypatch.setattr(cfg, "CONFIG_PATH", tmp_path / "char_swap_config.json")
+    path = tmp_path / "char_swap_config.json"
+    path.write_text('{"force_free": false}\n', encoding="utf-8")
+
+    loaded = cfg.load_config()
+    assert loaded["force_free"] is True
+    saved = cfg.save_config({"force_free": False})
+    assert saved["force_free"] is True
+    assert cfg.DEFAULTS["force_free"] is True

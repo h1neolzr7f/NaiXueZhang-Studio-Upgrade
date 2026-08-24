@@ -158,7 +158,7 @@ if profile == 'full':
     required_routes = {
         '/', '/studio', '/generated', '/director', '/butler', '/pixiv',
         '/settings', '/remix', '/progress', '/ops', '/tag-assets',
-        '/pipeline', '/references', '/nai-tags', '/maintenance',
+        '/pipeline', '/references', '/nai-tags', '/maintenance', '/m',
         '/api/config', '/api/generated', '/api/nai/status',
         '/api/director/catalog', '/api/butler/status',
         '/api/settings/status', '/api/studio/config', '/api/pixiv/config',

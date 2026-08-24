@@ -334,6 +334,57 @@ def _save_state(root: Path, state: dict[str, Any]) -> None:
     _write_json(_json_path(root, STATE_FILE), state)
 
 
+def list_presets() -> list[dict[str, Any]]:
+    """Visible Pixiv intake shortcuts for the progress page."""
+    base = default_task()
+    return [
+        {
+            "id": "novelai",
+            "label": "NovelAI 标签",
+            "task": {**base, "enabled": True},
+        },
+        {
+            "id": "arknights",
+            "label": "明日方舟",
+            "task": {
+                **base,
+                "enabled": True,
+                "scopes": [
+                    {
+                        "id": "arknights",
+                        "type": "search",
+                        "query": "アークナイツ",
+                        "sort": "date_desc",
+                        "search_target": "partial_match_for_tags",
+                        "enabled": True,
+                    }
+                ],
+            },
+        },
+        {
+            "id": "probe",
+            "label": "试跑 1 页",
+            "task": {**base, "enabled": True, "max_pages_per_run": 1, "max_works_per_run": 12},
+        },
+    ]
+
+
+def reset_search_progress(*, root: Path = ROOT) -> dict[str, Any]:
+    """Clear discovery cursors so the next run starts from the current scopes."""
+    state = load_state(root=root)
+    scopes = state.get("scopes") or {}
+    reset_count = 0
+    if isinstance(scopes, dict):
+        for scope_state in scopes.values():
+            if not isinstance(scope_state, dict):
+                continue
+            scope_state["cursor"] = ""
+            scope_state["offset"] = 0
+            reset_count += 1
+    _save_state(Path(root), state)
+    return {"ok": True, "reset": True, "scopes": reset_count}
+
+
 def list_quarantined(*, root: Path = ROOT) -> list[dict[str, Any]]:
     """Summarize currently quarantined works without clearing anything."""
     state = load_state(root=root)

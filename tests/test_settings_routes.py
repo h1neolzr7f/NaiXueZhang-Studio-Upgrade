@@ -115,10 +115,14 @@ class SettingsRouteTests(unittest.TestCase):
         self.assertIn("token.token_count", script)
         self.assertIn('"/api/nai/token/add"', script)
         self.assertIn('"/api/nai/token/check"', script)
+        self.assertIn("/network", script)
+        self.assertIn("保存代理", script)
+        self.assertIn("has_proxy", script)
         self.assertIn("token_id: slot.id", script)
         self.assertIn("remove_bad: false", script)
         self.assertIn('method: "DELETE"', script)
         self.assertIn(".token-slot-actions", css)
+        self.assertIn(".token-slot-proxy", css)
         self.assertNotIn("token.count || 0", script)
 
     def test_settings_status_exposes_masked_token_slots_without_plaintext(self) -> None:

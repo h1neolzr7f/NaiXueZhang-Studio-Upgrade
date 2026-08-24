@@ -354,6 +354,7 @@ function Write-SeedManifest([string]$StagePath, [string]$ReleaseProfile) {
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 $buildStageCreated = $true
 $oneClickZhName = (-join @([char]0x4E00, [char]0x952E, [char]0x542F, [char]0x52A8)) + ".bat"
+$mobileZhName = (-join @([char]0x542F, [char]0x52A8, [char]0x624B, [char]0x673A, [char]0x7248)) + ".bat"
 $manualZhName = (-join @([char]0x4F7F, [char]0x7528, [char]0x8BF4, [char]0x660E)) + ".txt"
 
 $fullRootFiles = @(
@@ -511,7 +512,7 @@ $rootFiles = if ($Profile -eq "core") { $coreRootFiles } else { $fullRootFiles }
 foreach ($file in $rootFiles) {
     Copy-FileRel $file
 }
-foreach ($file in @($oneClickZhName, $manualZhName)) {
+foreach ($file in @($oneClickZhName, $manualZhName, $mobileZhName)) {
     Copy-FileRel $file
 }
 if ($Profile -eq "core") {

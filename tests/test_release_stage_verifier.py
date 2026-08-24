@@ -83,6 +83,8 @@ class ReleaseStageVerifierTests(unittest.TestCase):
             "/references",
             "/nai-tags",
             "/maintenance",
+            "/m",
+            "/api/mobile/status",
             "/api/ai_works_search",
             "/api/nai/generate",
             "/api/studio/optimize",

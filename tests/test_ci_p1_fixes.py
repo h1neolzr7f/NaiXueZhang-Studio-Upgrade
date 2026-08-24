@@ -159,6 +159,9 @@ def test_pipeline_exposes_cancel() -> None:
     assert "ok" in result
     status = pipeline_status()
     assert "status" in status
+    route = (ROOT / "routes" / "pipeline.py").read_text(encoding="utf-8")
+    assert '@router.post("/cancel")' in route
+    assert "cancel_pipeline" in route
 
 
 def test_reader_connections_set_busy_timeout() -> None:

@@ -30,6 +30,43 @@ def _infer_model(source: str, explicit: str = "") -> str:
     return "nai-diffusion-4-5-full"
 
 
+def _char_caption_text(value: Any, depth: int = 0) -> str:
+    """NovelAI requires char_caption to be a string, never a nested object."""
+    if depth > 4:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        nested = value.get("char_caption")
+        if nested is not None and nested is not value:
+            return _char_caption_text(nested, depth + 1)
+        return str(value.get("caption") or value.get("text") or "")
+    return ""
+
+
+def _normalize_char_caption_slots(slots: Any) -> list[dict[str, Any]]:
+    if not isinstance(slots, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in slots:
+        if isinstance(item, str):
+            out.append({"char_caption": item, "centers": [{"x": 0.5, "y": 0.5}]})
+            continue
+        if not isinstance(item, dict):
+            continue
+        centers = item.get("centers")
+        if not isinstance(centers, list) or not centers:
+            center = item.get("center")
+            centers = [center] if isinstance(center, dict) else [{"x": 0.5, "y": 0.5}]
+        out.append(
+            {
+                "char_caption": _char_caption_text(item.get("char_caption", item)),
+                "centers": centers,
+            }
+        )
+    return out
+
+
 def _normalized_v4_payloads(
     patched_comment: dict,
     *,
@@ -43,8 +80,7 @@ def _normalized_v4_payloads(
     if not isinstance(caption, dict):
         caption = {}
     caption["base_caption"] = str(caption.get("base_caption") or base_caption or "")
-    character_captions = caption.get("char_captions")
-    caption["char_captions"] = character_captions if isinstance(character_captions, list) else []
+    caption["char_captions"] = _normalize_char_caption_slots(caption.get("char_captions"))
     v4["caption"] = caption
     v4["use_coords"] = bool(v4.get("use_coords", True))
 
@@ -57,9 +93,7 @@ def _normalized_v4_payloads(
     negative_caption["base_caption"] = str(
         negative_caption.get("base_caption") or negative_prompt or ""
     )
-    negative_characters = negative_caption.get("char_captions")
-    if not isinstance(negative_characters, list):
-        negative_characters = []
+    negative_characters = _normalize_char_caption_slots(negative_caption.get("char_captions"))
     if caption["char_captions"] and len(negative_characters) < len(caption["char_captions"]):
         padded = list(negative_characters)
         for item in caption["char_captions"][len(padded):]:

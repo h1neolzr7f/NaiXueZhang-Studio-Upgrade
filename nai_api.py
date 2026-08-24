@@ -108,6 +108,7 @@ from nai.tokens import (
     list_generation_slots,
     save_token,
     token_status,
+    update_token_network,
 )
 from nai.jobs import (
     _clear_active_job,
@@ -175,4 +176,5 @@ __all__ = [
     "queue_status",
     "save_token",
     "token_status",
+    "update_token_network",
 ]

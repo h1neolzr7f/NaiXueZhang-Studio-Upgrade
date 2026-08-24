@@ -156,7 +156,7 @@ class GeneratedGalleryTrashTests(unittest.TestCase):
             self.assertEqual(primary.read_bytes(), b"same-primary")
             self.assertEqual(restored["already_present_files"], 1)
 
-    def test_same_source_work_is_grouped_by_generation_series(self) -> None:
+    def test_same_source_work_merges_generation_series(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             generated_dir = Path(temp) / "generated"
             generated_dir.mkdir()
@@ -182,15 +182,36 @@ class GeneratedGalleryTrashTests(unittest.TestCase):
                     generation_series_id="task-b",
                 )
                 groups = gallery.list_groups(force=True)
-                deleted = gallery.delete_group("run:task-a:501")
+                deleted = gallery.delete_group("501")
+
+            self.assertEqual({group["group_id"] for group in groups}, {"501"})
+            self.assertEqual(deleted["deleted"], 2)
+            self.assertFalse((generated_dir / first).exists())
+            self.assertFalse((generated_dir / second).exists())
+
+    def test_standalone_images_stay_split_by_generation_series(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            generated_dir = Path(temp) / "generated"
+            generated_dir.mkdir()
+            first = "20260727_011601.png"
+            second = "20260727_011602.png"
+            (generated_dir / first).write_bytes(b"first")
+            (generated_dir / second).write_bytes(b"second")
+
+            with patch.object(gallery, "GENERATED_DIR", generated_dir), patch.object(
+                gallery,
+                "ensure_thumbnail",
+                return_value=True,
+            ):
+                gallery.invalidate_scan_cache()
+                gallery.register_generated(first, generation_series_id="task-a")
+                gallery.register_generated(second, generation_series_id="task-b")
+                groups = gallery.list_groups(force=True)
 
             self.assertEqual(
                 {group["group_id"] for group in groups},
-                {"run:task-a:501", "run:task-b:501"},
+                {"run:task-a:standalone", "run:task-b:standalone"},
             )
-            self.assertEqual(deleted["deleted"], 1)
-            self.assertFalse((generated_dir / first).exists())
-            self.assertTrue((generated_dir / second).exists())
 
     def test_delete_waits_until_post_pipeline_releases_image(self) -> None:
         image_id = "20260727_011503_501"
