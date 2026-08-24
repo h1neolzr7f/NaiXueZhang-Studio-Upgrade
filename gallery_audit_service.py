@@ -92,6 +92,38 @@ def _safe_local_path(raw_path: Any, gallery_id: str = "site") -> Path | None:
     return resolved if resolved.is_file() else None
 
 
+def files_for_work_images(work_id: int, gallery_id: str = "site") -> list[Path]:
+    """Resolve existing local files for a gallery work. Paths stay inside DATA_DIR."""
+    gid = str(gallery_id or "site").strip() or "site"
+    if gid not in {"site", "codex", "qqgroup"}:
+        raise ValueError("this gallery has no local image files")
+    db = DB if gid == "site" else get_db(gid)
+    try:
+        detail = db.get_work_detail(int(work_id))
+    except Exception as exc:
+        raise FileNotFoundError("work not found") from exc
+    if not detail:
+        raise FileNotFoundError("work not found")
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for image in detail.get("images") or []:
+        if not isinstance(image, dict):
+            continue
+        path = _safe_local_path(image.get("local_path"), gid)
+        if path is None:
+            continue
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        paths.append(path)
+        if len(paths) >= MAX_LOCAL_IMAGES:
+            break
+    if not paths:
+        raise FileNotFoundError("no local image files for this work")
+    return paths
+
+
 def _finding(
     work_id: int,
     severity: str,

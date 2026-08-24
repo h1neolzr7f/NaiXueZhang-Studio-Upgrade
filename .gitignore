@@ -98,6 +98,9 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Local scratch: APK drafts, screenshots, dumped tokens, RC files
+.tmp/
+
 # Local profiling/repair helpers
 _check_mosaic*.py
 _eta*.py

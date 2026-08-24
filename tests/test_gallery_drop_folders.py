@@ -24,6 +24,8 @@ def test_main_gallery_drop_dock_is_wired_for_codex_and_qqgroup() -> None:
     assert "/api/gallery/" in drop and "import-drop" in drop
     assert "/folders/merge" in drop
     assert "加入批量换角" in drop
+    assert "换角不可用" in drop
+    assert "不能同质量换角" in drop
     assert 'new Set(["codex", "qqgroup"])' in drop
     assert "loadCharSwapPlugin" in drop
     assert 'page_size: "120"' in drop

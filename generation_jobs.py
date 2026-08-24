@@ -460,6 +460,7 @@ class GenerationJobManager:
                         "message": "cancelled before starting",
                         "current_phase": "",
                         "finished_at": _now(),
+                        "terminal": True,
                     }
                 )
                 self._persist_locked()
@@ -506,6 +507,7 @@ class GenerationJobManager:
             )
             if status == "done":
                 job.state["done"] = int(job.state.get("total") or job.state.get("done") or 0)
+            job.state["terminal"] = True
             if self._active_task_id == job.task_id:
                 self._active_task_id = None
             paid = bool(job.state.get("generate")) and not bool(
@@ -639,6 +641,7 @@ class GenerationJobManager:
             self._restore_blocked = True
             return
         recovered_running = False
+        cancelled_queued = False
         for state in rows[-self._max_history :]:
             if not isinstance(state, dict):
                 continue
@@ -659,13 +662,29 @@ class GenerationJobManager:
                         "current_phase": "",
                         "active": [],
                         "finished_at": _now(),
+                        "terminal": True,
                     }
                 )
                 recovered_running = True
+            elif restored_state.get("status") == "queued":
+                restored_state.update(
+                    {
+                        "status": "cancelled",
+                        "message": "进程重启，未发出的排队任务已取消。",
+                        "current_work_id": None,
+                        "current_page_index": None,
+                        "current_phase": "",
+                        "active": [],
+                        "started_at": "",
+                        "finished_at": _now(),
+                        "terminal": True,
+                    }
+                )
+                cancelled_queued = True
             job = GenerationJob(task_id=task_id, state=restored_state)
             self._jobs[task_id] = job
             self._order.append(task_id)
-        if recovered_running:
+        if recovered_running or cancelled_queued:
             self._persist_locked()
         self._notify_locked()
 
@@ -696,12 +715,33 @@ class GenerationJobManager:
                                 merged[task_id] = state
                     except (OSError, ValueError, json.JSONDecodeError):
                         pass
+                local_ids = {
+                    str(state.get("task_id") or state.get("id") or "").strip()
+                    for state in local_jobs
+                    if str(state.get("task_id") or state.get("id") or "").strip()
+                }
                 for state in local_jobs:
                     task_id = str(
                         state.get("task_id") or state.get("id") or ""
                     ).strip()
                     if task_id:
                         merged[task_id] = state
+                for task_id, state in list(merged.items()):
+                    if task_id in local_ids or state.get("status") != "queued":
+                        continue
+                    abandoned = copy.deepcopy(state)
+                    abandoned.update(
+                        {
+                            "status": "cancelled",
+                            "message": "进程重启，未发出的排队任务已取消。",
+                            "current_phase": "",
+                            "active": [],
+                            "started_at": "",
+                            "finished_at": _now(),
+                            "terminal": True,
+                        }
+                    )
+                    merged[task_id] = abandoned
                 payload = {
                     "version": 1,
                     "saved_at": _now(),

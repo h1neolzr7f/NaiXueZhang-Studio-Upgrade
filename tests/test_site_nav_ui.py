@@ -38,7 +38,7 @@ class SiteNavUiTests(unittest.TestCase):
           createElement: (tag) => new Element(tag),
           getElementById: () => null,
         };
-        const window = { location: { pathname: '/settings' }, addEventListener() {}, dispatchEvent() {} };
+        const window = { location: { pathname: '/queue' }, addEventListener() {}, dispatchEvent() {} };
         vm.runInNewContext(fs.readFileSync('web/shared/site-nav.js', 'utf8'), { window, document });
         const host = new Element('div');
         window.SiteNav.mount(host);
@@ -87,7 +87,7 @@ class SiteNavUiTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         data = json.loads(result.stdout)
-        self.assertEqual(data["directCount"], 8)
+        self.assertEqual(data["directCount"], 6)
         self.assertEqual(
             data["directIds"],
             [
@@ -95,20 +95,21 @@ class SiteNavUiTests(unittest.TestCase):
                 "generated",
                 "studio",
                 "remix",
-                "queue",
-                "progress",
-                "nai-tags",
                 "pixiv",
+                "settings",
             ],
         )
         self.assertTrue(data["moreText"].startswith("更多"))
-        self.assertEqual(data["secondaryCount"], 12)
-        self.assertNotIn("queue", data["secondaryIds"])
+        self.assertEqual(data["secondaryCount"], 14)
+        self.assertIn("queue", data["secondaryIds"])
+        self.assertIn("progress", data["secondaryIds"])
+        self.assertIn("nai-tags", data["secondaryIds"])
+        self.assertNotIn("settings", data["secondaryIds"])
         self.assertIn("butler-sakiko", data["secondaryIds"])
         self.assertIn("butler-tomori", data["secondaryIds"])
         self.assertNotIn("classic", data["secondaryIds"])
         self.assertNotIn("gallery", data["secondaryIds"])
-        for nav_id in ("director", "references", "favorites"):
+        for nav_id in ("director", "references", "favorites", "queue"):
             with self.subTest(nav_id=nav_id):
                 self.assertIn(nav_id, data["secondaryIds"])
         self.assertFalse(data["moreOpen"], "secondary-page navigation must not cover page content by default")
@@ -117,7 +118,7 @@ class SiteNavUiTests(unittest.TestCase):
         self.assertEqual(data["navRole"], "navigation")
         self.assertEqual(data["navLabel"], "主导航")
         self.assertEqual(data["menuRole"], "group")
-        self.assertEqual(data["activeSecondary"], "settings")
+        self.assertEqual(data["activeSecondary"], "queue")
         self.assertEqual(data["activeButler"], "butler-sakiko")
         self.assertTrue(data["butlerMoreActive"])
         self.assertIsNone(data["butlerHostRole"], "native nav elements must not receive a redundant role")

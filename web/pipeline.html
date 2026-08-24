@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Pipeline 工作台</title>
   <link rel="stylesheet" href="/assets/styles.css?v=1f1b43909b" />
-  <link rel="stylesheet" href="/assets/local.css?v=2e0bfcbad7" />
+  <link rel="stylesheet" href="/assets/local.css?v=7fc675925f" />
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
   <style>
     body { background:#0f1117; color:#e8eaf0; }
@@ -17,7 +17,7 @@
     pre { white-space:pre-wrap; overflow:auto; background:#0b0d12; border-radius:12px; padding:12px; }
     .muted { color:#9aa7bd; }
   </style>
-  <link rel="stylesheet" href="/assets/studio-theme.css?v=51de05869a" />
+  <link rel="stylesheet" href="/assets/studio-theme.css?v=1b361985f1" />
 </head>
 <body>
   <nav id="siteNav"></nav>
@@ -26,6 +26,7 @@
     <p class="muted">后处理、打码、放大、发布前检查的可视化入口。当前版本聚合已有 pipeline API。</p>
     <section class="panel">
       <button id="refreshPipeline">刷新状态</button>
+      <button id="cancelPipeline" style="margin-left:8px;background:#7f1d1d">取消后处理</button>
       <a href="/generated" style="margin-left:12px;color:#93c5fd">打开生成图库</a>
     </section>
     <section class="grid">
@@ -34,9 +35,9 @@
       <div class="card"><h2>待处理队列</h2><pre id="pipelineBacklog">加载中...</pre></div>
     </section>
   </main>
-  <script src="/assets/shared/site-nav.js?v=fe86cea773"></script>
+  <script src="/assets/shared/site-nav.js?v=825f467bc0"></script>
   <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
-  <script src="/assets/shared/api-client.js?v=2a8a70c746"></script>
-  <script src="/assets/pipeline.js?v=56de1e4b48"></script>
+  <script src="/assets/shared/api-client.js?v=afd161a5c9"></script>
+  <script src="/assets/pipeline.js?v=e56f91050a"></script>
 </body>
 </html>

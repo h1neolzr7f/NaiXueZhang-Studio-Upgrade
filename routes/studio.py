@@ -34,9 +34,10 @@ def api_studio_queue(limit: int = Query(40, ge=1, le=120)) -> dict:
 def api_studio_preview(
     work_id: int = Query(..., ge=1),
     page_index: int = Query(0, ge=0),
+    gallery_id: str = Query("site"),
 ) -> dict:
     try:
-        return preview_work_prompt(work_id, page_index)
+        return preview_work_prompt(work_id, page_index, gallery_id)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

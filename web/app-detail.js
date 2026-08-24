@@ -492,17 +492,23 @@ async function openDetail(workId, options = {}) {
           : `共 ${imageTotal} 张图片 · 单击作品进入本页即可查看全部图片 · 本地缓存 ${localCount}/${imageTotal}`}
       </div>`;
     const canProduce = (wtypeLower === 'nai' || wtypeLower === 'nai_x');
+    const currentGid = typeof currentGalleryId === 'function' ? currentGalleryId() : 'site';
+    const slotlessGallery = currentGid === 'codex' || currentGid === 'qqgroup';
+    const canRemix = canProduce && !slotlessGallery;
     const queued = typeof isQueued === 'function' ? isQueued(workId) : false;
     const sendRowHtml = `
       <div class="detail-send-row" id="detailAssetActions">
         <div class="detail-primary-actions">
           ${canProduce ? `<button type="button" class="primary" id="detailToStudioBtn">${isAitagGallery() ? '建立原图草稿' : '用此图生成'}</button>` : ''}
-          ${canProduce ? `<button type="button" id="detailToRemixBtn">角色换角</button>` : ''}
+          ${canRemix ? `<button type="button" id="detailToRemixBtn">角色换角</button>` : ''}
+          ${canProduce && slotlessGallery ? `<span class="detail-remix-unavailable">法典/Q群没有 NovelAI v4 角色槽，不能同质量换角。可「用此图生成」。</span>` : ''}
         </div>
         <details class="detail-more-actions">
           <summary>更多操作</summary>
           <div class="detail-secondary-actions">
             ${isAitagGallery() ? '' : `<button type="button" class="queue-btn${queued ? ' is-on' : ''}" id="detailQueueBtn" data-work-id="${workId}" aria-pressed="${queued ? 'true' : 'false'}">${queued ? '已入队' : '加入待生成'}</button>`}
+            ${isAitagGallery() ? '' : `<button type="button" id="detailCompareBtn">加入固定对比</button>`}
+            ${isAitagGallery() ? '' : `<button type="button" id="detailRevealBtn">打开原图文件夹</button>`}
             <button type="button" id="detailCopyPromptBtn">复制 Prompt 资产</button>
             ${isAitagGallery()
               ? `<a class="ghost" href="${escapeHtml(safeHttpUrl(w.external_url, `https://aitag.win/i/${workId}`))}" target="_blank" rel="noopener noreferrer">打开 AITag 原页</a>`
@@ -600,6 +606,64 @@ async function openDetail(workId, options = {}) {
           btn.classList.toggle('is-on', on);
           btn.setAttribute('aria-pressed', on ? 'true' : 'false');
           btn.textContent = on ? '已入队' : '加入待生成';
+        }
+      });
+      document.getElementById('detailCompareBtn')?.addEventListener('click', () => {
+        const btn = document.getElementById('detailCompareBtn');
+        try {
+          if (!window.ComparisonWorkspace?.ComparisonWorkspace) {
+            throw new Error('对比工作区未加载');
+          }
+          const gid = typeof currentGalleryId === 'function' ? currentGalleryId() : 'site';
+          const first = (data.images || [])[0] || {};
+          let thumb = String(first.thumb_url || first.thumbnail_url || '').trim();
+          if (!thumb && first.local_path) {
+            const rel = String(first.local_path).replace(/^\/?(data\/)?images\//, '');
+            thumb = `/data/images/${rel}`;
+          }
+          const ws = new window.ComparisonWorkspace.ComparisonWorkspace();
+          ws.add({
+            gallery_id: gid,
+            work_id: workId,
+            page_index: 0,
+            title: w.title || `作品 ${workId}`,
+            thumb,
+            url: `/i/${workId}?gallery=${encodeURIComponent(gid)}`,
+          });
+          if (window.UiToast) window.UiToast.show('已加入管家固定对比', 'ok');
+          if (btn) {
+            btn.textContent = '已加入对比';
+            setTimeout(() => { if (btn) btn.textContent = '加入固定对比'; }, 1600);
+          }
+        } catch (err) {
+          const msg = (err && err.message) || '加入对比失败';
+          if (window.UiToast) window.UiToast.show(msg, 'err');
+        }
+      });
+      document.getElementById('detailRevealBtn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('detailRevealBtn');
+        if (btn) btn.disabled = true;
+        try {
+          const gid = typeof currentGalleryId === 'function' ? currentGalleryId() : 'site';
+          const res = await window.ApiClient.request(
+            `/api/work/${encodeURIComponent(workId)}/reveal?gallery_id=${encodeURIComponent(gid)}`,
+            { method: 'POST' }
+          );
+          const msg = (res && res.message) || '已打开该作品原文件';
+          if (window.UiToast) window.UiToast.show(msg, 'ok');
+          if (btn) {
+            btn.textContent = res && res.opened === false ? '仅记录文件' : '已打开文件夹';
+            setTimeout(() => { if (btn) btn.textContent = '打开原图文件夹'; }, 1600);
+          }
+        } catch (err) {
+          const msg = (err && err.message) || '打开失败';
+          if (window.UiToast) window.UiToast.show(msg, 'err');
+          if (btn) {
+            btn.textContent = '打开失败';
+            setTimeout(() => { if (btn) btn.textContent = '打开原图文件夹'; }, 1600);
+          }
+        } finally {
+          if (btn) btn.disabled = false;
         }
       });
       document.getElementById('detailCopyPromptBtn')?.addEventListener('click', async () => {

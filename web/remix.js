@@ -87,6 +87,9 @@
       redirectOnlineWork(wid);
       return false;
     }
+    if (gid === "codex" || gid === "qqgroup") {
+      throw new Error("法典/Q群没有 NovelAI v4 角色槽，不能同质量换角。请改用「用此图生成」。");
+    }
     const requestGeneration = ++loadGeneration;
     setLoading(true);
     setStatus(`正在载入作品 #${wid}…`, false);

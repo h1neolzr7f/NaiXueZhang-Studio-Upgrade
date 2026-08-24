@@ -72,9 +72,18 @@ def _retry_after_seconds(response: api.httpx.Response) -> float:
 
 
 
-def _raise_pre_request_transport_error(exc: BaseException) -> None:
+def _raise_pre_request_transport_error(
+    exc: BaseException,
+    *,
+    proxy_configured: bool = False,
+) -> None:
+    hint = (
+        " 当前账号已配置代理，但仍连不上 NovelAI。请确认本地代理软件已开启，且该代理能访问外网。"
+        if proxy_configured
+        else " 当前账号未配置代理。国内网络直连 NovelAI 通常会被污染或拦截，请到设置页为该槽位填写本地代理（例如 http://127.0.0.1:7897）。"
+    )
     raise GenerationProviderError(
-        f"TLS/connect failed before request was sent: {exc}",
+        f"TLS/connect failed before request was sent: {exc}.{hint}",
         retry_safe=True,
         billing_uncertain=False,
         request_attempted=False,
@@ -95,7 +104,10 @@ async def _generate_novelai_png(
             json=body,
         )
     except (api.httpx.ConnectError, api.httpx.ConnectTimeout, api.httpx.PoolTimeout) as exc:
-        api._raise_pre_request_transport_error(exc)
+        api._raise_pre_request_transport_error(
+            exc,
+            proxy_configured=bool(str(token_entry.get("proxy") or "").strip()),
+        )
     except api.httpx.TimeoutException as exc:
         raise GenerationProviderError(
             f"NAI request timed out after send: {exc}",
@@ -123,12 +135,14 @@ async def _generate_novelai_png(
             error_code="rate_limited",
         )
     if resp.status_code >= 500:
+        text = resp.text[:500]
+        payload_invalid = "cannot unmarshal" in text.lower() or "unmarshal object" in text.lower()
         raise GenerationProviderError(
-            f"NAI API error {resp.status_code}: {resp.text[:500]}",
+            f"NAI API error {resp.status_code}: {text}",
             retry_safe=False,
-            billing_uncertain=True,
+            billing_uncertain=not payload_invalid,
             request_attempted=True,
-            error_code="http_5xx",
+            error_code="invalid_payload" if payload_invalid else "http_5xx",
         )
     if resp.status_code >= 400:
         text = resp.text[:500]
@@ -163,7 +177,10 @@ async def _generate_xianyun_png(
             json=req_body,
         )
     except (api.httpx.ConnectError, api.httpx.ConnectTimeout, api.httpx.PoolTimeout) as exc:
-        api._raise_pre_request_transport_error(exc)
+        api._raise_pre_request_transport_error(
+            exc,
+            proxy_configured=bool(str(token_entry.get("proxy") or "").strip()),
+        )
     except api.httpx.TimeoutException as exc:
         raise GenerationProviderError(
             f"Xianyun request timed out after send: {exc}",
@@ -315,6 +332,22 @@ async def generate_image(
                     "provider": _provider,
                 }
     except ValueError as exc:
+        enabled = api._enabled_token_entries()
+        if enabled and not api._candidate_token_entries():
+            waits = [
+                max(0.0, api._token_disabled_until(str(entry.get("id") or "")) - time.time())
+                for entry in enabled
+            ]
+            wait = max(waits) if waits else 0.0
+            return {
+                "ok": False,
+                "error": "cooldown",
+                "message": f"NAI token cooling after a provider error; retry in {round(wait, 1)}s",
+                "queue": api.queue_status(),
+                "wait": wait,
+                "request_attempted": False,
+                "retry_safe": True,
+            }
         return {
             "ok": False,
             "error": "missing_token",
@@ -601,7 +634,13 @@ async def _generate_image_with_entry(
             return result
         except Exception as exc:
             message = api._exception_message(exc)
-            failed_provider = api._record_token_failure(token_entry, message)
+            error_hint = ""
+            if isinstance(exc, GenerationProviderError):
+                error_hint = str(exc.error_code or "")
+            if error_hint == "invalid_payload":
+                failed_provider = False
+            else:
+                failed_provider = api._record_token_failure(token_entry, message)
             api._clear_active_job(slot_id, error=message)
             wait = 0.0
             error_code = ""

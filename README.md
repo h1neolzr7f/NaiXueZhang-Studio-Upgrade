@@ -2,17 +2,19 @@
 
 # 🐾 Nai学长工作室
 
-### 升级版 v1.5.0 · 本地优先的 NovelAI 生产工作台
+### 当前维护线 v1.5.1 · 本地优先的 NovelAI 生产工作台
+
+[English](README_EN.md)
 
 **素材发现 · NAI 元数据验证 · 图库拖入 · 侧栏助手 · 角色换角 · 批量生成 · 后处理 · Pixiv 发布**
 
-![Line](https://img.shields.io/badge/Line-升级版_v1.5.0-6f42c1)
+![Line](https://img.shields.io/badge/Line-Current_v1.5.1-6f42c1)
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Local First](https://img.shields.io/badge/Privacy-Local--first-7A5AF8)
 
-[升级版 v1.5.0 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.0) ·
+[下载 v1.5.1 Windows 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1) ·
 [稳定版 v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0) ·
 [升级说明](docs/UPGRADE.md) ·
 [使用指南](docs/user-guide.md) ·
@@ -22,24 +24,63 @@
 
 </div>
 
+<p align="center">
+  <img src="docs/screenshots/01-gallery.png" alt="本地图库：arknights 检索、四库切换，右侧助手凑企鹅 Live2D 侧栏" width="900">
+</p>
+<p align="center"><sub>图库 · 检索与作品流，右侧是助手凑企鹅</sub></p>
+
+<p align="center">
+  <img src="docs/screenshots/02-studio.png" alt="生图工作台：咒语分区与生成参数，右侧助手凑企鹅" width="440">
+  &nbsp;
+  <img src="docs/screenshots/03-butler.png" alt="客服小祥完整对话：图库体检、技能与安全边界" width="440">
+</p>
+<p align="center"><sub>工作台（左）· 客服小祥完整对话（右）</sub></p>
+
+> [!TIP]
+> **第一次来？** 直接下载 [v1.5.1 Windows 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1)，完整解压后双击「一键启动.bat」。不需要先搭数据库或配置 Web 服务。想继续使用冻结界面，请前往 [v1.4 稳定保留线](https://github.com/h1neolzr7f/NaiXueZhang-Studio)。
+
+## 一分钟了解
+
+| 你原来需要做的事 | Nai学长工作室放到了一起 |
+|---|---|
+| 在文件夹里翻数千张图片 | SQLite FTS、标签图谱、来源与 NAI 元数据检索 |
+| 手工复制 Prompt、换角色、改参数 | Prompt 资产、角色换角、草稿与批量任务 |
+| 担心失败重试重复扣费 | 免费档锁死、任务冻结参数、重启后续跑、未知扣费明确标记 |
+| 在多个脚本间做超分、打码和清理 | 后处理、可取消、元数据处理与发布前检查 |
+| 把 Token 散落在配置文件 | 设置中心一份账号池、Windows DPAPI、本地会话令牌 |
+
+**它不是单次出图按钮，而是面向长期创作的本地资产库与生产流水线。**
+
 > [!IMPORTANT]
 > **非官方项目。** 本项目与 pixiv Inc.、NovelAI（Anlatan Inc.）及其他第三方平台不存在隶属、授权或合作关系。使用者应自行确认访问、下载、处理与发布行为符合适用法律、平台规则及第三方权利要求。维护者不为绕过访问控制、干扰平台运行、未经授权的数据采集或侵权传播提供支持。详见 [免责声明](DISCLAIMER.md) 与 [负责任使用说明](RESPONSIBLE_USE.md)。
 
 > [!NOTE]
-> **本仓库发布升级版 v1.5.0。** 默认打开经典图库 `http://127.0.0.1:8797/`，`/app` 工作区仍可用。  
-> Windows 一键包请从本仓库 [Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.0) 下载，并用发布说明中的 SHA-256 核对压缩包。需要冻结的 v1.4.0 修复版时，请到 [稳定版仓库](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0)。
+> **本仓库发布升级版 v1.5.1。** 默认打开经典图库 `http://127.0.0.1:8797/`，`/app` 工作区仍可用。  
+> Windows 一键包请从本仓库 [Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1) 下载，并用发布说明中的 SHA-256 核对压缩包。需要冻结的 v1.4.0 修复版时，请到 [稳定版仓库](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0)。
 
 ## 与稳定版的关系
 
 | | 稳定版 | 本仓库（升级版） |
 |---|---|---|
 | 仓库 | [`NaiXueZhang-Studio`](https://github.com/h1neolzr7f/NaiXueZhang-Studio) | [`NaiXueZhang-Studio-Upgrade`](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade) |
-| 定位 | 已冻结的 v1.4.0 修复版 | 当前维护线，现发布 **v1.5.0** |
+| 定位 | 已冻结的 v1.4.0 修复版 | 当前维护线，现发布 **v1.5.1** |
 | 默认入口 | 经典图库 `/` | 经典图库 `/`（`/app` 工作区保留） |
-| 一键 Windows 包 | [v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0) | **[v1.5.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.0)** |
-| 付费出图闸门 | v1.4.0 已落地 | 保持，并覆盖工作区与批量换角 |
+| 一键 Windows 包 | [v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0) | **[v1.5.1](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1)** |
+| 付费出图闸门 | v1.4.0 已落地 | 保持；工作台与换角默认锁免费档 |
 
 完整对照见 [docs/UPGRADE.md](docs/UPGRADE.md)。第一次使用见 [docs/user-guide.md](docs/user-guide.md)。
+
+## v1.5.1 相对 v1.5.0
+
+- **导航收口**：一级只留图库、生成库、工作台、换角、发布、设置。待生成、爬虫、分类和其他工具仍在「更多」，功能没有砍掉。
+- **系列出图**：工作台可一次把本系列全部页入队。
+- **重启后续跑**：未发出的排队任务仍会在进程重启时取消；工作台和生成库会提示续跑，只补未发出的页。
+- **生成库收套**：同一源作品不再按每次任务裂成多张封面。删除进回收站，可恢复，不会自动清空。
+- **免费档对齐**：工作台、在线换角、换角插件都走 Opus 免费档，不按张扣付费 Anlas。
+- **后处理可取消**：生成库和后处理页可以停掉进行中的流水线。
+- **账号池一份**：NovelAI / 闲云 Token 以设置中心为准。换角页仍可展开高级编辑，改的是同一份池子。
+
+Windows 一键包**不含**手机 APK。`android/` 与 `/m` 仍在源码里，不作为本版交付。
 
 ## v1.5.0 相对 v1.4.0
 
@@ -70,22 +111,6 @@ flowchart LR
     H --> E
 ```
 
-## 界面预览
-
-v1.5.0 默认打开经典图库。主导航固定 8 项；任意页都可唤出左侧客服小祥、右侧助手凑企鹅。下面三张按当前界面重拍，检索用公开作品名，不含 Token 或私人库。
-
-<p align="center">
-  <img src="docs/screenshots/01-gallery.png" alt="本地图库：arknights 检索、四库切换，右侧助手凑企鹅 Live2D 侧栏" width="900">
-</p>
-<p align="center"><sub>图库 · 检索与作品流，右侧是助手凑企鹅</sub></p>
-
-<p align="center">
-  <img src="docs/screenshots/02-studio.png" alt="生图工作台：咒语分区与生成参数，右侧助手凑企鹅" width="440">
-  &nbsp;
-  <img src="docs/screenshots/03-butler.png" alt="客服小祥完整对话：图库体检、技能与安全边界" width="440">
-</p>
-<p align="center"><sub>工作台（左）· 客服小祥完整对话（右）</sub></p>
-
 ## 核心能力
 
 | 能力 | 说明 |
@@ -94,8 +119,8 @@ v1.5.0 默认打开经典图库。主导航固定 8 项；任意页都可唤出�
 | **本地优先** | 图片、数据库、配置和任务状态默认保存在本机，不上传用户图库 |
 | **图库拖入** | 自选库 / Q群 支持拖入文件或文件夹，自动建夹、合并，再送批量换角 |
 | **Prompt 与角色资产** | 搜索原始 Prompt、角色、作品、画师、动作、服装、场景与构图标签 |
-| **批量创作** | 角色换角预检、生成队列、多 Token 调度、失败恢复；默认免费档，付费需确认 |
-| **后处理闭环** | 超分、打码、元数据清理与发布前检查 |
+| **批量创作** | 系列入队、角色换角预检、生成队列、失败续跑；默认免费档 |
+| **后处理闭环** | 超分、打码、可取消、元数据清理与发布前检查 |
 | **两位助手** | 小祥负责用法、采集、收藏与排障；凑企鹅负责选材、换角、出图与投稿准备 |
 | **Pixiv 发布** | 多账号、浏览器登录、选择器探测、组上传与一键起号；打开的是本机 Chrome，不是 Anlas |
 | **来源追踪** | 保存作者、作品链接、源状态和作者声明，可导出来源清单 |
@@ -108,14 +133,14 @@ v1.5.0 默认打开经典图库。主导航固定 8 项；任意页都可唤出�
 http://127.0.0.1:8797/
 ```
 
-主导航固定 8 项：图库、生成库、工作台、换角、待生成、爬虫、分类、发布。导演台、自选库、后处理、设置、两位助手的完整对话在「更多」里。工作区入口为 `/app`。
+主导航固定 6 项：图库、生成库、工作台、换角、发布、设置。待生成、爬虫、分类、导演台、管家、后处理在「更多」里。工作区入口为 `/app`。
 
 ## 付费出图约定
 
 这些规则在升级版中仍然有效，工作区不会绕过：
 
 - 点击生成时冻结当时的 Prompt 快照（`frozen_comment`）；
-- 默认 `force_free=true`，付费出图需要明确确认；
+- 默认 `force_free=true`，工作台与换角锁免费档；
 - NovelAI HTTP 5xx 有响应时不自动重试；
 - 任务状态为 `unknown` 或 `recovered_after_restart` 时，不把这次当成「没扣费」再自动重试；
 - 导演台必须先零费用预检，再带 `confirmed` 与 `preview_id` 启动；
@@ -125,7 +150,7 @@ http://127.0.0.1:8797/
 
 ### 方式一：升级版一键包（推荐）
 
-从 [升级版 Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.0) 下载 **v1.5.0** 便携包。解压后双击「一键启动.bat」。程序默认打开：
+从 [升级版 Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1) 下载 **v1.5.1** 便携包。解压后双击「一键启动.bat」。程序默认打开：
 
 ```text
 http://127.0.0.1:8797/
@@ -224,7 +249,7 @@ python scripts/scan_sensitive.py --git-candidates
 
 <div align="center">
 
-**Nai学长工作室 · 升级版 v1.5.0** · 一键包与源码  
-请从 [本仓库 Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.0) 下载并核对 SHA-256。
+**Nai学长工作室 · 升级版 v1.5.1** · 一键包与源码  
+请从 [本仓库 Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1) 下载并核对 SHA-256。
 
 </div>

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from server_shared import CRAWLER_WATCHDOG
@@ -14,10 +15,14 @@ from db import Database
 from paths import data_dir
 from crawler_task import (
     get_task,
+    list_presets as list_legacy_presets,
+    reset_search_progress as reset_legacy_search_progress,
 )
 from pixiv_nai_crawler import (
     get_report as get_pixiv_report,
     load_task as load_pixiv_task,
+    list_presets as list_pixiv_presets,
+    reset_search_progress as reset_pixiv_search_progress,
     save_task as save_pixiv_task,
 )
 
@@ -169,25 +174,39 @@ def api_crawler_restart() -> dict:
     try:
         return restart_crawler()
     except Exception as exc:
-        return {
-            "ok": False,
-            "crawler_running": False,
-            "message": f"重启失败: {exc}",
-        }
+        raise HTTPException(status_code=500, detail=f"重启失败: {exc}") from exc
 
 @router.get("/crawler/watchdog")
 def api_crawler_watchdog() -> dict:
     return CRAWLER_WATCHDOG.status()
 
+def _apply_search_reset() -> dict[str, Any]:
+    pixiv = reset_pixiv_search_progress(root=ROOT)
+    try:
+        reset_legacy_search_progress()
+    except Exception:
+        pass
+    return pixiv
+
+
 @router.get("/crawler/task")
 def api_crawler_task_get() -> dict:
-    return {"task": load_pixiv_task(root=ROOT), "presets": []}
+    return {
+        "task": load_pixiv_task(root=ROOT),
+        "presets": list_legacy_presets(),
+        "pixiv_presets": list_pixiv_presets(),
+    }
 
 @router.post("/crawler/task")
 def api_crawler_task_set(payload: dict = Body(default_factory=dict)) -> dict:
+    reset_search = bool(payload.pop("reset_search", False))
     try:
         task = save_pixiv_task(_pixiv_task_payload(payload), root=ROOT)
-        return {"ok": True, "task": task, "message": "Pixiv NAI task saved"}
+        result = {"ok": True, "task": task, "message": "Pixiv NAI task saved", "reset_search": False}
+        if reset_search:
+            result["reset_search"] = bool(_apply_search_reset().get("reset"))
+            result["message"] = "Pixiv NAI task saved; discovery cursor reset"
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -196,10 +215,12 @@ def api_crawler_task_set(payload: dict = Body(default_factory=dict)) -> dict:
 @router.post("/crawler/task/apply")
 def api_crawler_task_apply(payload: dict = Body(default_factory=dict)) -> dict:
     restart = bool(payload.pop("restart", False))
-    payload.pop("reset_search", None)
+    reset_search = bool(payload.pop("reset_search", False))
     try:
         task = save_pixiv_task(_pixiv_task_payload(payload), root=ROOT)
-        result = {"ok": True, "task": task}
+        result = {"ok": True, "task": task, "reset_search": False}
+        if reset_search:
+            result["reset_search"] = bool(_apply_search_reset().get("reset"))
         if restart:
             result["start"] = start_crawler_target("pixiv", watch=True)
         return result

@@ -205,7 +205,7 @@
     .btn-mini:disabled { opacity: .6; cursor: wait; }
   </style>
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
-  <link rel="stylesheet" href="/assets/studio-theme.css?v=51de05869a" />
+  <link rel="stylesheet" href="/assets/studio-theme.css?v=1b361985f1" />
 <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
 </head>
 <body>
@@ -223,20 +223,6 @@
     </div>
 
     <div class="crawler-panel" id="crawlerPanel" hidden>
-      <div class="crawler-panel-text">
-        <strong>爬虫控制</strong><br>
-        <b>从现有断点继续，不清空数据库</b>。甩手采集会保存当前任务、启用平衡性能档并开启自动守护；
-        进程意外退出会自动恢复，直到当前任务完成。CDN 404 的封面会记为耗尽，不会无限重试。
-      </div>
-      <div class="crawler-actions">
-        <button class="btn-restart js-autopilot" data-target="pixiv" type="button">Pixiv 甩手采集（推荐）</button>
-        <button class="btn-secondary js-start-crawler" data-target="pixiv" type="button">持续采集 Pixiv</button>
-        <button class="btn-secondary js-stop-crawler" data-target="pixiv" type="button">停止 Pixiv 采集</button>
-        <button class="btn-restart js-update-arknights" type="button">更新明日方舟</button>
-        <button class="btn-secondary js-restart-crawler" type="button">重启站点</button>
-        <button class="btn-watchdog off js-watchdog-toggle" type="button">自动守护：关</button>
-        <button class="btn-secondary js-crawler-report" type="button">采集交付报告</button>
-      </div>
       <span id="actionMsg" class="action-msg"></span>
       <pre id="crawlerReport" class="log" hidden></pre>
     </div>
@@ -247,6 +233,7 @@
         直接从 Pixiv 发现作品；每张原图必须通过本地 NovelAI 元数据解析才会入库。
         非 NAI、ComfyUI、普通图片只记录拒绝原因，不会混入图库。
         公开通道不需要账号，支持标签和画师 UID；Pixiv 日榜需切换到 App API。
+        <b>从现有断点继续，不清空数据库</b>。甩手采集会保存当前任务并持续跑到本轮完成。
       </div>
       <div class="task-grid">
         <div class="task-field wide">
@@ -308,12 +295,18 @@
       <label class="task-check"><input id="pixivEnabled" type="checkbox" /> 启用 Pixiv 直连采集</label>
       <label class="task-check"><input id="pixivRanking" type="checkbox" /> 同时采集 Pixiv 日榜候选</label>
       <label class="task-check"><input id="pixivAiPrefilter" type="checkbox" checked /> 先要求 Pixiv 标记为 AI 作品（NAI 元数据仍是最终门槛）</label>
+      <label class="task-check"><input id="pixivResetSearch" type="checkbox" /> 保存时重置采集断点（换标签后建议勾选）</label>
+      <div class="task-presets" id="pixivTaskPresets"></div>
       <div class="task-actions">
         <button class="btn-secondary" id="pixivPreflight" type="button">只读预检</button>
         <button class="btn-secondary" id="pixivSave" type="button">保存设置</button>
         <button class="btn-secondary" id="pixivRunOnce" data-target="pixiv" type="button">执行一轮</button>
         <button class="btn-restart" id="pixivStartWatch" data-target="pixiv" type="button">持续采集</button>
         <button class="btn-secondary" id="pixivStop" data-target="pixiv" type="button">停止 Pixiv 采集</button>
+        <button class="btn-restart js-autopilot" data-target="pixiv" type="button">Pixiv 甩手采集（推荐）</button>
+        <button class="btn-restart js-update-arknights" type="button">更新明日方舟</button>
+        <button class="btn-watchdog off js-watchdog-toggle" type="button">自动守护：关</button>
+        <button class="btn-secondary js-crawler-report" type="button">采集交付报告</button>
       </div>
       <span id="pixivActionMsg" class="action-msg"></span>
       <pre id="pixivPreflightReport" class="log" hidden></pre>
@@ -429,8 +422,8 @@
   </div>
 
   <script src="/assets/shared/escape.js?v=cf491c2912"></script>
-  <script src="/assets/shared/api-client.js?v=2a8a70c746"></script>
-  <script src="/assets/shared/site-nav.js?v=fe86cea773"></script>
+  <script src="/assets/shared/api-client.js?v=afd161a5c9"></script>
+  <script src="/assets/shared/site-nav.js?v=825f467bc0"></script>
   <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
   <script>
     const fmt = (n) => Number(n || 0).toLocaleString("zh-CN");
@@ -909,6 +902,6 @@
     tick();
     setInterval(tick, 5000);
   </script>
-  <script src="/assets/pixiv-intake-control.js?v=90c8500913"></script>
+  <script src="/assets/pixiv-intake-control.js?v=56d5cc195a"></script>
 </body>
 </html>

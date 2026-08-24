@@ -124,6 +124,7 @@
 .token-slot-list[hidden] { display: none; }
 .token-slot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -150,6 +151,38 @@
 .token-slot-actions button:disabled { opacity: .55; cursor: wait; }
 .token-slot-actions [data-check] { color: #d7fff2; background: rgba(74, 222, 178, .16); }
 .token-slot-actions [data-delete] { color: #ffd0d4; background: rgba(248, 113, 113, .16); }
+.token-slot-actions [data-clear-proxy] { color: #ffe7c2; background: rgba(251, 191, 36, .14); }
+.token-slot-proxy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  flex-basis: 100%;
+}
+.token-slot-proxy input {
+  flex: 1 1 220px;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid rgba(148, 163, 184, .24);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #f7fbff;
+  background: #080d17;
+  font: inherit;
+  font-size: .78rem;
+  outline: none;
+}
+.token-slot-proxy button {
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 800;
+  color: #d7e7ff;
+  background: rgba(99, 132, 255, .2);
+}
 
 /* 设置页皮肤（自 studio-theme.css 拆入，仅本页加载） */
 .settings-body, .settings-shell { color: var(--text) !important; background: transparent !important; }

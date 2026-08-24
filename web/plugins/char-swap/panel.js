@@ -12,7 +12,7 @@ import {
     addToBatch, addAllWorkPagesToBatch, removeWorkFromBatch, 
     isBatchMode, loadBatchQueue, refreshBatchCardChecks, updateQuickAddHint,
     addManyToBatch, buildBatchEntry, refreshGenSidebar
-} from "./batch.js?v=b2f9991491";
+} from "./batch.js?v=f9ac53a200";
 import {
     applyGenderSwapTarget,
     countGenderSlots,
@@ -1085,7 +1085,7 @@ export function bindToolbar(panel) {
       const providerHint = status.providers
         ? Object.entries(status.providers).map(([k, v]) => `${k}:${v}`).join(" / ")
         : `${slotN} slot(s)`;
-      const freeHint = status.is_opus ? `Opus/Xianyun path · ${providerHint}` : `Will consume Anlas · ${providerHint}`;
+      const freeHint = `当前走 Opus 免费档，不按张扣付费 Anlas；超大尺寸/步数会压到免费上限。${providerHint}`;
       const seedHint = state.draft && state.draft.seed === -1
         ? "随机(-1)"
         : (state.draft && state.draft.seed !== undefined && state.draft.seed !== null
@@ -1112,7 +1112,7 @@ export function bindToolbar(panel) {
             page_index: state.pageIndex || 0,
             copies: 1,
             source_gallery_id: resolveActiveGalleryId() || "site",
-            force_free: cfg.force_free !== false,
+            force_free: true,
             prompt_profile: cfg.prompt_profile || "native",
           }),
         });
@@ -1217,7 +1217,7 @@ export async function initDraft(workId, pageIndex, panel, options = {}) {
     return true;
   }
 
-export { buildPanel, mountSettings } from "./panel_shell.js?v=fcd7e17dc6";
+export { buildPanel, mountSettings } from "./panel_shell.js?v=6bcb127916";
 
 setWorkbenchHandlers({
   loadExtract,

@@ -22,7 +22,7 @@ DEFAULTS: dict[str, Any] = {
     "sanitize_creature": False,
     "replace_creature_slots": True,
     "creature_replace_gender": "male",
-    "force_free": False,
+    "force_free": True,
     "preserve_action": False,
     "preserve_center": True,
     "auto_sanitize_on_generate": True,
@@ -121,6 +121,8 @@ def load_config() -> dict[str, Any]:
             }
         merged["style_presets"] = _normalize_style_presets_list(merged.get("style_presets"))
         merged["prompt_profile"] = normalize_prompt_profile(merged.get("prompt_profile"))
+        # 8797 与工作台一致：出图固定走 Opus 免费档，忽略旧配置里的付费开关。
+        merged["force_free"] = True
         return merged
 
 
@@ -142,6 +144,7 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
                 cfg["prompt_profile"] = normalize_prompt_profile(value)
             else:
                 cfg[key] = value
+        cfg["force_free"] = True
         path = _config_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         temp_path: Path | None = None

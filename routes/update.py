@@ -116,7 +116,8 @@ def api_update_download() -> dict:
             raise HTTPException(status_code=502, detail=f"下载失败：{exc}") from exc
     return {
         "ok": True,
-        "downloaded_to": str(target),
+        "downloaded": True,
+        "filename": target.name,
         "sha256": actual,
         "message": "更新包已下载，重启应用后将自动完成安装。",
     }

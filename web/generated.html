@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>生成图库 | NAI Generated Gallery</title>
   <link rel="stylesheet" href="/assets/styles.css?v=1f1b43909b" />
-  <link rel="stylesheet" href="/assets/local.css?v=2e0bfcbad7" />
+  <link rel="stylesheet" href="/assets/local.css?v=7fc675925f" />
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
   <link rel="stylesheet" href="/assets/shared/motion.css?v=8cc6bd1e71" />
   <link rel="stylesheet" href="/assets/workflow-pages.css?v=d45735e67c" />
@@ -307,6 +307,48 @@
     .gen-list-pipeline .btn { font-size: 0.82rem; padding: 6px 10px; }
     .gen-list-pipeline .hint { color: #9aa7bd; font-size: 0.78rem; flex: 1 1 220px; }
     .gen-list-pipeline .backlog-warn { color: #ffb86b; font-weight: 600; }
+    .gen-resume-banner {
+      margin: 0 0 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 184, 107, 0.45);
+      background: rgba(80, 48, 16, 0.45);
+      color: #ffd7a8;
+      font-size: 0.8rem;
+      line-height: 1.45;
+    }
+    .gen-resume-banner.hidden { display: none; }
+    .gen-trash {
+      margin: 0 24px 16px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid #2a3140;
+      background: #121820;
+      color: #9aa7bd;
+      font-size: 0.84rem;
+    }
+    .gen-trash > summary {
+      cursor: pointer;
+      color: #dbe7f5;
+      font-weight: 600;
+    }
+    .gen-trash-list {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .gen-trash-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #0f141c;
+    }
+    .gen-trash-empty { color: #7f8ea3; padding: 6px 0; }
     .gen-item-warn {
       display: block;
       margin-top: 4px;
@@ -386,12 +428,17 @@
       margin-bottom: 8px;
     }
     .gen-queue-head strong { color: #b8d4ff; font-size: 0.9rem; }
+    .gen-queue-head .btn.primary {
+      background: #c2410c;
+      color: #fff;
+      border-color: #ea580c;
+    }
     .gen-queue-summary { font-size: 0.78rem; color: #9aa7bd; }
     .gen-queue-log {
       font-size: 0.74rem;
       line-height: 1.5;
       color: #9aa7bd;
-      max-height: 100px;
+      max-height: 180px;
       overflow: auto;
       margin-bottom: 10px;
       scrollbar-width: thin;
@@ -478,7 +525,7 @@
       line-height: 1.5;
     }
   </style>
-  <link rel="stylesheet" href="/assets/studio-theme.css?v=51de05869a" />
+  <link rel="stylesheet" href="/assets/studio-theme.css?v=1b361985f1" />
 </head>
 <body>
   <div id="siteNav"></div>
@@ -488,11 +535,22 @@
       <p>串行生图队列 · 按源作品分组 · 生成中与已出图都会显示（仅本地）</p>
     </div>
     <div class="gen-links">
+      <button type="button" class="btn" id="openGeneratedFolderBtn">打开生成文件夹</button>
       <a class="workflow-primary-link" href="/studio">继续生图</a>
     </div>
   </div>
 
   <div id="listView">
+    <div id="genQueuePanel" class="gen-queue-panel hidden">
+      <div class="gen-queue-head">
+        <strong>生成任务队列</strong>
+        <span class="gen-queue-summary" id="genQueueSummary">空闲</span>
+        <button type="button" class="btn hidden" id="genRetryFailedBtn">重试失败/未完成</button>
+      </div>
+      <div id="genResumeBanner" class="gen-resume-banner hidden" role="status"></div>
+      <div class="gen-queue-log" id="genQueueLog"></div>
+      <div class="gen-queue-strip" id="genQueueStrip"></div>
+    </div>
     <details class="gen-operations" id="genOperations">
       <summary>后处理与任务状态</summary>
       <div class="gen-operations-body">
@@ -502,15 +560,8 @@
             <input type="checkbox" id="pipeAutoAfter" checked /> 生图后自动后处理
           </label>
           <button type="button" class="btn" id="pipeRunAllMissing">全库补后处理</button>
+          <button type="button" class="btn pipe-cancel-btn" id="pipeCancelList">取消后处理</button>
           <span class="hint" id="listPipelineHint">检测待补数量…</span>
-        </div>
-        <div id="genQueuePanel" class="gen-queue-panel hidden">
-          <div class="gen-queue-head">
-            <strong>串行任务队列</strong>
-            <span class="gen-queue-summary" id="genQueueSummary">空闲</span>
-          </div>
-          <div class="gen-queue-log" id="genQueueLog"></div>
-          <div class="gen-queue-strip" id="genQueueStrip"></div>
         </div>
       </div>
     </details>
@@ -534,6 +585,11 @@
         </div>
       </div>
     </section>
+    <details class="gen-trash" id="genTrash">
+      <summary>回收站 <span id="genTrashCount"></span></summary>
+      <p class="hint">删除后的生成图会先进入这里，可恢复。不会自动清空或过期，也没有远程同步。本页可恢复到生成库。</p>
+      <div id="genTrashList" class="gen-trash-list"></div>
+    </details>
   </div>
 
   <div id="detailView" class="hidden">
@@ -544,6 +600,7 @@
         <span id="sourceTitle"></span>
       </a>
       <span id="detailCount" class="meta"></span>
+      <button type="button" class="btn" id="revealGroupBtn">打开本组文件夹</button>
       <a class="btn" id="pixivGroupBtn" href="/pixiv" title="Pixiv 起号上传本系列">P站本系列</a>
       <button type="button" class="btn gen-del-group" id="deleteGroupBtn">删除本组全部</button>
     </div>
@@ -551,9 +608,11 @@
       <strong>后处理</strong>
       <label><input type="checkbox" id="pipeUpscale" checked /> 超分</label>
       <label><input type="number" id="pipeScale" min="1" max="4" value="2" style="width:3em" /> x</label>
-      <label title="Pixiv 上传前强制打码"><input type="checkbox" id="pipeMosaic" checked disabled /> 打码（上传强制 · ANR）</label>
+      <span class="gen-mosaic-lock" title="上传前强制打码，不可关闭">打码（上传前强制 · ANR）</span>
+      <input type="hidden" id="pipeMosaic" value="1" />
       <label><input type="checkbox" id="pipeMeta" checked /> 清元数据</label>
       <button type="button" class="btn" id="pipeRunGroup">本组一键处理</button>
+      <button type="button" class="btn pipe-cancel-btn" id="pipeCancelGroup">取消后处理</button>
       <button type="button" class="btn" id="pipeSaveCfg">保存后处理配置</button>
       <a class="btn" href="/pixiv#pipeline" style="text-decoration:none">Pixiv ⑤ 完整后处理</a>
       <span class="gen-pipeline-status" id="pipeStatus">超分 → 打码(需 ANR) → 清元数据 → 可替换自定义字段</span>
@@ -602,7 +661,7 @@
     <img id="lbImg" alt="生成图大图" />
   </div>
 
-  <script src="/assets/shared/api-client.js?v=2a8a70c746"></script>
+  <script src="/assets/shared/api-client.js?v=afd161a5c9"></script>
   <script src="/assets/shared/escape.js?v=cf491c2912"></script>
   <script>
     const galleryEl = document.getElementById("gallery");
@@ -656,6 +715,7 @@
     const detailSubtitle = document.getElementById("detailSubtitle");
     const deleteGroupBtn = document.getElementById("deleteGroupBtn");
     let currentGroupId = "";
+    let lastBatchTaskId = "";
     let pipelineCfg = null;
     let listPollTimer = null;
     let detailPollTimer = null;
@@ -727,11 +787,28 @@
       return (url.split("/").pop() || "").replace(/\.png$/i, "").split("?")[0];
     }
 
+    function liveGroupId(item) {
+      const workId = item && item.work_id != null && item.work_id !== ""
+        ? String(item.work_id)
+        : "standalone";
+      const galleryId = String((item && (item.source_gallery_id || item.gallery_id)) || "site").trim() || "site";
+      return galleryId === "site" ? workId : `gallery:${galleryId}:${workId}`;
+    }
+
+    function groupWorkKey(groupId) {
+      const raw = String(groupId || "");
+      if (raw.startsWith("gallery:")) {
+        const parts = raw.split(":");
+        return parts.length >= 3 ? parts.slice(2).join(":") : raw;
+      }
+      return raw;
+    }
+
     function mergeGroupsWithLive(groups, batch, queue) {
       const map = new Map((groups || []).map((g) => [String(g.group_id), { ...g }]));
       for (const bi of batch.items || []) {
         if (!bi.ok || !bi.image_url) continue;
-        const gid = String(bi.work_id != null ? bi.work_id : "standalone");
+        const gid = liveGroupId(bi);
         const existing = map.get(gid);
         if (!existing) {
           map.set(gid, {
@@ -757,7 +834,10 @@
         }
       }
       if (batch.status === "running" && batch.current_work_id != null) {
-        const gid = String(batch.current_work_id);
+        const gid = liveGroupId({
+          work_id: batch.current_work_id,
+          source_gallery_id: batch.source_gallery_id || batch.gallery_id,
+        });
         const g = map.get(gid) || {
           group_id: gid,
           work_id: batch.current_work_id,
@@ -769,7 +849,10 @@
         g._genMessage = batch.message || "";
         map.set(gid, g);
       } else if (queue.status === "running" && queue.work_id != null) {
-        const gid = String(queue.work_id);
+        const gid = liveGroupId({
+          work_id: queue.work_id,
+          source_gallery_id: queue.source_gallery_id || queue.gallery_id,
+        });
         const g = map.get(gid) || {
           group_id: gid,
           work_id: queue.work_id,
@@ -791,7 +874,7 @@
       const gid = String(groupId);
       for (const bi of batch.items || []) {
         if (!bi.ok || !bi.image_url) continue;
-        if (String(bi.work_id != null ? bi.work_id : "standalone") !== gid) continue;
+        if (liveGroupId(bi) !== gid && String(bi.work_id) !== groupWorkKey(gid)) continue;
         const id = batchItemId(bi);
         if (!id || map.has(id)) continue;
         map.set(id, {
@@ -810,10 +893,27 @@
 
     function isGroupGenerating(groupId, batch, queue) {
       const gid = String(groupId);
+      const workKey = groupWorkKey(gid);
       return (
-        (batch.status === "running" && String(batch.current_work_id) === gid)
-        || (queue.status === "running" && String(queue.work_id) === gid)
+        (batch.status === "running" && (String(batch.current_work_id) === gid || String(batch.current_work_id) === workKey))
+        || (queue.status === "running" && (String(queue.work_id) === gid || String(queue.work_id) === workKey))
       );
+    }
+
+    function jobCancelledByRestart(job) {
+      return String((job && job.status) || "") === "cancelled"
+        && String((job && job.message) || "").includes("进程重启");
+    }
+
+    function jobCanRetry(job) {
+      if (!job || !job.task_id) return false;
+      const status = String(job.status || "");
+      if (!["done", "error", "cancelled"].includes(status)) return false;
+      if (job.needs_review || Number(job.blocked_retry_count) > 0) return false;
+      const failed = Number(job.effective_fail_count || job.fail_count || 0);
+      const deferred = Number(job.deferred_unattempted_count || 0);
+      const unfinished = Math.max(0, Number(job.total || 0) - Number(job.done || 0));
+      return failed > 0 || deferred > 0 || unfinished > 0 || status === "cancelled";
     }
 
     function renderQueuePanel(batch, queue) {
@@ -824,7 +924,23 @@
       const queueError = queue.status === "error";
       const busy = batch.status === "running" || queue.status === "running" || queueError;
       const hasLog = (batch.items || []).length > 0;
-      if (!busy && !hasLog) {
+      if (batch.task_id) lastBatchTaskId = String(batch.task_id);
+      const retryBtn = document.getElementById("genRetryFailedBtn");
+      const canRetry = jobCanRetry(batch);
+      const restartCancel = jobCancelledByRestart(batch);
+      if (retryBtn) {
+        retryBtn.classList.toggle("hidden", busy || !canRetry);
+        retryBtn.classList.toggle("primary", !busy && restartCancel);
+      }
+      const banner = document.getElementById("genResumeBanner");
+      if (banner) {
+        const showBanner = !busy && restartCancel && canRetry;
+        banner.classList.toggle("hidden", !showBanner);
+        if (showBanner) {
+          banner.textContent = "服务重启后，未发出的排队任务已取消。已成功的不会再扣；点「重试失败/未完成」只补未发出的页。";
+        }
+      }
+      if (!busy && !hasLog && !canRetry) {
         panel.classList.add("hidden");
         return;
       }
@@ -848,6 +964,8 @@
         summary.textContent = `需人工核对：${blockedRetryCount} 张请求结果或扣费状态未知，不会自动重试；请先检查 NAI 远端图库`;
       } else if (deferredUnattempted > 0) {
         summary.textContent = `完成：成功 ${Number(batch.ok_count) || 0} · 失败 ${effectiveFailed} · 冷却期未请求 ${deferredUnattempted}（可重试）`;
+      } else if (restartCancel) {
+        summary.textContent = "服务重启后未发出任务已取消 · 可继续未完成页";
       } else {
         summary.textContent = batch.message || "最近任务";
       }
@@ -1021,6 +1139,7 @@
         const groups = mergeGroupsWithLive(data.groups || [], batch, queue);
         const sig = groups.map((g) => `${g.group_id}:${g.count}:${g._generating}:${g.cover_url}`).join("|")
           + "@" + (batch.done || 0) + batch.message + queue.status + queue.message;
+        if (!silent) loadTrash();
         if (silent && sig === lastListSig) return;
         lastListSig = sig;
         galleryEl.innerHTML = "";
@@ -1039,12 +1158,75 @@
       }
     }
 
+    async function revealGenerated(kind, id) {
+      const target = String(id || "").trim();
+      if (!target) return;
+      const url = kind === "group"
+        ? `/api/generated/group/${encodeURIComponent(target)}/reveal`
+        : kind === "folder"
+          ? "/api/storage/open?target=generated"
+          : `/api/generated/reveal/${encodeURIComponent(target)}`;
+      const data = await window.ApiClient.request(url, { method: "POST" });
+      if (!data || data.opened) return;
+      alert(data.message || "当前系统无法自动打开文件夹");
+    }
+
     async function deleteGeneratedItem(imageId, groupId) {
-      if (!confirm(`删除这张生成图？\n${imageId}`)) return false;
+      if (!confirm(`删除这张生成图？\n${imageId}\n删除后可在本页回收站恢复。`)) return false;
       await window.ApiClient.request(`/api/generated/item/${encodeURIComponent(imageId)}`, { method: "DELETE" });
       if (groupId) await loadDetail(groupId);
       else await loadList();
+      await loadTrash();
       return true;
+    }
+
+    function formatTrashWhen(value) {
+      return String(value || "").replace("T", " ").slice(0, 16);
+    }
+
+    async function loadTrash() {
+      const host = document.getElementById("genTrashList");
+      const countEl = document.getElementById("genTrashCount");
+      if (!host) return;
+      try {
+        const data = await window.ApiClient.get("/api/generated/trash");
+        const items = Array.isArray(data.items) ? data.items : [];
+        if (countEl) countEl.textContent = items.length ? `（${items.length}）` : "";
+        if (!items.length) {
+          host.innerHTML = '<div class="gen-trash-empty">回收站是空的</div>';
+          return;
+        }
+        host.innerHTML = "";
+        items.forEach((row) => {
+          const box = document.createElement("div");
+          box.className = "gen-trash-row";
+          const kind = row.kind === "group" ? "整组" : "单张";
+          const ids = Array.isArray(row.image_ids) ? row.image_ids : [];
+          const label = document.createElement("span");
+          label.textContent = `${kind} · ${row.file_count || ids.length || 0} 个文件 · ${formatTrashWhen(row.created_at)}${row.group_id ? " · " + row.group_id : ""}`;
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn";
+          btn.textContent = "恢复";
+          btn.addEventListener("click", async () => {
+            try {
+              await window.ApiClient.request(
+                `/api/generated/trash/${encodeURIComponent(row.trash_id)}/restore`,
+                { method: "POST" }
+              );
+              await loadTrash();
+              await loadList(true);
+            } catch (err) {
+              alert(err.message || "恢复失败");
+            }
+          });
+          box.appendChild(label);
+          box.appendChild(btn);
+          host.appendChild(box);
+        });
+      } catch (err) {
+        host.innerHTML = `<div class="gen-trash-empty">回收站读取失败：${escText(err && err.message, "请稍后重试")}</div>`;
+      }
     }
 
     function mosaicPartsFromForm() {
@@ -1145,8 +1327,9 @@
             const prog = job.total ? ` (${job.done || 0}/${job.total})` : "";
             st.textContent = (job.message || "处理中…") + prog;
           }
-          if (job.status !== "running") {
-            if (job.fail) st.textContent = `完成：成功 ${job.ok || 0}，失败 ${job.fail}`;
+          if (job.status !== "running" && job.status !== "cancelling") {
+            if (job.status === "cancelled") st.textContent = job.message || "后处理已取消";
+            else if (job.fail) st.textContent = `完成：成功 ${job.ok || 0}，失败 ${job.fail}`;
             break;
           }
         }
@@ -1319,6 +1502,20 @@
       pxBtn.textContent = "P站";
       pxBtn.title = "Pixiv 起号上传";
       pxBtn.addEventListener("click", (e) => e.stopPropagation());
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.className = "gen-item-del";
+      openBtn.textContent = "定位文件";
+      openBtn.title = "打开文件夹并查看这张图的原图与后处理文件";
+      openBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        try {
+          await revealGenerated("item", item.id);
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+      meta.appendChild(openBtn);
       meta.appendChild(pxBtn);
       meta.appendChild(pipeBtn);
       meta.appendChild(delBtn);
@@ -1351,7 +1548,7 @@
       return box;
     }
 
-    document.getElementById("pipeMosaic").addEventListener("change", toggleMosaicDetail);
+    document.getElementById("pipeMosaic")?.addEventListener("change", toggleMosaicDetail);
 
     document.getElementById("pipeSaveCfg").addEventListener("click", async () => {
       try {
@@ -1387,6 +1584,26 @@
         e.target.checked = !enabled;
         alert(err.message);
       }
+    });
+
+    async function cancelPipelineJob() {
+      const data = await window.ApiClient.request("/api/pipeline/cancel", { method: "POST" });
+      const st = document.getElementById("pipeStatus");
+      const hint = document.getElementById("listPipelineHint");
+      const message = (data && data.message) || (data && data.job && data.job.message) || "已请求取消后处理";
+      if (st) st.textContent = message;
+      if (hint) hint.textContent = message;
+      return data;
+    }
+
+    document.querySelectorAll(".pipe-cancel-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          await cancelPipelineJob();
+        } catch (err) {
+          alert(err.message || "取消失败");
+        }
+      });
     });
 
     document.getElementById("pipeRunAllMissing").addEventListener("click", async () => {
@@ -1519,13 +1736,49 @@
       }
     }
 
+    document.getElementById("genRetryFailedBtn")?.addEventListener("click", async () => {
+      const taskId = lastBatchTaskId;
+      if (!taskId) return;
+      if (!confirm("只重试失败或未发出的页，已成功的不会再扣。确认继续？")) return;
+      const btn = document.getElementById("genRetryFailedBtn");
+      if (btn) btn.disabled = true;
+      try {
+        const res = await window.ApiClient.request(
+          `/api/nai/jobs/retry?task_id=${encodeURIComponent(taskId)}`,
+          { method: "POST" }
+        );
+        if (res && res.task_id) lastBatchTaskId = String(res.task_id);
+        genPollBusy = true;
+        loadList();
+      } catch (err) {
+        alert(err.message || "重试失败");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    });
+    document.getElementById("openGeneratedFolderBtn")?.addEventListener("click", async () => {
+      try {
+        await revealGenerated("folder");
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+    document.getElementById("revealGroupBtn")?.addEventListener("click", async () => {
+      if (!currentGroupId) return;
+      try {
+        await revealGenerated("group", currentGroupId);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
     deleteGroupBtn.addEventListener("click", async () => {
       if (!currentGroupId) return;
-      if (!confirm(`删除本组全部生成图？`)) return;
+      if (!confirm(`删除本组全部生成图？删除后可在本页回收站恢复。`)) return;
       try {
         await window.ApiClient.request(`/api/generated/group/${encodeURIComponent(currentGroupId)}`, { method: "DELETE" });
         history.pushState({}, "", "/generated");
         await loadList();
+        await loadTrash();
       } catch (e) {
         alert(e.message);
       }
@@ -1542,12 +1795,13 @@
     });
 
     loadPipelineConfig();
+    loadTrash();
     const bootGroup = qs("g") || qs("group");
     if (bootGroup) loadDetail(bootGroup);
     else loadList();
     scheduleListPoll();
   </script>
-  <script src="/assets/shared/site-nav.js?v=fe86cea773"></script>
+  <script src="/assets/shared/site-nav.js?v=825f467bc0"></script>
   <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
 </body>
 </html>

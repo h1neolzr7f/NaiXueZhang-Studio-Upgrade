@@ -1613,6 +1613,15 @@ html[lang="en"] .site-header.atlas-gallery-head .hero-title .lang-en {
   margin: 14px 0;
 }
 
+.detail-remix-unavailable {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  color: #9aa7bd;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
 .detail-send-row .detail-primary-actions,
 .detail-send-row .detail-secondary-actions {
   display: flex;

@@ -117,8 +117,9 @@ class WorkLiteTests(unittest.TestCase):
         with patch("studio_service.extract_chars", return_value=payload) as extract:
             with patch("studio_service._work_title", return_value="t"):
                 with patch("studio_service._work_thumb", return_value="/thumb"):
-                    first = import_from_work(42, 0)
-                    second = import_from_work(42, 0)
+                    with patch("studio_service._work_page_indexes", return_value=[0]):
+                        first = import_from_work(42, 0)
+                        second = import_from_work(42, 0)
         self.assertEqual(first["work_id"], 42)
         self.assertEqual(second["work_id"], 42)
         self.assertEqual(extract.call_count, 1)
@@ -137,8 +138,9 @@ class WorkLiteTests(unittest.TestCase):
         with patch("studio_service.extract_chars", return_value=payload) as extract:
             with patch("studio_service._work_title", return_value="t"):
                 with patch("studio_service._work_thumb", return_value="/thumb"):
-                    import_from_work(42, 0, "site")
-                    import_from_work(42, 0, "codex")
+                    with patch("studio_service._work_page_indexes", return_value=[0]):
+                        import_from_work(42, 0, "site")
+                        import_from_work(42, 0, "codex")
         self.assertEqual(extract.call_count, 2)
         extract.assert_any_call(42, 0, gallery_id="site")
         extract.assert_any_call(42, 0, gallery_id="codex")

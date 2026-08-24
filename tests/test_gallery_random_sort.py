@@ -68,6 +68,41 @@ def test_random_sort_changes_order_with_different_seed(tmp_path: Path) -> None:
     assert len(orders) >= 2
 
 
+def test_bookmarks_and_views_sort_use_engagement_columns(tmp_path: Path) -> None:
+    db = Database(tmp_path / "engagement.db")
+    rows = [(1, 1, 100), (2, 50, 10), (3, 10, 200)]
+    try:
+        for work_id, bookmarks, views in rows:
+            db.conn.execute(
+                """
+                INSERT INTO works(id, title, ai_type, create_date, list_json, total_bookmarks, total_view)
+                VALUES (?, ?, 'NAI', ?, ?, ?, ?)
+                """,
+                (
+                    work_id,
+                    str(work_id),
+                    "2024-01-01T00:00:00+00:00",
+                    json.dumps({"id": work_id}),
+                    bookmarks,
+                    views,
+                ),
+            )
+        db.conn.commit()
+        by_bookmarks = [
+            item["id"]
+            for item in db.search_works(sort="bookmarks", page=1, page_size=10)["items"]
+        ]
+        by_views = [
+            item["id"]
+            for item in db.search_works(sort="views", page=1, page_size=10)["items"]
+        ]
+    finally:
+        db.close()
+
+    assert by_bookmarks == [2, 3, 1]
+    assert by_views == [3, 1, 2]
+
+
 def test_random_sort_default_seed_zero_is_deterministic(tmp_path: Path) -> None:
     db = _seed_db(tmp_path)
     try:

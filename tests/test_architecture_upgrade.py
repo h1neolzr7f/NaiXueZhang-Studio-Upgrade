@@ -949,6 +949,48 @@ class ArchitectureUpgradeTests(unittest.TestCase):
                 nai_api._TOKEN_ENTRIES_CACHE = old_cache
                 nai_api._TOKEN_ENTRIES_CACHE_AT = old_cache_at
 
+    def test_update_token_network_sets_proxy_without_leaking_it(self) -> None:
+        import nai_api
+        from nai.errors import GenerationProviderError
+        from nai.generate import _raise_pre_request_transport_error
+
+        with tempfile.TemporaryDirectory() as tmp:
+            old_path = nai_api.TOKEN_PATH
+            old_data_dir = nai_api.DATA_DIR
+            old_cache = nai_api._TOKEN_ENTRIES_CACHE
+            old_cache_at = nai_api._TOKEN_ENTRIES_CACHE_AT
+            try:
+                nai_api.DATA_DIR = Path(tmp)
+                nai_api.TOKEN_PATH = Path(tmp) / "nai_token.local.json"
+                nai_api.save_token("pst-good-token")
+                public = nai_api.token_status()["tokens"][0]
+                self.assertFalse(public["has_proxy"])
+                result = nai_api.update_token_network(public["id"], {"proxy": "127.0.0.1:7897"})
+                shown = result["tokens"][0]
+                self.assertTrue(shown["has_proxy"])
+                self.assertEqual(shown["proxy"], "")
+                self.assertNotIn("127.0.0.1", json.dumps(result))
+                stored = nai_api._normalize_token_entries()[0]
+                self.assertEqual(stored["proxy"], "http://127.0.0.1:7897")
+                nai_api.save_token("pst-good-token")
+                self.assertEqual(nai_api._normalize_token_entries()[0]["proxy"], "http://127.0.0.1:7897")
+                cleared = nai_api.update_token_network(public["id"], {"proxy": ""})
+                self.assertFalse(cleared["tokens"][0]["has_proxy"])
+            finally:
+                nai_api.TOKEN_PATH = old_path
+                nai_api.DATA_DIR = old_data_dir
+                nai_api._TOKEN_ENTRIES_CACHE = old_cache
+                nai_api._TOKEN_ENTRIES_CACHE_AT = old_cache_at
+
+        with self.assertRaises(GenerationProviderError) as ctx:
+            _raise_pre_request_transport_error(
+                OSError("All connection attempts failed"),
+                proxy_configured=False,
+            )
+        self.assertIn("未配置代理", str(ctx.exception))
+        self.assertEqual(ctx.exception.error_code, "connect_failed")
+        self.assertFalse(ctx.exception.request_attempted)
+
     def test_generated_group_includes_source_prompt_by_default(self) -> None:
         import routes.nai as nai_routes
 
@@ -1241,6 +1283,31 @@ class ArchitectureUpgradeTests(unittest.TestCase):
         self.assertTrue(params["prefer_brownian"])
         self.assertFalse(params["deliberate_euler_ancestral_bug"])
         self.assertEqual(params["reference_image_multiple"], [])
+
+    def test_generate_payload_flattens_nested_char_caption_objects(self) -> None:
+        payload = build_generate_payload(
+            {
+                "prompt": "1girl",
+                "v4_prompt": {
+                    "caption": {
+                        "base_caption": "1girl",
+                        "char_captions": [
+                            {
+                                "char_caption": {
+                                    "char_caption": "1girl, amiya_(arknights)",
+                                    "centers": [{"x": 0.2, "y": 0.5}],
+                                },
+                                "centers": [{"x": 0.8, "y": 0.5}],
+                            }
+                        ],
+                    }
+                },
+            },
+            force_free=True,
+        )
+        slots = payload["parameters"]["v4_prompt"]["caption"]["char_captions"]
+        self.assertEqual(slots[0]["char_caption"], "1girl, amiya_(arknights)")
+        self.assertIsInstance(slots[0]["char_caption"], str)
 
     def test_char_swap_large_modules_no_longer_import_panel_module(self) -> None:
         root = Path(__file__).resolve().parents[1]

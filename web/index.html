@@ -19,12 +19,12 @@
   <meta name="twitter:description" content="本地 NovelAI 图库与提示词图谱。" />
   <meta data-seo="end" />
   <link rel="stylesheet" href="/assets/styles.css?v=1f1b43909b" />
-  <link rel="stylesheet" href="/assets/local.css?v=2e0bfcbad7" />
+  <link rel="stylesheet" href="/assets/local.css?v=7fc675925f" />
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
   <link rel="stylesheet" href="/assets/shared/motion.css?v=8cc6bd1e71" />
   <link rel="stylesheet" href="/assets/core-theme.css?v=0158aeb657" />
-  <link rel="stylesheet" href="/assets/gallery-atlas.css?v=4233544a88" />
-  <link rel="stylesheet" href="/assets/studio-theme.css?v=51de05869a" />
+  <link rel="stylesheet" href="/assets/gallery-atlas.css?v=1a8006c5f3" />
+  <link rel="stylesheet" href="/assets/studio-theme.css?v=1b361985f1" />
 <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
 </head>
 <body data-ui="nai-atlas-full" data-page="gallery">
@@ -60,7 +60,7 @@
           <span class="lang-en">A map for every idea</span>
           <span id="galleryHeroAccent" class="atlas-title-accent">可检索的图谱</span>
         </h1>
-        <p id="galleryHeroLead" class="atlas-hero-lead">搜索作品、画师、Pixiv 标签和原图里的 NAI Prompt；左右边缘可以划过客服小祥或助手凑企鹅交代任务。</p>
+        <p id="galleryHeroLead" class="atlas-hero-lead">搜索作品、画师、Pixiv 标签和原图里的 NAI Prompt；宽屏桌面可在左右边缘划过客服小祥或助手凑企鹅交代任务。</p>
         <div id="galleryHeroSignals" class="atlas-signal-row" aria-label="图库特性">
           <span><b>01</b> Pixiv 直连发现</span>
           <span><b>02</b> NAI 元数据准入</span>
@@ -129,11 +129,34 @@
           </div>
           <div class="af-field aitag-only-filter hidden">
             <label for="aitagCreator">在线作者</label>
-            <input id="aitagCreator" type="text" placeholder="作者名称或作者 ID" />
+            <input id="aitagCreator" type="text" placeholder="作者名或作者 ID，会并入在线检索" />
           </div>
           <div class="af-field aitag-only-filter hidden">
             <label for="aitagTags">在线标签</label>
-            <input id="aitagTags" type="text" placeholder="逗号分隔；全部标签同时匹配" />
+            <input id="aitagTags" type="text" placeholder="逗号分隔；会并入在线检索" />
+          </div>
+          <div class="af-field aitag-only-filter hidden">
+            <label for="aitagModel">生成器类型</label>
+            <select id="aitagModel" aria-label="生成器类型">
+              <option value="">全部类型</option>
+              <option value="NAI">NovelAI</option>
+              <option value="SD">Stable Diffusion</option>
+              <option value="COMFYUI">ComfyUI</option>
+            </select>
+          </div>
+          <div class="af-field aitag-only-filter hidden">
+            <label for="aitagNaiOnly">仅 NAI</label>
+            <label class="af-check">
+              <input id="aitagNaiOnly" type="checkbox" checked />
+              <span>只看 NovelAI 作品</span>
+            </label>
+          </div>
+          <div class="af-field aitag-only-filter hidden">
+            <label for="aitagSafeOnly">内容分级</label>
+            <label class="af-check">
+              <input id="aitagSafeOnly" type="checkbox" />
+              <span>隐藏成人标签</span>
+            </label>
           </div>
           <div class="af-field aitag-only-filter hidden">
             <label for="aitagMinImages">图片数量</label>
@@ -195,7 +218,7 @@
         <section id="galleryDropDock" class="gallery-drop-dock hidden" hidden>
           <div id="galleryDropzone" class="gallery-dropzone">
             <strong>把图片拖到这里解析入库</strong>
-            <span>每次拖入的一批会收成一个文件夹。可以直接拖整个文件夹。可折叠、合并，并一键加入批量换角。只收带 NovelAI 元数据的 PNG/JPG/WebP。</span>
+            <span>每次拖入的一批会收成一个文件夹。可以直接拖整个文件夹。可折叠、合并。法典/Q群没有 v4 角色槽，不能同质量换角；打开详情后可「用此图生成」。只收带 NovelAI 元数据的 PNG/JPG/WebP。</span>
             <div class="gallery-drop-picks">
               <button type="button" id="galleryDropPick">选择文件</button>
               <button type="button" id="galleryDropPickFolder">选择文件夹</button>
@@ -312,22 +335,23 @@
     </footer>
   </div>
 
-  <script src="/assets/shared/api-client.js?v=2a8a70c746"></script>
+  <script src="/assets/shared/api-client.js?v=afd161a5c9"></script>
   <script src="/assets/shared/ui-toast.js?v=7f77b751fa"></script>
   <script src="/assets/shared/escape.js?v=cf491c2912"></script>
   <script src="/assets/shared/work-bridge.js?v=e03f149e05"></script>
-  <script src="/assets/shared/site-nav.js?v=fe86cea773"></script>
+  <script src="/assets/shared/site-nav.js?v=825f467bc0"></script>
   <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
   <script src="/assets/shared/prompt-preview.js?v=5e010cf412"></script>
   <script src="/assets/shared/gallery-virtual.js?v=123bd338d9"></script>
   <script src="/assets/shared/deferred-scripts.js?v=75850c92b7"></script>
   <script src="/assets/shared/gallery-bootstrap.js?v=7ec19b8597"></script>
-  <script src="/assets/shared/gallery-detail-hooks.js?v=9b054092fe"></script>
-  <script src="/assets/app-core.js?v=a31ade4bf2"></script>
-  <script src="/assets/gallery-list-runtime.js?v=03774f9d4c"></script>
-  <script src="/assets/app-online-remix.js?v=8fbb14063a"></script>
-  <script src="/assets/app-detail.js?v=bcd485899b"></script>
-  <script src="/assets/shared/gallery-drop-folders.js?v=7d8c91bf0a"></script>
-  <script src="/assets/app.js?v=b895c5c3a8"></script>
+  <script src="/assets/shared/comparison-workspace.js?v=5f74cfb2d6"></script>
+  <script src="/assets/shared/gallery-detail-hooks.js?v=19b83f2dae"></script>
+  <script src="/assets/app-core.js?v=0bd82000c0"></script>
+  <script src="/assets/gallery-list-runtime.js?v=8ff555cfb5"></script>
+  <script src="/assets/app-online-remix.js?v=b122a38e46"></script>
+  <script src="/assets/app-detail.js?v=3755f14429"></script>
+  <script src="/assets/shared/gallery-drop-folders.js?v=e54aa9f86e"></script>
+  <script src="/assets/app.js?v=a4656adf0e"></script>
 </body>
 </html>

@@ -7,10 +7,14 @@ import copy
 from pathlib import Path
 from typing import Any
 
+from nai_batch import STUDIO_COPY_MAX
 from nai_char import extract_chars, sanitize_payload
 from nai_prompt_optimizer import _prompt_snapshot, ai_status, optimize_nai_prompt
 from gallery_cache import cached
+from paths import canonical_path, path_is_within
 from server_shared import DB, DATA_DIR
+
+STUDIO_IMPORT_PAGE_MAX = 64
 
 
 def _gallery_db(gallery_id: str = "site"):
@@ -22,30 +26,82 @@ def _gallery_db(gallery_id: str = "site"):
     return get_db(normalize_gallery_id(gid))
 
 
-def _work_thumb(work_id: int, gallery_id: str = "site") -> str:
+def _image_public_url(image: dict[str, Any] | None) -> str:
+    if not isinstance(image, dict):
+        return ""
+    local_path = str(image.get("local_path") or "").strip().replace("\\", "/")
+    if local_path:
+        local_path = local_path.lstrip("/")
+        if local_path.startswith("data/images/"):
+            local_path = local_path.removeprefix("data/images/")
+        elif local_path.startswith("images/"):
+            local_path = local_path.removeprefix("images/")
+        return f"/data/images/{local_path}"
+
+    image_type = str(image.get("image_type") or "").strip()
+    author_id = str(image.get("author_id") or "").strip()
+    file_name = str(image.get("file_name") or "").strip()
+    if image_type and author_id and file_name:
+        suffix = "" if file_name.lower().endswith(".webp") else ".webp"
+        return f"/data/images/{image_type}/{author_id}/{file_name}{suffix}"
+    return ""
+
+
+def _work_thumb(work_id: int, gallery_id: str = "site", page_index: int = 0) -> str:
     try:
         detail = _gallery_db(gallery_id).get_work_detail(int(work_id))
         images = (detail or {}).get("images") or []
-        if images:
-            image = images[0]
-            local_path = str(image.get("local_path") or "").strip().replace("\\", "/")
-            if local_path:
-                local_path = local_path.lstrip("/")
-                if local_path.startswith("data/images/"):
-                    local_path = local_path.removeprefix("data/images/")
-                elif local_path.startswith("images/"):
-                    local_path = local_path.removeprefix("images/")
-                return f"/data/images/{local_path}"
-
-            image_type = str(image.get("image_type") or "").strip()
-            author_id = str(image.get("author_id") or "").strip()
-            file_name = str(image.get("file_name") or "").strip()
-            if image_type and author_id and file_name:
-                suffix = "" if file_name.lower().endswith(".webp") else ".webp"
-                return f"/data/images/{image_type}/{author_id}/{file_name}{suffix}"
+        wanted = int(page_index or 0)
+        chosen = None
+        for image in images:
+            if not isinstance(image, dict):
+                continue
+            raw = image.get("page_index")
+            if raw is None:
+                raw = image.get("source_page_index")
+            try:
+                idx = int(raw if raw is not None else 0)
+            except (TypeError, ValueError):
+                idx = 0
+            if idx == wanted:
+                chosen = image
+                break
+        if chosen is None and images:
+            chosen = images[0]
+        return _image_public_url(chosen)
     except Exception:
-        pass
-    return ""
+        return ""
+
+
+def _work_page_indexes(
+    work_id: int, gallery_id: str = "site", fallback: int = 0
+) -> list[int]:
+    try:
+        detail = _gallery_db(gallery_id).get_work_detail(int(work_id))
+    except Exception:
+        return [int(fallback or 0)]
+    images = (detail or {}).get("images") or []
+    indexes: list[int] = []
+    seen: set[int] = set()
+    for i, image in enumerate(images):
+        if not isinstance(image, dict):
+            continue
+        raw = image.get("page_index")
+        if raw is None:
+            raw = image.get("source_page_index")
+        if raw is None:
+            raw = image.get("display_page_index")
+        try:
+            idx = int(raw if raw is not None else i)
+        except (TypeError, ValueError):
+            idx = i
+        if idx < 0 or idx in seen:
+            continue
+        seen.add(idx)
+        indexes.append(idx)
+        if len(indexes) >= STUDIO_IMPORT_PAGE_MAX:
+            break
+    return indexes or [int(fallback or 0)]
 
 
 def _work_title(work_id: int, gallery_id: str = "site") -> str:
@@ -60,13 +116,16 @@ def _work_title(work_id: int, gallery_id: str = "site") -> str:
     return f"作品 {work_id}"
 
 
-def preview_work_prompt(work_id: int, page_index: int = 0) -> dict[str, Any]:
+def preview_work_prompt(
+    work_id: int, page_index: int = 0, gallery_id: str = "site"
+) -> dict[str, Any]:
     wid = int(work_id)
     page = int(page_index)
-    cache_key = f"studio_preview:{wid}:{page}"
+    gid = str(gallery_id or "site").strip() or "site"
+    cache_key = f"studio_preview:{gid}:{wid}:{page}"
 
     def _load() -> dict[str, Any]:
-        row = DB.get_work_prompt_snippet(wid, page)
+        row = _gallery_db(gid).get_work_prompt_snippet(wid, page)
         snippet = str(row.get("snippet") or "").strip()
         return {
             "ok": True,
@@ -75,29 +134,114 @@ def preview_work_prompt(work_id: int, page_index: int = 0) -> dict[str, Any]:
             "snippet": snippet,
             "has_prompt": bool(snippet),
             "source": row.get("source") or "none",
+            "gallery_id": gid,
         }
 
     return cached(cache_key, 600.0, _load)
 
 
+def _page_pack(
+    work_id: int,
+    page_index: int,
+    gallery_id: str,
+    data: dict[str, Any],
+    *,
+    title: str,
+    thumb: str,
+) -> dict[str, Any]:
+    comment = copy.deepcopy(data.get("comment") or {})
+    return {
+        "image_index": int(page_index),
+        "draft": {
+            "texts": _prompt_snapshot(comment),
+            "comment": comment,
+            "params": data.get("params") or {},
+            "pageIndex": int(page_index),
+            "source": {
+                "provider": gallery_id,
+                "workId": int(work_id),
+                "imageIndex": int(page_index),
+                "title": title,
+                "thumb": thumb,
+            },
+        },
+    }
+
+
+def _select_import_page(payload: dict[str, Any], page_index: int) -> dict[str, Any]:
+    pages = payload.get("pages") or []
+    wanted = int(page_index or 0)
+    hit = next(
+        (page for page in pages if int(page.get("image_index") or 0) == wanted),
+        None,
+    )
+    if not isinstance(hit, dict):
+        return payload
+    draft = hit.get("draft") if isinstance(hit.get("draft"), dict) else {}
+    source = draft.get("source") if isinstance(draft.get("source"), dict) else {}
+    selected = dict(payload)
+    selected["page_index"] = wanted
+    selected["comment"] = draft.get("comment") or payload.get("comment")
+    selected["texts"] = draft.get("texts") or payload.get("texts")
+    selected["params"] = draft.get("params") or payload.get("params")
+    selected["thumb"] = source.get("thumb") or payload.get("thumb")
+    return selected
+
+
 def _import_from_work_uncached(
     work_id: int, page_index: int = 0, gallery_id: str = "site"
 ) -> dict[str, Any]:
-    data = extract_chars(int(work_id), int(page_index), gallery_id=gallery_id)
+    requested = int(page_index or 0)
+    data = extract_chars(int(work_id), requested, gallery_id=gallery_id)
+    title = _work_title(work_id, gallery_id)
+    pages: list[dict[str, Any]] = []
+    extracted = {requested: data}
+    for idx in _work_page_indexes(work_id, gallery_id, fallback=requested):
+        page_data = extracted.get(idx)
+        if page_data is None:
+            try:
+                page_data = extract_chars(int(work_id), int(idx), gallery_id=gallery_id)
+            except Exception:
+                continue
+            extracted[idx] = page_data
+        pages.append(
+            _page_pack(
+                work_id,
+                idx,
+                gallery_id,
+                page_data,
+                title=title,
+                thumb=_work_thumb(work_id, gallery_id, idx),
+            )
+        )
+    if not pages:
+        pages.append(
+            _page_pack(
+                work_id,
+                requested,
+                gallery_id,
+                data,
+                title=title,
+                thumb=_work_thumb(work_id, gallery_id, requested),
+            )
+        )
     comment = copy.deepcopy(data.get("comment") or {})
-    return {
+    payload = {
         "ok": True,
         "work_id": int(work_id),
-        "page_index": int(page_index),
+        "page_index": requested,
         "gallery_id": gallery_id,
-        "title": _work_title(work_id, gallery_id),
-        "thumb": _work_thumb(work_id, gallery_id),
+        "title": title,
+        "thumb": _work_thumb(work_id, gallery_id, requested),
         "comment": comment,
         "params": data.get("params") or {},
         "chars": data.get("chars") or [],
         "base_caption": data.get("base_caption") or "",
         "texts": _prompt_snapshot(comment),
+        "page_count": len(pages),
+        "pages": pages,
     }
+    return _select_import_page(payload, requested)
 
 
 def import_from_work(
@@ -106,8 +250,9 @@ def import_from_work(
     wid = int(work_id)
     page = int(page_index)
     gid = str(gallery_id or "site").strip() or "site"
-    cache_key = f"studio_import:{gid}:{wid}:{page}"
-    return cached(cache_key, 300.0, lambda: _import_from_work_uncached(wid, page, gid))
+    cache_key = f"studio_import:{gid}:{wid}"
+    payload = cached(cache_key, 300.0, lambda: _import_from_work_uncached(wid, page, gid))
+    return _select_import_page(payload, page)
 
 
 def sanitize_comment(comment: dict[str, Any], **flags: Any) -> dict[str, Any]:
@@ -176,6 +321,22 @@ def attach_image_reference(
     return vibe
 
 
+def _resolve_vibe_image_path(image_path: str) -> Path:
+    raw = str(image_path or "").strip()
+    if not raw:
+        raise ValueError("需要 vibe 参考图 URL 或本地路径")
+    path = Path(raw)
+    if not path.is_absolute():
+        path = DATA_DIR / path
+    resolved = canonical_path(path)
+    data_root = canonical_path(DATA_DIR)
+    if resolved == data_root or not path_is_within(resolved, data_root):
+        raise ValueError("vibe 参考图必须位于本地数据目录内")
+    if not resolved.is_file():
+        raise ValueError("vibe 参考图不存在")
+    return resolved
+
+
 def apply_vibe_to_comment(
     comment: dict[str, Any],
     *,
@@ -189,13 +350,10 @@ def apply_vibe_to_comment(
     if image_url:
         refs.append(str(image_url).strip())
     elif image_path:
-        path = Path(image_path)
-        if not path.is_absolute():
-            path = (DATA_DIR / path).resolve()
-        if path.exists():
-            raw = path.read_bytes()
-            mime = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
-            refs.append(f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}")
+        path = _resolve_vibe_image_path(image_path)
+        raw = path.read_bytes()
+        mime = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+        refs.append(f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}")
     if not refs:
         raise ValueError("需要 vibe 参考图 URL 或本地路径")
     strengths = [max(0.01, min(float(strength), 1.0))]
@@ -248,26 +406,35 @@ def studio_config() -> dict[str, Any]:
             "sampler": "k_euler_ancestral",
             "batch_count": 1,
         },
+        "copy_max": STUDIO_COPY_MAX,
     }
 
 
 def list_queue_for_studio(limit: int = 40) -> dict[str, Any]:
     """Production queue items for Studio asset picker."""
     try:
-        from production_queue import list_ids
+        from production_queue import list_refs
     except Exception:
         return {"ok": True, "items": [], "count": 0}
-    ids = list_ids()[: max(1, min(int(limit), 120))]
+    refs = list_refs()[: max(1, min(int(limit), 120))]
     items: list[dict[str, Any]] = []
-    for wid in ids:
+    for item in refs:
+        try:
+            wid = int(item.get("work_id") or 0)
+        except (TypeError, ValueError):
+            continue
+        if wid <= 0:
+            continue
+        gid = str(item.get("gallery_id") or "site").strip() or "site"
         items.append(
             {
                 "work_id": wid,
-                "title": _work_title(wid),
-                "thumb": _work_thumb(wid),
+                "gallery_id": gid,
+                "title": _work_title(wid, gid),
+                "thumb": _work_thumb(wid, gid),
             }
         )
-    return {"ok": True, "items": items, "count": len(ids)}
+    return {"ok": True, "items": items, "count": len(items)}
 
 
 def build_studio_draft(

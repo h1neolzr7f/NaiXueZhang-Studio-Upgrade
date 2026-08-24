@@ -35,6 +35,7 @@ class ProductRouteSmokeTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         payload = res.json()
         self.assertTrue(payload["health"]["checks"]["database"])
+        self.assertNotIn("paths", payload["health"])
         self.assertLess(elapsed, 5.0)
 
     def test_existing_core_pages_remain_reachable(self) -> None:

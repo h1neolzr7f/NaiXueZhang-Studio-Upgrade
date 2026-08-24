@@ -592,26 +592,25 @@ def api_storage_open(target: str = "images") -> dict:
 
 @router.post("/api/generated/reveal/{image_id}")
 def api_generated_reveal(image_id: str) -> dict:
+    from generated_gallery import files_for_generated_image, open_local_folder, stage_reveal_folder
+
     stem = Path(str(image_id or "").strip()).stem
     if not stem:
         raise HTTPException(status_code=400, detail="image_id cannot be empty")
-    path = _safe_child_file(GENERATED_DIR, f"{stem}.png")
-    if not path.exists() or not path.is_file():
-        raise HTTPException(status_code=404, detail="generated image not found")
-    if sys.platform != "win32":
-        return {
-            "ok": True,
-            "opened": False,
-            "path": path.name,
-            "message": "Only Windows can reveal files automatically",
-        }
-    subprocess.Popen(["explorer", "/select,", str(path)])
+    try:
+        paths = files_for_generated_image(stem)
+        folder = stage_reveal_folder(paths, f"item-{stem}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    opened = open_local_folder(folder)
     return {
         "ok": True,
-        "opened": True,
-        # Do not leak absolute filesystem paths to the browser.
-        "path": path.name,
-        "message": f"Revealed file: {path.name}",
+        "opened": opened,
+        "count": len(paths),
+        "files": [path.name for path in paths],
+        "message": "已打开该图全部原文件" if opened else "Only Windows can reveal files automatically",
     }
 
 
@@ -927,6 +926,32 @@ def api_work(work_id: int, gallery_id: str = Query("site")) -> dict:
 def api_ai_work_legacy(work_id: int, gallery_id: str = Query("site")) -> dict:
     """Legacy detail alias kept for older gallery builds and saved links."""
     return api_work(work_id, gallery_id)
+
+
+@router.post("/api/work/{work_id}/reveal")
+def api_work_reveal(work_id: int, gallery_id: str = Query("site")) -> dict:
+    from gallery_audit_service import files_for_work_images
+    from generated_gallery import open_local_folder, stage_reveal_folder
+
+    gid = normalize_gallery_id(gallery_id)
+    if gid not in {"site", "codex", "qqgroup"}:
+        raise HTTPException(status_code=400, detail="this gallery has no local image files")
+    _work_scope_guard(work_id, gid)
+    try:
+        paths = files_for_work_images(work_id, gid)
+        folder = stage_reveal_folder(paths, f"work-{gid}-{int(work_id)}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    opened = open_local_folder(folder)
+    return {
+        "ok": True,
+        "opened": opened,
+        "count": len(paths),
+        "files": [path.name for path in paths],
+        "message": "已打开该作品全部原文件" if opened else "Only Windows can reveal files automatically",
+    }
 
 
 @router.get("/api/work/{work_id}/lite")

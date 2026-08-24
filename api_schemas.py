@@ -39,8 +39,9 @@ class NaiGenerateRequest(BaseModel):
     work_id_str: str = ""
     source_title: str = ""
     source_thumb: str = ""
-    copies: int = 1
-    batch_count: int = 1
+    copies: int | None = None
+    batch_count: int | None = None
+    pages: list[dict[str, Any]] | None = None
     seed_policy: str = ""
     force_free: bool = True
     prompt_profile: str = "native"

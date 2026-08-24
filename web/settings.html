@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>配置中心 | Nai学长工作室</title>
   <link rel="stylesheet" href="/assets/styles.css?v=1f1b43909b" />
-  <link rel="stylesheet" href="/assets/local.css?v=2e0bfcbad7" />
+  <link rel="stylesheet" href="/assets/local.css?v=7fc675925f" />
   <link rel="stylesheet" href="/assets/shared/site-nav.css?v=756cdf2a38" />
   <link rel="stylesheet" href="/assets/shared/motion.css?v=8cc6bd1e71" />
-  <link rel="stylesheet" href="/assets/settings.css?v=1b2e12e3e8" />
-  <link rel="stylesheet" href="/assets/studio-theme.css?v=51de05869a" />
+  <link rel="stylesheet" href="/assets/settings.css?v=5402956d08" />
+  <link rel="stylesheet" href="/assets/studio-theme.css?v=1b361985f1" />
 <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
 </head>
 <body class="settings-body">
@@ -125,13 +125,13 @@
     <section class="settings-section" id="generation-service">
       <div class="section-heading">
         <div><span class="step">3</span><h2>NAI / 闲云生图账号池</h2></div>
-        <p>每行一个槽位，可混用 NovelAI 与闲云</p>
+        <p>工作台、换角、管家出图共用这一份账号池。每行一个槽位，可混用 NovelAI 与闲云</p>
       </div>
       <div class="settings-grid two">
         <label class="field-card wide">
           <span>Token 列表</span>
           <textarea id="settingsToken" rows="5" placeholder="pst-...&#10;xianyun:..." autocomplete="new-password" data-lpignore="true" data-1p-ignore></textarea>
-          <small>粘贴后点保存会<strong>追加</strong>到账号池，不会覆盖已有槽位。接口不回显明文。支持 <code>nai:pst-...</code>、<code>pst-...</code>、<code>xianyun:KEY</code>。</small>
+          <small>粘贴后点保存会<strong>追加</strong>到账号池，不会覆盖已有槽位。接口不回显明文。支持 <code>nai:pst-...</code>、<code>pst-...</code>、<code>xianyun:KEY</code>。国内网络直连 NovelAI 常被污染，请在每个槽位填写本地代理，例如 <code>http://127.0.0.1:7897</code>。</small>
         </label>
         <label class="field-card">
           <span>无前缀时默认提供商</span>
@@ -203,30 +203,30 @@
         </label>
       </div>
     </details>
-  </main>
 
-  <section class="settings-section" id="software-update">
-    <div class="section-heading">
-      <div><span class="step">8</span><h2>软件更新</h2></div>
-      <p>检查并下载新版本；下载完成后重启应用自动安装。</p>
-    </div>
-    <div class="field-card">
-      <div id="updateStatus">当前版本：<span id="updateCurrent">-</span></div>
-      <div class="update-actions">
-        <button class="settings-button secondary" type="button" id="updateCheckBtn">检查更新</button>
-        <button class="settings-button primary" type="button" id="updateDownloadBtn" disabled>下载并更新</button>
+    <section class="settings-section" id="software-update">
+      <div class="section-heading">
+        <div><span class="step">8</span><h2>软件更新</h2></div>
+        <p>检查并下载新版本；下载完成后重启应用自动安装。</p>
       </div>
-    </div>
-  </section>
+      <div class="field-card">
+        <div id="updateStatus">当前版本：<span id="updateCurrent">-</span></div>
+        <div class="update-actions">
+          <button class="settings-button secondary" type="button" id="updateCheckBtn">检查更新</button>
+          <button class="settings-button primary" type="button" id="updateDownloadBtn" disabled>下载并更新</button>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <div class="save-dock">
     <div><strong>统一保存</strong><span>助手、AI 服务和图库偏好一起保存</span></div>
     <button class="settings-button primary" type="button" id="saveAllBtn">保存全部配置</button>
   </div>
 
-  <script src="/assets/shared/site-nav.js?v=fe86cea773"></script>
+  <script src="/assets/shared/site-nav.js?v=825f467bc0"></script>
   <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
-  <script src="/assets/shared/api-client.js?v=2a8a70c746"></script>
-  <script src="/assets/settings.js?v=687d54d0b3"></script>
+  <script src="/assets/shared/api-client.js?v=afd161a5c9"></script>
+  <script src="/assets/settings.js?v=bb76270868"></script>
 </body>
 </html>

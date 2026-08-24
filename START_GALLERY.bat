@@ -95,6 +95,7 @@ if errorlevel 1 (
   endlocal
   exit /b 2
 )
+if not defined GALLERY_OPEN_PATH set "GALLERY_OPEN_PATH=/"
 set "GALLERY_URL=http://127.0.0.1:%GALLERY_PORT%"
 
 if not exist "%LAUNCH_HELPER%" (
@@ -201,7 +202,7 @@ if "%READY%"=="1" (
 )
 
 call :open_browser
-echo Open: %GALLERY_URL%/
+echo Open: %GALLERY_URL%%GALLERY_OPEN_PATH%
 echo Log: %~dp0logs\server.log
 if /I "%MODE%"=="restart" echo Restart complete. Hard-refresh the browser if the UI looks stale.
 endlocal
@@ -221,9 +222,9 @@ exit /b 1
 
 :open_browser
 if /I "%GALLERY_NO_BROWSER%"=="1" exit /b 0
-start "" "%GALLERY_URL%/" >nul 2>nul
+start "" "%GALLERY_URL%%GALLERY_OPEN_PATH%" >nul 2>nul
 if not errorlevel 1 exit /b 0
-powershell.exe -NoProfile -NonInteractive -Command "try { Start-Process $env:GALLERY_URL; exit 0 } catch { exit 1 }" >nul 2>nul
+powershell.exe -NoProfile -NonInteractive -Command "try { Start-Process ($env:GALLERY_URL + $env:GALLERY_OPEN_PATH); exit 0 } catch { exit 1 }" >nul 2>nul
 if not errorlevel 1 exit /b 0
-echo [WARN] Could not open the default browser. Open %GALLERY_URL%/ manually.
+echo [WARN] Could not open the default browser. Open %GALLERY_URL%%GALLERY_OPEN_PATH% manually.
 exit /b 1

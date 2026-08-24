@@ -1121,10 +1121,7 @@ body.asset-page {
   }
 }
 
-/* Favorites / queue: compact shelf chrome (no full gallery search hero) */
-body.mode-favorites .atlas-search-deck,
-body.mode-queue .atlas-search-deck,
-body.mode-favorites .gallery-source-bar,
+/* Favorites / queue: compact shelf chrome; keep a simple search box */
 body.mode-queue .gallery-source-bar,
 body.mode-favorites #localBanner,
 body.mode-queue #localBanner,

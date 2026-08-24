@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import threading
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
 from fastapi import APIRouter, Body, HTTPException, Query, Response
@@ -195,6 +195,144 @@ def _matches_advanced_filters(
     if max_images > 0 and image_count > max_images:
         return False
     return True
+
+
+def _compose_upstream_query(query: str, creator: str, tags: tuple[str, ...]) -> str:
+    """Official search only honors ``q`` / ``prompt``. Author and tag fields
+    must be folded into ``q`` or they only filter the current 60-item page.
+    """
+
+    parts: list[str] = []
+    seen: set[str] = set()
+    for raw in (query, creator, *tags):
+        text = str(raw or "").strip()
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        parts.append(text)
+    return " ".join(parts)[:2_000]
+
+
+def _parse_aitag_datetime(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    stamp = text.replace(" ", "T")
+    for fmt, size in (("%Y-%m-%dT%H:%M:%S", 19), ("%Y-%m-%d", 10)):
+        try:
+            return datetime.strptime(stamp[:size], fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _work_in_time_range(work: Any, time_range: str) -> bool:
+    raw = str(time_range or "all").strip()
+    if raw.casefold() in {"", "all"}:
+        return True
+    created = _parse_aitag_datetime(getattr(work, "create_date", ""))
+    if created is None:
+        return True
+    if len(raw) == 7 and raw[4] == "-" and raw[:4].isdigit() and raw[5:].isdigit():
+        return created.strftime("%Y-%m") == raw
+    now = datetime.now()
+    key = raw.casefold()
+    if key == "week":
+        return created >= now - timedelta(days=7)
+    if key == "month":
+        return created >= now - timedelta(days=30)
+    if key == "current":
+        return created.strftime("%Y-%m") == now.strftime("%Y-%m")
+    return True
+
+
+def _local_filter_active(
+    *,
+    model: str,
+    min_images: int,
+    max_images: int,
+    time_range: str,
+) -> bool:
+    raw = str(time_range or "all").strip().casefold()
+    return bool(model or min_images or max_images or raw not in {"", "all"})
+
+
+def _collect_online_works(
+    client: Any,
+    *,
+    query: str,
+    prompt: str,
+    page: int,
+    page_size: int,
+    sort: str,
+    time_range: str,
+    nai_only: bool,
+    safe_only: bool,
+    creator: str,
+    tags: tuple[str, ...],
+    model: str,
+    min_images: int,
+    max_images: int,
+) -> tuple[list[Any], int | None, bool, str]:
+    upstream_query = _compose_upstream_query(query, creator, tags)
+    skip = max(0, (max(1, page) - 1) * max(1, page_size))
+    selected: list[Any] = []
+    skipped = 0
+    remote_total: int | None = None
+    has_more = False
+    local_heavy = _local_filter_active(
+        model=model,
+        min_images=min_images,
+        max_images=max_images,
+        time_range=time_range,
+    )
+    max_pages = 8 if local_heavy else (3 if nai_only else 1)
+    last_query = upstream_query
+    for upstream_page in range(1, max_pages + 1):
+        result = client.search(
+            page=upstream_page,
+            page_size=page_size,
+            query=upstream_query,
+            prompt=prompt,
+            sort=sort,
+            time_range=time_range,
+            nai_only=False,
+            safe_only=False,
+        )
+        last_query = result.query or upstream_query
+        if result.total is not None:
+            remote_total = result.total
+        page_matches = [
+            work
+            for work in result.works
+            if (not nai_only or aitag_work_is_nai(work))
+            and (not safe_only or aitag_work_is_safe(work))
+            and _work_in_time_range(work, time_range)
+            and _matches_advanced_filters(
+                work,
+                creator=creator,
+                tags=tags,
+                model=model,
+                min_images=min_images,
+                max_images=max_images,
+            )
+        ]
+        unused = 0
+        for work in page_matches:
+            if skipped < skip:
+                skipped += 1
+                continue
+            if len(selected) >= page_size:
+                unused += 1
+                continue
+            selected.append(work)
+        if unused:
+            return selected, remote_total, True, last_query
+        if not result.has_more:
+            return selected, remote_total, False, last_query
+        has_more = True
+    return selected, remote_total, has_more, last_query
 
 
 def _favorite_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
@@ -454,23 +592,6 @@ def api_aitag_search(
     max_images: int = 0,
 ) -> dict[str, Any]:
     client = _require_online()
-    try:
-        result = client.search(
-            page=page,
-            page_size=page_size,
-            query=q,
-            prompt=prompt,
-            sort=sort,
-            time_range=time_range,
-            nai_only=nai_only,
-            safe_only=safe_only,
-        )
-    except AitagClientError as exc:
-        raise _remote_error(exc) from exc
-    try:
-        config = client.get_config()
-    except Exception:
-        config = AitagConfig()
     creator_filter = str(creator or "").strip()[:300]
     tag_filters = _filter_tokens(tags)
     model_filter = str(model or "").strip()[:100]
@@ -478,38 +599,59 @@ def api_aitag_search(
     maximum = max(0, min(int(max_images or 0), 100_000))
     if maximum and minimum > maximum:
         raise HTTPException(status_code=400, detail="min_images must not exceed max_images")
-    items = []
-    for work in result.works:
-        if bool(nai_only) and not aitag_work_is_nai(work):
-            continue
-        if bool(safe_only) and not aitag_work_is_safe(work):
-            continue
-        if not _matches_advanced_filters(
-            work,
+    try:
+        works, remote_total, has_more, used_query = _collect_online_works(
+            client,
+            query=q,
+            prompt=prompt,
+            page=page,
+            page_size=page_size,
+            sort=sort,
+            time_range=time_range,
+            nai_only=nai_only,
+            safe_only=safe_only,
             creator=creator_filter,
             tags=tag_filters,
             model=model_filter,
             min_images=minimum,
             max_images=maximum,
-        ):
-            continue
+        )
+    except AitagClientError as exc:
+        raise _remote_error(exc) from exc
+    try:
+        config = client.get_config()
+    except Exception:
+        config = AitagConfig()
+    items = []
+    for work in works:
         item = work.to_dict()
         item["id"] = item["work_id"]
         item["external_url"] = f"https://aitag.win/i/{item['work_id']}"
         item["title"] = strip_aitag_html(item.get("title") or item["work_id"])
+        item["AI_type"] = item.get("ai_type") or item.get("AI_type") or ""
         cover = _search_cover(client, work, config)
         if cover is not None:
             item["images"] = [cover]
         items.append(item)
+    local_heavy = _local_filter_active(
+        model=model_filter,
+        min_images=minimum,
+        max_images=maximum,
+        time_range=time_range,
+    )
+    shown_total = remote_total
+    if local_heavy:
+        counted = (max(1, page) - 1) * max(1, page_size) + len(items)
+        shown_total = counted if not has_more else max(int(remote_total or 0), counted + 1)
     return {
         "ok": True,
         "source": "aitag-online",
-        "query": result.query,
-        "page": result.page,
-        "page_size": result.page_size,
-        "total": result.total,
+        "query": used_query,
+        "page": page,
+        "page_size": page_size,
+        "total": shown_total,
         "filtered_count": len(items),
-        "has_more": result.has_more,
+        "has_more": has_more,
         "items": items,
         "works": items,
         "nai_only": nai_only,

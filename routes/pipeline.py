@@ -6,6 +6,7 @@ from post_pipeline import (
     count_items_needing_pipeline,
     process_image,
     start_pipeline,
+    cancel_pipeline,
     manual_review_image,
     mosaic_runtime_status,
 )
@@ -65,6 +66,11 @@ def api_pipeline_run(payload: dict = Body(default_factory=dict)) -> dict:
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     return start_pipeline(payload)
+
+
+@router.post("/cancel")
+def api_pipeline_cancel() -> dict:
+    return cancel_pipeline()
 
 @router.post("/review/{image_id}")
 def api_pipeline_review(image_id: str, payload: dict = Body(default_factory=dict)) -> dict:

@@ -27,6 +27,34 @@ class GenerationJobRouteTests(unittest.TestCase):
         status.assert_called_once_with("job-1")
         cancel.assert_called_once_with("job-1")
 
+    def test_nai_job_can_be_retried_by_task_id(self) -> None:
+        retried = {"ok": True, "task_id": "job-10", "retry_of": "job-9"}
+        with patch("routes.nai.retry_batch", return_value=retried) as retry:
+            response = self.client.post("/api/nai/jobs/retry?task_id=job-9")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), retried)
+        retry.assert_called_once_with("job-9")
+
+    def test_nai_job_retry_maps_needs_review(self) -> None:
+        blocked = {
+            "ok": False,
+            "error": "needs_review",
+            "message": "provider outcome may already be billable; review the remote gallery before retrying",
+            "blocked_retry_count": 1,
+        }
+        with patch("routes.nai.retry_batch", return_value=blocked):
+            response = self.client.post("/api/nai/jobs/retry?task_id=job-9")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("billable", response.json()["detail"])
+
+    def test_nai_job_can_be_cancelled_by_task_id(self) -> None:
+        stopped = {"ok": True, "message": "cancelled", "batch": {"task_id": "job-9", "status": "cancelled"}}
+        with patch("routes.nai.cancel_batch", return_value=stopped) as cancel:
+            response = self.client.post("/api/nai/jobs/cancel?task_id=job-9")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), stopped)
+        cancel.assert_called_once_with("job-9")
+
     def test_unknown_generation_task_maps_to_not_found(self) -> None:
         missing = {
             "ok": False,
@@ -122,6 +150,69 @@ class GenerationJobRouteTests(unittest.TestCase):
         self.assertEqual(second.status_code, 200)
         self.assertEqual(refreshed.status_code, 200)
         self.assertEqual(subscription.call_count, 2)
+
+    def test_token_network_route_updates_proxy(self) -> None:
+        updated = {"ok": True, "message": "token network updated", "tokens": [{"id": "nai_abc", "has_proxy": True, "proxy": ""}]}
+        with patch("routes.nai.update_token_network", return_value=updated) as upd:
+            response = self.client.post(
+                "/api/nai/token/nai_abc/network",
+                json={"proxy": "http://127.0.0.1:7897"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["tokens"][0]["has_proxy"], True)
+        self.assertEqual(response.json()["tokens"][0]["proxy"], "")
+        upd.assert_called_once_with("nai_abc", {"proxy": "http://127.0.0.1:7897"})
+
+    def test_generate_uses_batch_count_when_copies_is_omitted(self) -> None:
+        started = {"ok": True, "task_id": "job-copies", "copies": 8, "total": 8}
+        with patch("routes.nai.start_studio_generate", return_value=started) as start:
+            response = self.client.post(
+                "/api/nai/generate",
+                json={"patched_comment": {"prompt": "1girl"}, "batch_count": 8},
+            )
+        self.assertEqual(response.status_code, 200)
+        start.assert_called_once()
+        self.assertEqual(start.call_args.kwargs["copies"], 8)
+
+    def test_generate_prefers_explicit_copies_over_default_batch_count(self) -> None:
+        started = {"ok": True, "task_id": "job-copies-4", "copies": 4, "total": 4}
+        with patch("routes.nai.start_studio_generate", return_value=started) as start:
+            response = self.client.post(
+                "/api/nai/generate",
+                json={"patched_comment": {"prompt": "1girl"}, "copies": 4, "batch_count": 1},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(start.call_args.kwargs["copies"], 4)
+
+    def test_generate_forwards_page_snapshots(self) -> None:
+        started = {"ok": True, "task_id": "job-series", "copies": 1, "total": 3, "page_count": 3}
+        pages = [
+            {"page_index": 0, "patched_comment": {"prompt": "p0"}},
+            {"page_index": 1, "patched_comment": {"prompt": "p1"}},
+            {"page_index": 2, "patched_comment": {"prompt": "p2"}},
+        ]
+        with patch("routes.nai.start_studio_generate", return_value=started) as start:
+            response = self.client.post(
+                "/api/nai/generate",
+                json={
+                    "patched_comment": {"prompt": "p0"},
+                    "copies": 1,
+                    "source_gallery_id": "aitag-online",
+                    "pages": pages,
+                },
+            )
+        self.assertEqual(response.status_code, 200)
+        snaps = start.call_args.kwargs["page_snapshots"]
+        self.assertEqual([item["page_index"] for item in snaps], [0, 1, 2])
+        self.assertEqual(snaps[1]["patched_comment"]["prompt"], "p1")
+
+    def test_unknown_token_network_update_maps_to_not_found(self) -> None:
+        with patch("routes.nai.update_token_network", side_effect=ValueError("token not found")):
+            response = self.client.post(
+                "/api/nai/token/missing/network",
+                json={"proxy": "http://127.0.0.1:7897"},
+            )
+        self.assertEqual(response.status_code, 404)
 
 
 if __name__ == "__main__":

@@ -102,28 +102,28 @@ export function mountSettings() {
           <label class="char-swap-check"><input type="checkbox" id="cfgSanitizeRacial" checked /> 去尼：种族/强壮肌肉男</label>
           <label class="char-swap-check"><input type="checkbox" id="cfgSanitizeGore" checked /> 净化：猎奇 gross</label>
           <label class="char-swap-check"><input type="checkbox" id="cfgReplaceCreature" checked /> 贵物/异种 → 搭档预设</label>
-          <label class="char-swap-check"><input type="checkbox" id="cfgForceFree" checked /> Opus 免费路径（≤28步）</label>
+          <label class="char-swap-check"><input type="checkbox" id="cfgForceFree" checked disabled /> Opus 免费路径（与工作台一致，出图走免费档）</label>
           <label class="char-swap-check"><input type="checkbox" id="cfgPreserveAction" /> 保留原图姿势/动作</label>
         </div>
-        <div style="margin-top:6px; display:flex; align-items:center; gap:8px; font-size:0.9rem;">
+        <div style="margin-top:6px; display:flex; align-items:center; gap:8px; font-size:0.9rem; flex-wrap:wrap;">
           <span>NAI 提示词类型</span>
           <select id="cfgPromptProfile" style="background:#1a1f2b; color:#dbe7f5; border:1px solid #445; padding:2px 6px; border-radius:4px;"></select>
+          <button type="button" class="btn outline" id="charSwapSaveAll" style="padding:4px 10px; font-size:0.85rem;">保存配置</button>
         </div>
       </div>
 
-      <!-- NAI Tokens - 突出显示 -->
-      <div class="char-swap-section" style="margin-bottom:16px; padding:10px; background:rgba(30,38,55,0.6); border:1px solid rgba(110,182,255,0.25); border-radius:8px;">
-        <div style="font-size:0.85rem; font-weight:600; margin-bottom:4px; color:#9ec5ff;">NAI / Xianyun Token Pool</div>
+      <details class="char-swap-section" style="margin-bottom:16px; padding:10px; background:rgba(30,38,55,0.6); border:1px solid rgba(110,182,255,0.25); border-radius:8px;">
+        <summary style="font-size:0.85rem; font-weight:600; color:#9ec5ff; cursor:pointer;">NAI / Xianyun Token Pool（高级）</summary>
+        <p style="font-size:0.78rem; opacity:0.78; margin:8px 0;">日常请到 <a href="/settings#generation-service">设置中心 · 生图账号池</a>。这里仍可追加、覆盖或清理，和设置中心是同一份池子。</p>
         <textarea id="charSwapToken" class="char-swap-token-pool" placeholder="每行一个：pst-xxx (NovelAI) 或 xianyun:API_KEY (Xianyun)。混合槽位并发。" autocomplete="off" rows="3" style="width:100%; font-family:Consolas, monospace; font-size:0.82rem; background:#0f131c; border:1px solid #445; color:#dbe7f5; padding:6px; border-radius:4px; resize:vertical;"></textarea>
         <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">
-          <button type="button" class="btn outline" id="charSwapSaveAll" style="padding:4px 10px; font-size:0.85rem;">保存配置</button>
           <button type="button" class="btn outline" id="charSwapReplaceTokens" style="padding:4px 10px; font-size:0.85rem;">覆盖保存 Token 池</button>
           <button type="button" class="btn outline" id="charSwapAddToken" style="padding:4px 10px; font-size:0.85rem;">加入 Token 槽位</button>
           <button type="button" class="btn outline" id="charSwapCheckTokens" style="padding:4px 10px; font-size:0.85rem;">检查并清理坏 Token</button>
         </div>
         <div id="charSwapTokenSlots" class="char-swap-token-slots" style="margin-top:8px;"></div>
         <div style="font-size:0.72rem; opacity:0.6; margin-top:2px;">一行一个 token；仅“覆盖保存 Token 池”会替换整个池子，“加入 Token 槽位”只追加。</div>
-      </div>
+      </details>
 
       <!-- 角色库 -->
       <div class="char-swap-ark-library" id="charSwapArkLibrary" style="margin-bottom:14px;">
@@ -279,7 +279,7 @@ export function mountSettings() {
       set("cfgSanitizeRacial", cfg.sanitize_racial !== false);
       set("cfgSanitizeGore", cfg.sanitize_gore !== false);
       set("cfgReplaceCreature", cfg.replace_creature_slots !== false);
-      set("cfgForceFree", cfg.force_free !== false);
+      set("cfgForceFree", true);
       set("cfgPreserveAction", cfg.preserve_action === true);
       set("cfgAutoSanitize", cfg.auto_sanitize_on_generate !== false);
       const profileEl = document.getElementById("cfgPromptProfile");
@@ -379,7 +379,7 @@ export function mountSettings() {
       try {
         const s = await api("/api/nai/status");
         renderTokenSlots(s);
-        if (!s.has_token) { statusEl.textContent = "No NAI token configured"; return; }
+        if (!s.has_token) { statusEl.textContent = "未配置 NAI Token"; return; }
         const slotN = Number(s.concurrency || s.enabled_count || 0) || 0;
         const activeN = Number((s.queue && s.queue.active_count) || 0) || 0;
         const providerText = s.providers
@@ -401,7 +401,7 @@ export function mountSettings() {
         sanitize_racial: document.getElementById("cfgSanitizeRacial").checked,
         sanitize_gore: document.getElementById("cfgSanitizeGore").checked,
         replace_creature_slots: document.getElementById("cfgReplaceCreature").checked,
-        force_free: document.getElementById("cfgForceFree").checked,
+        force_free: true,
         preserve_action: document.getElementById("cfgPreserveAction").checked,
         auto_sanitize_on_generate: document.getElementById("cfgAutoSanitize").checked,
         prompt_profile: (document.getElementById("cfgPromptProfile") || {}).value || "native",

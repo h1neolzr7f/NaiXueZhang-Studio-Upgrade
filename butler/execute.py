@@ -328,7 +328,7 @@ async def _execute_confirmed(action: dict[str, Any]) -> dict[str, Any]:
             "message": "投稿准备已启动；完成后会停在上传前等待你检查",
         }
     if tool == "generate_image":
-        from nai_batch import start_studio_generate
+        from nai_batch import resolve_studio_copies, start_studio_generate
         from nai_char import clean_plain_ark_workbench_draft
         from char_swap_config import load_config as load_char_swap_config
 
@@ -342,7 +342,11 @@ async def _execute_confirmed(action: dict[str, Any]) -> dict[str, Any]:
             int(args.get("page_index") or 0),
             gallery_id=gallery_id,
         )
-        copies = int(args.get("batch_count") or 1)
+        copies = resolve_studio_copies(
+            args.get("copies"),
+            args.get("copies_per_work"),
+            args.get("batch_count"),
+        )
         manual_config = load_char_swap_config()
         result = start_studio_generate(
             comment if isinstance(comment, dict) else {},
