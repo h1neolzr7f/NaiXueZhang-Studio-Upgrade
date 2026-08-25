@@ -58,6 +58,8 @@ def test_full_release_preserves_all_features_and_new_pixiv_nai_dependencies() ->
         "gallery_guard.py",
         "gallery_maintenance.py",
         "gallery_snapshot.py",
+        "generated_gallery.py",
+        "generated_layout.py",
         "api_schemas.py",
         "network_safety.py",
         "nai_tag_index.py",
