@@ -397,6 +397,7 @@ $fullRootFiles = @(
     "api_schemas.py",
     "network_safety.py",
     "generated_gallery.py",
+    "generated_layout.py",
     "Get-Pixiv-Token.bat",
     "nai_api.py",
     "nai_anima_adapter.py",

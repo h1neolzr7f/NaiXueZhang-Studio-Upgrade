@@ -46,6 +46,10 @@ const charSwapPlugin = read("web/plugins/char-swap/plugin.js");
   );
 }
 
+includesAll("one-click zip ships generated_layout.py", read("scripts/make_release.ps1"), [
+  '"generated_layout.py"',
+]);
+
 includesAll("generated files are split by work into images and files", generatedLayout, [
   'IMAGES_DIR = "images"',
   'FILES_DIR = "files"',
@@ -132,6 +136,7 @@ console.log(JSON.stringify({
   ok: true,
   checks: [
     "asset cache-bust stamps match content hashes (scripts/asset_versions.py --check)",
+    "one-click zip ships generated_layout.py",
     "generated files are split by work into images and files",
     "generated folder open does not require an id",
     "generated gallery prompt fallback wiring",
