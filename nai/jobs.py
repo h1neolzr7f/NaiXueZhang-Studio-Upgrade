@@ -122,7 +122,9 @@ def _reserve_generated_filename(work_id: int | None) -> str:
             filename = f"{ts}{suffix}.png"
             if filename in api._RESERVED_FILENAMES:
                 continue
-            if (api.GENERATED_DIR / filename).exists():
+            from generated_layout import find_generated_file
+
+            if find_generated_file(filename, root=api.GENERATED_DIR) is not None:
                 continue
             api._RESERVED_FILENAMES.add(filename)
             return filename

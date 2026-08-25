@@ -149,5 +149,27 @@ class CrawlerControlTests(unittest.TestCase):
         self.assertTrue(str(kwargs["stderr"].name).endswith("aitag-crawler-qq.err.log"))
 
 
+    def test_crawler_start_message_rejects_blocked_launch(self) -> None:
+        from routes.crawler import _crawler_start_message
+
+        ok, message = _crawler_start_message(
+            {"pixiv": {"mode": "maintenance", "started": False, "note": "维护中"}}
+        )
+        self.assertFalse(ok)
+        self.assertIn("维护", message)
+
+        ok, message = _crawler_start_message(
+            {"pixiv": {"mode": "existing", "already_running": True, "pid": 12}}
+        )
+        self.assertTrue(ok)
+        self.assertIn("启动采集", message)
+
+        ok, message = _crawler_start_message(
+            {"codex": {"started": False, "note": "Codex gallery is import-only"}}
+        )
+        self.assertFalse(ok)
+        self.assertIn("import-only", message)
+
+
 if __name__ == "__main__":
     unittest.main()

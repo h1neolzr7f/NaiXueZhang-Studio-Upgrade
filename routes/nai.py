@@ -26,7 +26,7 @@ from generated_gallery import (
     list_deleted,
     files_for_generated_group,
     open_local_folder,
-    stage_reveal_folder,
+    reveal_target_folder,
 )
 from post_pipeline import load_config
 from nai_batch import (
@@ -275,11 +275,24 @@ async def api_nai_generate(payload: NaiGenerateRequest) -> dict:
     )
     if not result.get("ok"):
         error = str(result.get("error") or "")
-        if error == "missing_token":
-            raise HTTPException(status_code=400, detail=str(result.get("message") or "NovelAI token is not configured"))
-        if error == "persistence_failed":
-            raise HTTPException(status_code=503, detail=str(result.get("message") or "generation job could not be persisted"))
-        return result
+        status = {
+            "empty": 400,
+            "too_many_targets": 400,
+            "missing_token": 400,
+            "not_found": 404,
+            "not_retryable": 409,
+            "needs_review": 409,
+            "nothing_to_retry": 409,
+            "cancelled": 409,
+            "busy": 409,
+            "start_failed": 503,
+            "persistence_failed": 503,
+            "quota_exhausted": 429,
+        }.get(error, 400)
+        raise HTTPException(
+            status_code=status,
+            detail=str(result.get("message") or error or "generation failed"),
+        )
     return result
 
 def _start_generated_maintenance_once() -> None:
@@ -356,7 +369,7 @@ def api_generated_reveal_group(group_id: str) -> dict:
         raise HTTPException(status_code=400, detail="group_id cannot be empty")
     try:
         paths = files_for_generated_group(token)
-        folder = stage_reveal_folder(paths, f"group-{token}")
+        folder = reveal_target_folder(paths, f"group-{token}")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
@@ -367,7 +380,7 @@ def api_generated_reveal_group(group_id: str) -> dict:
         "opened": opened,
         "count": len(paths),
         "files": [path.name for path in paths],
-        "message": "已打开本组全部原文件" if opened else "Only Windows can reveal files automatically",
+        "message": "已打开该作品文件夹" if opened else "当前系统无法自动打开文件夹，请到本机 data/generated 按作品查看",
     }
 
 

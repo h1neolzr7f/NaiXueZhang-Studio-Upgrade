@@ -26,8 +26,15 @@ function initInspirationSidebar() {
       localStorage.setItem('aitag.inspirationSidebarOpen', sidebar.classList.contains('open') ? '1' : '0');
     } catch { }
   });
+  function requireInspirationWork() {
+    if (inspirationState.workId) return true;
+    const msg = '请先点开一张作品';
+    if (window.UiToast && typeof window.UiToast.show === 'function') window.UiToast.show(msg, 'err');
+    else alert(msg);
+    return false;
+  }
   toStudio?.addEventListener('click', () => {
-    if (!inspirationState.workId || !window.WorkBridge) return;
+    if (!requireInspirationWork() || !window.WorkBridge) return;
     if (typeof isAitagGallery === 'function' && isAitagGallery()) {
       if (typeof openOnlineRemixPanel === 'function') {
         Promise.resolve(openOnlineRemixPanel(inspirationState.workId, 'draft'))
@@ -39,7 +46,7 @@ function initInspirationSidebar() {
     window.WorkBridge.go('/studio', inspirationState.workId, 0, gid);
   });
   toRemix?.addEventListener('click', () => {
-    if (!inspirationState.workId || !window.WorkBridge) return;
+    if (!requireInspirationWork() || !window.WorkBridge) return;
     if (typeof isAitagGallery === 'function' && isAitagGallery()) {
       if (typeof openOnlineRemixPanel === 'function') {
         Promise.resolve(openOnlineRemixPanel(inspirationState.workId, 'remix'))
@@ -57,11 +64,11 @@ function initInspirationSidebar() {
     window.WorkBridge.go('/remix', inspirationState.workId, 0, gid);
   });
   openDetailBtn?.addEventListener('click', () => {
-    if (!inspirationState.workId) return;
+    if (!requireInspirationWork()) return;
     openDetail(inspirationState.workId);
   });
   toQueue?.addEventListener('click', async () => {
-    if (!inspirationState.workId) return;
+    if (!requireInspirationWork()) return;
     if (typeof isAitagGallery === 'function' && isAitagGallery()) return;
     const on = await toggleQueue(inspirationState.workId);
     toQueue.textContent = on ? '已入队 ✓' : '加入待生成';

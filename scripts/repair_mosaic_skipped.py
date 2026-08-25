@@ -23,7 +23,9 @@ def targets() -> list[str]:
     cfg = load_config()
     overrides = _pipeline_overrides(cfg)
     out: list[str] = []
-    for png in sorted(GENERATED_DIR.glob("*.png")):
+    from generated_layout import iter_pngs
+
+    for png in sorted(iter_pngs(GENERATED_DIR, primary_only=True)):
         if not _is_primary_stem(png.stem):
             continue
         state = pipeline_item_state(png.stem, overrides=overrides)

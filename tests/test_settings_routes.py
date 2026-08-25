@@ -105,6 +105,10 @@ class SettingsRouteTests(unittest.TestCase):
         self.assertIn('"/api/settings/ai-models"', script)
         self.assertIn('"/api/settings/knowledge"', script)
         self.assertIn('"/api/settings/knowledge/rebuild"', script)
+        self.assertIn('id="prefNaiOnly" checked disabled', html)
+        self.assertIn("本包图库只收 NovelAI 作品", html)
+        self.assertIn("nai_only_gallery: true", script)
+        self.assertIn("show_other_ai_types: false", script)
 
     def test_generation_pool_lists_masked_slots_with_check_and_delete(self) -> None:
         html = (ROOT / "web" / "settings.html").read_text(encoding="utf-8")

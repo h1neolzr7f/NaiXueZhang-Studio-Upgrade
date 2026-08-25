@@ -40,6 +40,8 @@ class WorkflowPagesUiTests(unittest.TestCase):
         self.assertIn('id="studioOptimizeMode"', html)
         self.assertIn('id="studioOptimize"', html)
         self.assertIn("应用所选优化", html)
+        self.assertIn("生成库 ↗", html)
+        self.assertNotIn("图库 ↗", html)
         for duplicate_id in (
             "studioReOptimize",
             "studioSanitize",
@@ -135,6 +137,13 @@ class WorkflowPagesUiTests(unittest.TestCase):
         self.assertIn("blocked_retry_count", html)
         self.assertIn("结果/扣费未知，已阻止自动重试", html)
         self.assertIn("打开生图工作台", empty.group("body"))
+        self.assertIn('id="openGeneratedFolderBtn"', html)
+        self.assertIn('revealGenerated("folder")', html)
+        self.assertIn('if (kind !== "folder" && !target)', html)
+        self.assertIn("/api/storage/open?target=generated", html)
+        self.assertIn('alert("打开文件夹失败")', html)
+        self.assertIn("没有可重试的任务", html)
+        self.assertIn("data.ok === false", html)
 
 
 if __name__ == "__main__":

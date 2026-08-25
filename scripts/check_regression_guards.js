@@ -27,6 +27,7 @@ const appJs = [
   "web/app-online-remix.js",
 ].map(read).join("\n");
 const generatedHtml = read("web/generated.html");
+const generatedLayout = read("generated_layout.py");
 const charSwapPanel = read("web/plugins/char-swap/panel.js");
 const charSwapPlugin = read("web/plugins/char-swap/plugin.js");
 
@@ -44,6 +45,21 @@ const charSwapPlugin = read("web/plugins/char-swap/plugin.js");
     `stale ?v= stamps; run python scripts/asset_versions.py\n${res.stdout || ""}${res.stderr || ""}`,
   );
 }
+
+includesAll("generated files are split by work into images and files", generatedLayout, [
+  'IMAGES_DIR = "images"',
+  'FILES_DIR = "files"',
+  'ORIGINAL_DIR = "原图"',
+  'CLEANED_DIR = "已去元数据"',
+  "def migrate_generated_layout",
+  "def destination_png",
+]);
+
+includesAll("generated folder open does not require an id", generatedHtml, [
+  'if (kind !== "folder" && !target)',
+  'revealGenerated("folder")',
+  "/api/storage/open?target=generated",
+]);
 
 includesAll("generated gallery prompt fallback", generatedHtml, [
   "function sourcePromptToSnapshot(sourcePrompt)",
@@ -116,6 +132,8 @@ console.log(JSON.stringify({
   ok: true,
   checks: [
     "asset cache-bust stamps match content hashes (scripts/asset_versions.py --check)",
+    "generated files are split by work into images and files",
+    "generated folder open does not require an id",
     "generated gallery prompt fallback wiring",
     "favorites lazy/low priority thumbnails + no redundant favorites summary on favorites page",
     "char-swap plugin is delayed off gallery entry",

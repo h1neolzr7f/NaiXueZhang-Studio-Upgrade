@@ -1160,14 +1160,22 @@
 
     async function revealGenerated(kind, id) {
       const target = String(id || "").trim();
-      if (!target) return;
+      // 打开整个生成目录不需要 id；空 id 只应拦住「打开某一张 / 某一组」。
+      if (kind !== "folder" && !target) {
+        alert("没有可打开的文件");
+        return;
+      }
       const url = kind === "group"
         ? `/api/generated/group/${encodeURIComponent(target)}/reveal`
         : kind === "folder"
           ? "/api/storage/open?target=generated"
           : `/api/generated/reveal/${encodeURIComponent(target)}`;
       const data = await window.ApiClient.request(url, { method: "POST" });
-      if (!data || data.opened) return;
+      if (!data) {
+        alert("打开文件夹失败");
+        return;
+      }
+      if (data.opened) return;
       alert(data.message || "当前系统无法自动打开文件夹");
     }
 
@@ -1279,7 +1287,10 @@
             : "打码需本机 ANR · 超分/清元数据可用"), root].filter(Boolean).join(" · ");
           st.classList.toggle("gen-pipeline-warn", mo.enabled !== false && !data.anr_available);
         }
-      } catch { }
+      } catch (e) {
+        const st = document.getElementById("pipeStatus");
+        if (st) st.textContent = `后处理配置加载失败：${e.message || e}`;
+      }
     }
 
     function pipelineOptionsFromForm() {
@@ -1590,7 +1601,13 @@
       const data = await window.ApiClient.request("/api/pipeline/cancel", { method: "POST" });
       const st = document.getElementById("pipeStatus");
       const hint = document.getElementById("listPipelineHint");
-      const message = (data && data.message) || (data && data.job && data.job.message) || "已请求取消后处理";
+      if (!data || data.ok === false) {
+        const message = (data && data.message) || "没有运行中的流水线";
+        if (st) st.textContent = message;
+        if (hint) hint.textContent = message;
+        throw new Error(message);
+      }
+      const message = data.message || (data.job && data.job.message) || "已请求取消后处理";
       if (st) st.textContent = message;
       if (hint) hint.textContent = message;
       return data;
@@ -1738,7 +1755,10 @@
 
     document.getElementById("genRetryFailedBtn")?.addEventListener("click", async () => {
       const taskId = lastBatchTaskId;
-      if (!taskId) return;
+      if (!taskId) {
+        alert("没有可重试的任务，请先在本页看到生成队列后再试");
+        return;
+      }
       if (!confirm("只重试失败或未发出的页，已成功的不会再扣。确认继续？")) return;
       const btn = document.getElementById("genRetryFailedBtn");
       if (btn) btn.disabled = true;

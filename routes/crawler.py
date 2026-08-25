@@ -84,6 +84,29 @@ def api_crawler_status() -> dict:
     return {"ok": True, "status": multi_crawler_status()}
 
 
+def _crawler_start_message(result: dict[str, Any]) -> tuple[bool, str]:
+    if not isinstance(result, dict) or not result:
+        return False, "采集未启动"
+    notes: list[str] = []
+    accepted = False
+    blocked = False
+    for key, branch in result.items():
+        if not isinstance(branch, dict):
+            continue
+        if branch.get("already_running"):
+            accepted = True
+            continue
+        if branch.get("started") is False or str(branch.get("mode") or "") == "maintenance":
+            blocked = True
+            notes.append(str(branch.get("note") or f"{key} 未启动"))
+            continue
+        if branch.get("pid") or str(branch.get("mode") or "") in {"watch", "once", "existing"}:
+            accepted = True
+    if blocked and not accepted:
+        return False, "；".join(notes) or "采集未启动"
+    return True, "已从现有断点启动采集，不会清空数据库"
+
+
 @router.post("/crawler/start")
 def api_crawler_start(payload: CrawlerControlRequest) -> dict:
     target = str(payload.target or "pixiv").strip().lower()
@@ -95,12 +118,15 @@ def api_crawler_start(payload: CrawlerControlRequest) -> dict:
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    ok, message = _crawler_start_message(result)
+    if not ok:
+        raise HTTPException(status_code=409, detail=message)
     return {
         "ok": True,
         "target": target,
         "result": result,
         "status": multi_crawler_status(),
-        "message": "已从现有断点启动采集，不会清空数据库",
+        "message": message,
     }
 
 

@@ -18,6 +18,16 @@ from pathlib import Path
 from typing import Any
 
 from atomic_io import atomic_write_text
+from generated_layout import (
+    FILES_DIR,
+    IMAGES_DIR,
+    common_work_dir,
+    find_generated_file,
+    glob_pngs,
+    iter_pngs,
+    note_generated_change,
+    sidecar_path_for,
+)
 
 logger = logging.getLogger("generated_gallery")
 
@@ -123,7 +133,9 @@ def _paths_for_stem(stem: str) -> list[Path]:
         seen.add(key)
         paths.append(path)
 
-    base = GENERATED_DIR / f"{safe}.png"
+    base = find_generated_file(f"{safe}.png", root=GENERATED_DIR)
+    if base is None:
+        base = GENERATED_DIR / f"{safe}.png"
     _add(base)
     _add(_meta_path(base))
     _add(_thumb_path(base))
@@ -135,7 +147,7 @@ def _paths_for_stem(stem: str) -> list[Path]:
         f"{safe}_mosaic.png",
         f"{safe}_up*_mosaic.png",
     ):
-        for path in GENERATED_DIR.glob(pattern):
+        for path in glob_pngs(pattern, root=GENERATED_DIR):
             _add(path)
             meta = _meta_path(path)
             if meta.exists():
@@ -194,11 +206,23 @@ def stage_reveal_folder(paths: list[Path], token: str) -> Path:
         if name in seen:
             continue
         seen.add(name)
-        _link_or_copy(path, dest / name)
+        from generated_layout import is_image_name
+
+        kind = IMAGES_DIR if is_image_name(name) else FILES_DIR
+        _link_or_copy(path, dest / kind / name)
     if not seen:
         shutil.rmtree(dest, ignore_errors=True)
         raise FileNotFoundError("generated files were not found")
     return dest
+
+
+def reveal_target_folder(paths: list[Path], token: str) -> Path:
+    """Open the real work folder when files already live there; otherwise stage."""
+
+    work = common_work_dir(paths, root=GENERATED_DIR)
+    if work is not None:
+        return work
+    return stage_reveal_folder(paths, token)
 
 
 def files_for_generated_image(image_id: str) -> list[Path]:
@@ -233,12 +257,12 @@ def files_for_generated_group(group_id: str) -> list[Path]:
 
 
 def _meta_path(png_path: Path) -> Path:
-    return png_path.with_suffix(png_path.suffix + ".meta.json")
+    return sidecar_path_for(png_path, f"{png_path.name}.meta.json")
 
 
 def _thumb_path(png_path: Path) -> Path:
-    """缩略图路径：同名 .thumb.webp"""
-    return png_path.with_suffix(".thumb.webp")
+    """缩略图路径：同名 .thumb.webp（与原图分开放在 files/）。"""
+    return sidecar_path_for(png_path, f"{png_path.stem}.thumb.webp")
 
 
 def _thumb_url(png_path: Path) -> str:
@@ -255,7 +279,7 @@ def ensure_thumbnail(png_path: Path) -> bool:
     if thumb.exists():
         return True
     # 跳过已知损坏的文件（之前尝试失败过）
-    broken_marker = png_path.with_suffix(png_path.suffix + ".broken_thumb")
+    broken_marker = sidecar_path_for(png_path, f"{png_path.name}.broken_thumb")
     if broken_marker.exists():
         return False
     try:
@@ -271,11 +295,14 @@ def ensure_thumbnail(png_path: Path) -> bool:
                 new_h = max_edge
                 new_w = max(64, int(w * max_edge / h / 8) * 8)
             img = img.resize((new_w, new_h), Image.LANCZOS)
+        thumb.parent.mkdir(parents=True, exist_ok=True)
         img.save(thumb, "WEBP", quality=80, method=4)
+        note_generated_change(GENERATED_DIR)
         return True
     except Exception:
         # 创建损坏标记，避免后续反复尝试
         try:
+            broken_marker.parent.mkdir(parents=True, exist_ok=True)
             broken_marker.write_text("")
         except Exception:
             pass
@@ -366,7 +393,9 @@ def register_generated(
     source_thumb: str = "",
     remote_work_id: str = "",
 ) -> dict[str, Any]:
-    png_path = GENERATED_DIR / filename
+    png_path = find_generated_file(filename, root=GENERATED_DIR) or (
+        GENERATED_DIR / Path(filename).name
+    )
     if not png_path.exists():
         raise FileNotFoundError(f"生成图不存在: {filename}")
     # 生成缩略图
@@ -402,10 +431,13 @@ def register_generated(
     )
     if isinstance(prompt_snapshot, dict) and prompt_snapshot:
         payload["prompt_snapshot"] = prompt_snapshot
+    meta_path = _meta_path(png_path)
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(
-        _meta_path(png_path),
+        meta_path,
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
     )
+    note_generated_change(GENERATED_DIR)
     invalidate_scan_cache()
     # Incremental cache update: append new item without full rescan
     try:
@@ -445,13 +477,12 @@ def _scan_signature() -> tuple[int, float, int]:
     count = 0
     latest = 0.0
     try:
-        for png_path in GENERATED_DIR.glob("*.png"):
-            if _is_primary_stem(png_path.stem):
-                count += 1
-                try:
-                    latest = max(latest, png_path.stat().st_mtime)
-                except OSError:
-                    pass
+        for png_path in iter_pngs(GENERATED_DIR, primary_only=True):
+            count += 1
+            try:
+                latest = max(latest, png_path.stat().st_mtime)
+            except OSError:
+                pass
     except OSError:
         pass
     try:
@@ -503,7 +534,7 @@ def scan_all_items(*, force: bool = False) -> list[dict[str, Any]]:
     sig = _scan_signature()
 
     items: list[dict[str, Any]] = []
-    for png_path in GENERATED_DIR.glob("*.png"):
+    for png_path in iter_pngs(GENERATED_DIR, primary_only=True):
         # 全量扫描时补生成缺失的缩略图（非阻塞）
         _thumb_path(png_path)  # 仅触发路径构造，不生成
         item = _item_from_png(png_path)
@@ -526,13 +557,15 @@ def migrate_legacy_meta() -> int:
     if _LEGACY_META_MIGRATED:
         return 0
     count = 0
-    for png_path in GENERATED_DIR.glob("*.png"):
+    for png_path in iter_pngs(GENERATED_DIR, primary_only=True):
         if _meta_path(png_path).exists():
             continue
         item = _item_from_png(png_path)
         if not item:
             continue
-        _meta_path(png_path).write_text(
+        meta_path = _meta_path(png_path)
+        meta_path.parent.mkdir(parents=True, exist_ok=True)
+        meta_path.write_text(
             json.dumps(
                 {
                     "id": item["id"],
@@ -554,13 +587,11 @@ def migrate_legacy_meta() -> int:
 def ensure_all_thumbnails() -> int:
     """为所有没有缩略图的 PNG 批量补生成 webp 缩略图（并行，最多 4 线程）。"""
     pending: list[Path] = []
-    for png_path in GENERATED_DIR.glob("*.png"):
-        if not _is_primary_stem(png_path.stem):
-            continue
+    for png_path in iter_pngs(GENERATED_DIR, primary_only=True):
         thumb = _thumb_path(png_path)
         if thumb.exists():
             continue
-        broken_marker = png_path.with_suffix(png_path.suffix + ".broken_thumb")
+        broken_marker = sidecar_path_for(png_path, f"{png_path.name}.broken_thumb")
         if broken_marker.exists():
             continue
         pending.append(png_path)
@@ -830,6 +861,13 @@ def _trash_root() -> Path:
     return GENERATED_DIR / ".trash"
 
 
+def _safe_generated_rel(rel: str) -> Path:
+    rel_path = Path(str(rel or "").replace("\\", "/"))
+    if not rel_path.parts or ".." in rel_path.parts or rel_path.is_absolute():
+        raise ValueError("invalid generated relative path")
+    return GENERATED_DIR / rel_path
+
+
 def _assert_artifacts_idle(image_ids: list[str]) -> None:
     try:
         from post_pipeline import active_pipeline_ids
@@ -864,9 +902,14 @@ def _move_artifacts_to_trash(
                 target = entry / source.name
                 digest = _artifact_sha256(source)
                 source.replace(target)
+                try:
+                    rel = source.relative_to(GENERATED_DIR).as_posix()
+                except ValueError:
+                    rel = source.name
                 files.append(
                     {
                         "name": source.name,
+                        "rel": rel,
                         "sha256": digest,
                         "size": target.stat().st_size,
                     }
@@ -890,9 +933,13 @@ def _move_artifacts_to_trash(
         for moved in files:
             source = entry / moved["name"]
             if source.exists():
-                source.replace(GENERATED_DIR / moved["name"])
+                rel = str(moved.get("rel") or moved["name"])
+                dest = _safe_generated_rel(rel)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                source.replace(dest)
         shutil.rmtree(entry, ignore_errors=True)
         raise
+    note_generated_change(GENERATED_DIR)
     invalidate_scan_cache()
     return {
         "ok": True,
@@ -946,7 +993,7 @@ def restore_deleted(trash_id: str) -> dict[str, Any]:
             raise ValueError("invalid or duplicate trash artifact name")
         seen_names.add(name)
         source = entry / name
-        target = GENERATED_DIR / name
+        target = _safe_generated_rel(str(row.get("rel") or name))
         expected_digest = str(row.get("sha256") or "")
         if target.exists():
             if expected_digest and _artifact_sha256(target) == expected_digest:
@@ -964,6 +1011,7 @@ def restore_deleted(trash_id: str) -> dict[str, Any]:
         for source, target in restore_rows:
             if target.exists():
                 raise FileExistsError(f"restore target already exists: {target.name}")
+            target.parent.mkdir(parents=True, exist_ok=True)
             source.replace(target)
             moved.append((source, target))
     except Exception:
@@ -974,6 +1022,7 @@ def restore_deleted(trash_id: str) -> dict[str, Any]:
     for source in already_present_sources:
         source.unlink(missing_ok=True)
     shutil.rmtree(entry)
+    note_generated_change(GENERATED_DIR)
     invalidate_scan_cache()
     return {
         "ok": True,
@@ -987,8 +1036,8 @@ def delete_item(image_id: str) -> dict[str, Any]:
     safe_id = Path(image_id).stem
     if not _is_primary_stem(safe_id):
         raise ValueError("invalid generated image id")
-    png_path = GENERATED_DIR / f"{safe_id}.png"
-    if not png_path.is_file():
+    png_path = find_generated_file(f"{safe_id}.png", root=GENERATED_DIR)
+    if png_path is None or not png_path.is_file():
         raise FileNotFoundError(f"generated image not found: {image_id}")
     meta = _read_meta(png_path) or {}
     moved = _move_artifacts_to_trash([safe_id], kind="item")

@@ -153,8 +153,19 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
     return cfg
 
 
+def _png(stem: str) -> Path:
+    from generated_layout import resolve_png
+
+    name = str(stem)
+    if not name.lower().endswith(".png"):
+        name = f"{name}.png"
+    return resolve_png(name, root=GENERATED_DIR)
+
+
 def _meta_path(png: Path) -> Path:
-    return png.with_suffix(png.suffix + ".meta.json")
+    from generated_layout import sidecar_path_for
+
+    return sidecar_path_for(png, f"{png.name}.meta.json")
 
 
 def _read_meta(png: Path) -> dict[str, Any]:
@@ -169,10 +180,15 @@ def _read_meta(png: Path) -> dict[str, Any]:
 
 
 def _write_meta(png: Path, meta: dict[str, Any]) -> None:
-    _meta_path(png).write_text(
+    from generated_layout import note_generated_change
+
+    path = _meta_path(png)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    note_generated_change(GENERATED_DIR)
 
 
 def manual_review_image(image_id: str, action: str, note: str = "") -> dict[str, Any]:
@@ -182,7 +198,7 @@ def manual_review_image(image_id: str, action: str, note: str = "") -> dict[str,
     from generated_gallery import invalidate_scan_cache
 
     stem = _stem_from_image_id(image_id)
-    source = GENERATED_DIR / f"{stem}.png"
+    source = _png(stem)
     if not source.exists() or not source.is_file():
         raise FileNotFoundError(f"generated image not found: {stem}")
 
@@ -196,7 +212,8 @@ def manual_review_image(image_id: str, action: str, note: str = "") -> dict[str,
     }
 
     if act in {"approve", "approved", "pass"}:
-        final_path = GENERATED_DIR / _final_name(stem)
+        final_path = _png(_final_name(stem))
+        final_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_final_path = final_path.with_name(f"{final_path.stem}.tmp{final_path.suffix}")
         try:
             from PIL import Image, ImageOps, ImageFile
@@ -379,7 +396,13 @@ def _strip_metadata(source: Path, meta_cfg: dict[str, Any] | str | None = None) 
         meta_cfg = {"custom_note": meta_cfg}
     meta_cfg = meta_cfg if isinstance(meta_cfg, dict) else {}
 
-    out = source.with_name(f"{source.stem}_clean{source.suffix}")
+    from generated_layout import resolve_png
+
+    out = resolve_png(
+        f"{source.stem}_clean{source.suffix}",
+        root=GENERATED_DIR,
+        create_dirs=True,
+    )
     with Image.open(source) as img:
         img = ImageOps.exif_transpose(img)
         mode = "RGBA" if img.mode in {"RGBA", "LA"} else "RGB"
@@ -439,7 +462,9 @@ def _artifact_rank(path: Path) -> tuple[int, int, str]:
 
 def _pipeline_artifacts(stem: str) -> list[Path]:
     artifacts: list[Path] = []
-    for path in GENERATED_DIR.glob(f"{stem}*.png"):
+    from generated_layout import glob_pngs
+
+    for path in glob_pngs(f"{stem}*.png", root=GENERATED_DIR):
         if path.stem in {stem, f"{stem}_final"}:
             continue
         artifacts.append(path)
@@ -480,7 +505,7 @@ def _expected_pipeline_output(
         )
         if up and up.exists():
             return up
-    source = GENERATED_DIR / f"{stem}.png"
+    source = _png(stem)
     return source if source.exists() else None
 
 
@@ -491,13 +516,13 @@ def _final_is_stale(
     artifact_index: dict[str, dict[str, list[Path]]] | None = None,
     resolved_config: dict[str, Any] | None = None,
 ) -> bool:
-    final_path = GENERATED_DIR / f"{stem}_final.png"
+    final_path = _png(f"{stem}_final")
     cfg = (
         resolved_config
         if isinstance(resolved_config, dict)
         else merge_pipeline_config(overrides)
     )
-    source = GENERATED_DIR / f"{stem}.png"
+    source = _png(stem)
     if not final_path.exists():
         expected = _expected_pipeline_output(
             stem,
@@ -557,9 +582,11 @@ def _last_step_index(steps: list[str], prefixes: tuple[str, ...]) -> int:
 def _build_artifact_index() -> dict[str, dict[str, list[Path]]]:
     """Index every derived PNG in one directory pass for backlog checks."""
 
+    from generated_layout import iter_pngs
+
     index: dict[str, dict[str, list[Path]]] = {}
     try:
-        paths = GENERATED_DIR.iterdir()
+        paths = list(iter_pngs(GENERATED_DIR))
     except OSError:
         return index
     try:
@@ -602,22 +629,24 @@ def _find_artifact(
     if artifact_index is not None:
         matches = artifact_index.get(stem, {}).get(kind, [])
         return matches[-1] if matches else None
+    from generated_layout import glob_pngs
+
     if kind == "mosaic":
         matches = sorted(
-            list(GENERATED_DIR.glob(f"{stem}_mosaic.png"))
-            + list(GENERATED_DIR.glob(f"{stem}_up*_mosaic.png"))
+            glob_pngs(f"{stem}_mosaic.png", root=GENERATED_DIR)
+            + glob_pngs(f"{stem}_up*_mosaic.png", root=GENERATED_DIR)
         )
         return matches[-1] if matches else None
     if kind == "clean":
         matches = sorted(
-            list(GENERATED_DIR.glob(f"{stem}_clean.png"))
-            + list(GENERATED_DIR.glob(f"{stem}_up*_clean.png"))
+            glob_pngs(f"{stem}_clean.png", root=GENERATED_DIR)
+            + glob_pngs(f"{stem}_up*_clean.png", root=GENERATED_DIR)
         )
         return matches[-1] if matches else None
     if kind == "upscale":
         matches = [
             p
-            for p in sorted(GENERATED_DIR.glob(f"{stem}_up*x.png"))
+            for p in sorted(glob_pngs(f"{stem}_up*x.png", root=GENERATED_DIR))
             if "_mosaic" not in p.stem and not p.stem.endswith("_clean")
         ]
         return matches[-1] if matches else None
@@ -626,7 +655,7 @@ def _find_artifact(
 
 def _upscale_output_path(source_stem: str, scale: int) -> Path:
     base = _base_stem(source_stem)
-    return GENERATED_DIR / f"{base}_up{max(1, int(scale or 2))}x.png"
+    return _png(f"{base}_up{max(1, int(scale or 2))}x")
 
 
 def pipeline_item_state(
@@ -638,7 +667,7 @@ def pipeline_item_state(
 ) -> dict[str, Any]:
     """检查单张图各后处理步骤是否已完成。"""
     stem = _stem_from_image_id(image_id)
-    source = GENERATED_DIR / f"{stem}.png"
+    source = _png(stem)
     meta = _read_meta(source) if source.exists() else {}
     manual_review = meta.get("manual_review") if isinstance(meta.get("manual_review"), dict) else {}
     manual_status = str(manual_review.get("status") or "").strip().lower()
@@ -725,7 +754,7 @@ def pipeline_item_state(
     ):
         metadata_artifact_valid = False
     has_metadata = metadata_step_valid or metadata_artifact_valid
-    final_path = GENERATED_DIR / f"{stem}_final.png"
+    final_path = _png(f"{stem}_final")
 
     missing: list[str] = []
     if upscale_enabled and not has_upscale:
@@ -805,7 +834,7 @@ def _latest_intermediate(stem: str) -> Path | None:
     artifacts = _pipeline_artifacts(stem)
     if artifacts:
         return artifacts[0]
-    source = GENERATED_DIR / f"{stem}.png"
+    source = _png(stem)
     return source if source.exists() else None
 
 
@@ -918,7 +947,7 @@ except Exception as exc:
             
         out_path = success_line[0][9:].strip()
         result = Path(out_path).resolve()
-        target = GENERATED_DIR / f"{_base_stem(source.stem)}_mosaic{source.suffix}"
+        target = source.with_name(f"{_base_stem(source.stem)}_mosaic{source.suffix}")
         if result != target:
             import shutil
 
@@ -971,7 +1000,7 @@ def _process_image_locked(
 ) -> dict[str, Any]:
     from generated_gallery import invalidate_scan_cache
 
-    source = GENERATED_DIR / f"{stem}.png"
+    source = _png(stem)
     if not source.exists():
         raise FileNotFoundError(f"图片不存在: {stem}")
 
@@ -1020,7 +1049,7 @@ def _process_image_locked(
 
     final_stale = _final_is_stale(stem, overrides=overrides)
     if only_missing and not (need_upscale or need_mosaic or need_metadata) and not final_stale:
-        final_path = GENERATED_DIR / _final_name(stem)
+        final_path = _png(_final_name(stem))
         result = {
             "ok": True,
             "id": stem,
@@ -1094,10 +1123,11 @@ def _process_image_locked(
         if clean_path and clean_path.exists():
             current = clean_path
 
-    final_path = GENERATED_DIR / _final_name(stem)
+    final_path = _png(_final_name(stem))
     if current.resolve() != final_path.resolve():
         import shutil
 
+        final_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(current, final_path)
 
     orig_meta = _read_meta(source)

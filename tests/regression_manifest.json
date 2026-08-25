@@ -2,10 +2,10 @@
   "app_js_version": "a4656adf0e",
   "app_js_sha256_12": "a4656adf0edc",
   "entry_versions": {
-    "app-core.js": "0bd82000c0",
+    "app-core.js": "3db8620645",
     "gallery-list-runtime.js": "8ff555cfb5",
     "app-online-remix.js": "b122a38e46",
-    "app-detail.js": "3755f14429",
+    "app-detail.js": "ad3ff1ca0f",
     "app.js": "a4656adf0e"
   }
 }

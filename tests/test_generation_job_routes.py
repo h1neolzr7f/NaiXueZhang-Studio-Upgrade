@@ -206,6 +206,25 @@ class GenerationJobRouteTests(unittest.TestCase):
         self.assertEqual([item["page_index"] for item in snaps], [0, 1, 2])
         self.assertEqual(snaps[1]["patched_comment"]["prompt"], "p1")
 
+    def test_generate_soft_failures_map_to_http_errors(self) -> None:
+        cases = [
+            ("empty", 400, "target list is empty"),
+            ("too_many_targets", 400, "too many"),
+            ("start_failed", 503, "could not start"),
+        ]
+        for error, status, message in cases:
+            with self.subTest(error=error):
+                with patch(
+                    "routes.nai.start_studio_generate",
+                    return_value={"ok": False, "error": error, "message": message},
+                ):
+                    response = self.client.post(
+                        "/api/nai/generate",
+                        json={"patched_comment": {"prompt": "1girl"}},
+                    )
+                self.assertEqual(response.status_code, status)
+                self.assertIn(message, response.json()["detail"])
+
     def test_unknown_token_network_update_maps_to_not_found(self) -> None:
         with patch("routes.nai.update_token_network", side_effect=ValueError("token not found")):
             response = self.client.post(

@@ -86,6 +86,10 @@ class PixivPublishUiTests(unittest.TestCase):
         self.assertLess(html.index(module_ref), html.index("/assets/pixiv.js"))
         self.assertIn("window.PixivPublishUI.buildConfirmation", src)
         self.assertIn("window.PixivPublishUI.setBusy", src)
+        self.assertIn("/api/storage/open?target=generated", src)
+        self.assertNotIn("catch {}", src)
+        self.assertIn("无法打开生成目录", src)
+        self.assertIn("缺少图片 ID，无法定位文件", src)
 
     def test_large_local_group_catalog_uses_a_realistic_timeout(self) -> None:
         src = "".join(

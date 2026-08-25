@@ -1,19 +1,19 @@
 # Nai学长工作室 · 升级版说明
 
-本文说明 **升级版 v1.5.1** 与 **稳定版 v1.4.0** 的关系、已落地的能力，以及使用方式。它不是许可证，也不改变 [MIT License](../LICENSE) 授予的代码使用权。
+本文说明 **升级版 v1.5.2** 与 **稳定版 v1.4.0** 的关系、已落地的能力，以及使用方式。它不是许可证，也不改变 [MIT License](../LICENSE) 授予的代码使用权。
 
 ## 两条产品线
 
 | 名称 | 仓库 | 给谁用 |
 |---|---|---|
 | 稳定版 v1.4.0 修复版 | [h1neolzr7f/NaiXueZhang-Studio](https://github.com/h1neolzr7f/NaiXueZhang-Studio) | 需要冻结的官方一键包、要对旧哈希的用户 |
-| 升级版 v1.5.1 | [h1neolzr7f/NaiXueZhang-Studio-Upgrade](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade) | 需要当前维护线、日常出图与图库拖入的用户 |
+| 升级版 v1.5.2 | [h1neolzr7f/NaiXueZhang-Studio-Upgrade](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade) | 需要当前维护线、日常出图与图库拖入的用户 |
 
 升级版从稳定版的工程与付费闸门出发，补上主图库拖入、两位助手侧栏，并拆开过大的后端模块。它**不是**另一个产品名，也**不是**官方对 pixiv / NovelAI 的授权版本。
 
 ## 不要混用的几件事
 
-1. **升级版一键 zip 以本仓库 Releases 为准。** 稳定版 v1.4.0 仍然可从原仓库下载，但不会包含 v1.5.1 的新功能。
+1. **升级版一键 zip 以本仓库 Releases 为准。** 稳定版 v1.4.0 仍然可从原仓库下载，但不会包含 v1.5.2 的新功能。
 2. **不要把 Token、图库、`data/` 提交进 Git。** 两条线的 `.gitignore` 规则相同。
 3. **付费出图规则没有放宽。** 工作区只是换了界面，生成、导演台、批量换角仍走原来的任务与预检接口。
 4. **经典 HTML 没有删除。** 默认打开 `/`；`/studio`、`/remix` 等书签仍可用；`/app` 工作区保留。
@@ -37,6 +37,15 @@ http://127.0.0.1:8797/
 6. 设置 `/settings`
 
 待生成、爬虫、分类、客服小祥、助手凑企鹅、导演台、自选库、后处理在「更多」里。工作区入口为 `/app`。
+
+## v1.5.2 相对 v1.5.1
+
+- 生成图按源作品落进本机子目录，不再平铺在 `data/generated`。
+- `images/原图`、`images/已去元数据`、`files` 分开，避免原图、`_clean`、`_final` 和 meta 挤在一起。
+- 「打开生成文件夹」打开真实目录；失败会提示。
+- 采集未真正启动时不再报成功。
+- 本包只收 NovelAI 的设置开关锁定并写明。
+- Windows 一键包仍不含手机 APK。
 
 ## v1.5.1 相对 v1.5.0
 
@@ -103,7 +112,7 @@ http://127.0.0.1:8797/
 ## 从稳定版迁到升级版
 
 1. 备份整个 `data/`（图库、数据库、加密凭据都在这里）。
-2. 下载 v1.5.1 一键包，或克隆本仓库后建立 venv、安装 `requirements.core.lock.txt`。
+2. 下载 v1.5.2 一键包，或克隆本仓库后建立 venv、安装 `requirements.core.lock.txt`。
 3. 将稳定版的 `data/` 放到升级版目录（或配置相同的数据目录）。
 4. 启动后打开 `/` 确认图库仍在。
 5. 不要把两套程序同时写同一个正在使用的数据库。
