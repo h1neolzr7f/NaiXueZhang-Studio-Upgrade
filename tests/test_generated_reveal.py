@@ -45,10 +45,11 @@ def test_stage_reveal_folder_only_exposes_requested_names(tmp_path: Path) -> Non
         paths = gallery.files_for_generated_image(stem)
         folder = gallery.stage_reveal_folder(paths, f"item-{stem}")
 
-    names = {path.name for path in folder.iterdir()}
+    names = {path.name for path in folder.rglob("*") if path.is_file()}
     assert f"{stem}.png" in names
     assert f"{stem}_final.png" in names
     assert "20260824_000000.png" not in names
+    assert (folder / "images" / f"{stem}.png").is_file()
     assert str(tmp_path) not in folder.name
 
 
@@ -97,7 +98,7 @@ def test_reveal_routes_never_leak_absolute_paths(tmp_path: Path) -> None:
     staged = reveal / "group-42"
     staged.mkdir(parents=True)
     with patch.object(nai_routes, "files_for_generated_group", return_value=[png]), patch.object(
-        nai_routes, "stage_reveal_folder", return_value=staged
+        nai_routes, "reveal_target_folder", return_value=staged
     ), patch.object(nai_routes, "open_local_folder", return_value=False):
         result = nai_routes.api_generated_reveal_group("42")
 

@@ -79,6 +79,18 @@ def _start_generated_maintenance_once() -> None:
 
     def _run() -> None:
         try:
+            from generated_layout import migrate_generated_layout
+
+            result = migrate_generated_layout()
+            moved = int(result.get("moved") or 0)
+            if moved:
+                print(f"INFO: 生成库已按作品整理 {moved} 个文件", flush=True)
+                from generated_gallery import invalidate_scan_cache
+
+                invalidate_scan_cache()
+        except Exception as exc:
+            print(f"WARNING: 生成库目录整理失败：{exc}", flush=True)
+        try:
             migrate_legacy_meta()
         except Exception as exc:
             print(f"WARNING: 生成库元数据迁移失败：{exc}", flush=True)

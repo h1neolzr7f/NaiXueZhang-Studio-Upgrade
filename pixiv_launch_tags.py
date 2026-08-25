@@ -376,5 +376,7 @@ def _resolve_prompt_snapshot(meta: dict[str, Any], stem: str) -> dict[str, Any] 
         snap = prompt_snapshot_from_comment(patched)
         if snap.get("base_caption") or snap.get("char_captions"):
             return snap
-    source = GENERATED_DIR / f"{stem}.png"
+    from generated_layout import resolve_png
+
+    source = resolve_png(f"{stem}.png", root=GENERATED_DIR)
     return prompt_snapshot_from_png(source)

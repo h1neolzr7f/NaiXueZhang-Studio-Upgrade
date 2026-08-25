@@ -170,6 +170,11 @@
         method: "POST",
         body: JSON.stringify({ target: "pixiv", watch }),
       });
+      const pixiv = payload && payload.result && payload.result.pixiv;
+      const started = !pixiv || pixiv.started !== false || pixiv.already_running;
+      if (payload && payload.ok === false || (action === "start" && !started)) {
+        throw new Error((payload && payload.message) || (pixiv && pixiv.note) || "采集未启动");
+      }
       setMessage(payload.message || "操作完成", true);
       await loadReport();
     } catch (error) {

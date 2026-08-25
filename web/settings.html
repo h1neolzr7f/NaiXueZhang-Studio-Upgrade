@@ -70,6 +70,7 @@
         </label>
         <label class="field-card toggle-card">
           <span class="switch-line"><input id="assistantLive2d" type="checkbox" /> 启用 Live2D 动态伙伴</span>
+          <small>同时作用于管家全页和各页边缘的客服小祥 / 助手凑企鹅。</small>
         </label>
         <label class="field-card">
           <span>Live2D 回退模型（可选）</span>
@@ -190,9 +191,15 @@
     <details class="settings-section advanced-section" id="gallery-preferences">
       <summary><span>图库行为与高级偏好</span><small>默认设置已经适合大多数人</small></summary>
       <div class="details-content settings-grid two">
-        <label class="field-card toggle-card"><span class="switch-line"><input type="checkbox" id="prefNaiOnly" checked /> 默认只显示 NAI / NAI_X</span></label>
+        <label class="field-card toggle-card">
+          <span class="switch-line"><input type="checkbox" id="prefNaiOnly" checked disabled /> 只收录 NAI / NAI_X</span>
+          <small>本包图库只收 NovelAI 作品，不能改成显示其他 AI。</small>
+        </label>
         <label class="field-card toggle-card"><span class="switch-line"><input type="checkbox" id="prefQuickStudio" /> 单击作品直接进工作台</span></label>
-        <label class="field-card toggle-card"><span class="switch-line"><input type="checkbox" id="prefShowOther" /> 显示其他 AI 类型</span></label>
+        <label class="field-card toggle-card">
+          <span class="switch-line"><input type="checkbox" id="prefShowOther" disabled /> 显示其他 AI 类型</span>
+          <small>已锁定。本包不会把 SD / Comfy 等非 NAI 作品放进图库。</small>
+        </label>
         <label class="field-card"><span>默认优化模式</span>
           <select id="prefOptimizeMode">
             <option value="smart">智能优化</option>
@@ -227,6 +234,6 @@
   <script src="/assets/shared/site-nav.js?v=825f467bc0"></script>
   <script src="/assets/shared/quick-dock.js?v=5ba3a6158c"></script>
   <script src="/assets/shared/api-client.js?v=afd161a5c9"></script>
-  <script src="/assets/settings.js?v=bb76270868"></script>
+  <script src="/assets/settings.js?v=7e7190f24c"></script>
 </body>
 </html>

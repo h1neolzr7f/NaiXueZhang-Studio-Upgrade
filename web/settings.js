@@ -33,9 +33,9 @@
     $("assistantLive2d").checked = prefs.assistant_live2d_enabled !== false;
     $("assistantLive2dModel").value = prefs.assistant_live2d_model || "";
     $("assistantPollMode").value = prefs.assistant_poll_mode || "eco";
-    $("prefNaiOnly").checked = prefs.nai_only_gallery !== false;
+    $("prefNaiOnly").checked = true;
     $("prefQuickStudio").checked = !!prefs.quick_send_studio;
-    $("prefShowOther").checked = !!prefs.show_other_ai_types;
+    $("prefShowOther").checked = false;
     $("prefOptimizeMode").value = prefs.default_optimize_mode || "smart";
     $("aiProvider").value = ai.provider || "DeepSeek";
     $("aiBase").value = ai.api_base || "";
@@ -293,9 +293,9 @@
       assistant_live2d_enabled: $("assistantLive2d").checked,
       assistant_live2d_model: $("assistantLive2dModel").value.trim(),
       assistant_poll_mode: $("assistantPollMode").value,
-      nai_only_gallery: $("prefNaiOnly").checked,
+      nai_only_gallery: true,
       quick_send_studio: $("prefQuickStudio").checked,
-      show_other_ai_types: $("prefShowOther").checked,
+      show_other_ai_types: false,
       default_optimize_mode: $("prefOptimizeMode").value,
     };
   }

@@ -8,13 +8,13 @@
 
 [中文](README.md)
 
-![Release](https://img.shields.io/badge/Release-v1.5.1-6f42c1)
+![Release](https://img.shields.io/badge/Release-v1.5.2-6f42c1)
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Local First](https://img.shields.io/badge/Privacy-Local--first-7A5AF8)
 
-[Download the v1.5.1 Windows package](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1) ·
+[Download the v1.5.2 Windows package](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) ·
 [User guide](docs/user-guide.md) ·
 [Roadmap](ROADMAP.md) ·
 [Contributing](CONTRIBUTING.md)
@@ -32,7 +32,7 @@
 </p>
 
 > [!TIP]
-> New users should start with the [v1.5.1 one-click Windows archive](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1). The frozen v1.4 interface and historical releases remain available in the [stable line](https://github.com/h1neolzr7f/NaiXueZhang-Studio).
+> New users should start with the [v1.5.2 one-click Windows archive](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2). The frozen v1.4 interface and historical releases remain available in the [stable line](https://github.com/h1neolzr7f/NaiXueZhang-Studio).
 
 ## Why it exists
 
@@ -49,6 +49,15 @@ NaiXueZhang Studio turns that scattered workflow into one recoverable local syst
 | Leave provider tokens in plain configuration | Windows DPAPI, local session tokens, and fail-closed writes |
 
 This is not another single-image generator. It is a **local-first creative asset and production platform** for repeatable NovelAI workflows.
+
+## What is new in v1.5.2
+
+- Generated files are stored per source work. Originals, metadata-stripped `_clean`/`_final`, and sidecars live in separate folders.
+- Opening the generated folder in Explorer works and reports failures instead of doing nothing.
+- Crawler start no longer reports success when nothing started.
+- Settings state that this package is NovelAI-only.
+
+The Windows zip does not include a phone APK.
 
 ## What is new in v1.5.1
 
@@ -75,7 +84,7 @@ The Windows zip does not include a phone APK.
 
 Requirements: Windows 10/11. The source build uses Python 3.13.
 
-1. Download and fully extract the [v1.5.1 archive](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1).
+1. Download and fully extract the [v1.5.2 archive](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2).
 2. Double-click the included launcher.
 3. Open `http://127.0.0.1:8797/` if the browser does not open automatically.
 4. Add provider credentials only inside the local settings UI.

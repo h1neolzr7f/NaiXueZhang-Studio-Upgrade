@@ -529,34 +529,40 @@ async def _generate_image_with_entry(
                 else:
                     png_bytes = await api._generate_novelai_png(client, token_entry, body)
             api.GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+            aitag_meta = (
+                profiled_comment.get("_aitag_source")
+                if isinstance(profiled_comment, dict)
+                else None
+            )
+            if not isinstance(aitag_meta, dict):
+                aitag_meta = {}
+            title = str(source_title or aitag_meta.get("title") or "").strip()
+            thumb = str(source_thumb or aitag_meta.get("thumb") or "").strip()
+            remote_id = str(
+                remote_work_id or aitag_meta.get("work_id") or work_id or ""
+            ).strip()
             filename = api._reserve_generated_filename(work_id)
-            out_path = api.GENERATED_DIR / filename
+            from generated_layout import destination_png, note_generated_change
+
+            out_path = destination_png(
+                filename,
+                work_id=work_id,
+                source_title=title,
+                source_gallery_id=source_gallery_id,
+                root=api.GENERATED_DIR,
+            )
             try:
                 from atomic_io import atomic_write_bytes
 
                 atomic_write_bytes(out_path, png_bytes)
             except Exception:
+                out_path.parent.mkdir(parents=True, exist_ok=True)
                 out_path.write_bytes(png_bytes)
             finally:
                 api._release_generated_filename(filename)
+            note_generated_change(api.GENERATED_DIR)
             register_warning = ""
             try:
-                aitag_meta = (
-                    profiled_comment.get("_aitag_source")
-                    if isinstance(profiled_comment, dict)
-                    else None
-                )
-                if not isinstance(aitag_meta, dict):
-                    aitag_meta = {}
-                title = str(
-                    source_title or aitag_meta.get("title") or ""
-                ).strip()
-                thumb = str(
-                    source_thumb or aitag_meta.get("thumb") or ""
-                ).strip()
-                remote_id = str(
-                    remote_work_id or aitag_meta.get("work_id") or work_id or ""
-                ).strip()
                 register_generated(
                     filename,
                     work_id=work_id,

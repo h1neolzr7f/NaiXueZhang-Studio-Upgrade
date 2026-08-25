@@ -2,19 +2,19 @@
 
 # 🐾 Nai学长工作室
 
-### 当前维护线 v1.5.1 · 本地优先的 NovelAI 生产工作台
+### 当前维护线 v1.5.2 · 本地优先的 NovelAI 生产工作台
 
 [English](README_EN.md)
 
 **素材发现 · NAI 元数据验证 · 图库拖入 · 侧栏助手 · 角色换角 · 批量生成 · 后处理 · Pixiv 发布**
 
-![Line](https://img.shields.io/badge/Line-Current_v1.5.1-6f42c1)
+![Line](https://img.shields.io/badge/Line-Current_v1.5.2-6f42c1)
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Local First](https://img.shields.io/badge/Privacy-Local--first-7A5AF8)
 
-[下载 v1.5.1 Windows 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1) ·
+[下载 v1.5.2 Windows 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) ·
 [稳定版 v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0) ·
 [升级说明](docs/UPGRADE.md) ·
 [使用指南](docs/user-guide.md) ·
@@ -37,7 +37,7 @@
 <p align="center"><sub>工作台（左）· 客服小祥完整对话（右）</sub></p>
 
 > [!TIP]
-> **第一次来？** 直接下载 [v1.5.1 Windows 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1)，完整解压后双击「一键启动.bat」。不需要先搭数据库或配置 Web 服务。想继续使用冻结界面，请前往 [v1.4 稳定保留线](https://github.com/h1neolzr7f/NaiXueZhang-Studio)。
+> **第一次来？** 直接下载 [v1.5.2 Windows 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2)，完整解压后双击「一键启动.bat」。不需要先搭数据库或配置 Web 服务。想继续使用冻结界面，请前往 [v1.4 稳定保留线](https://github.com/h1neolzr7f/NaiXueZhang-Studio)。
 
 ## 一分钟了解
 
@@ -55,20 +55,30 @@
 > **非官方项目。** 本项目与 pixiv Inc.、NovelAI（Anlatan Inc.）及其他第三方平台不存在隶属、授权或合作关系。使用者应自行确认访问、下载、处理与发布行为符合适用法律、平台规则及第三方权利要求。维护者不为绕过访问控制、干扰平台运行、未经授权的数据采集或侵权传播提供支持。详见 [免责声明](DISCLAIMER.md) 与 [负责任使用说明](RESPONSIBLE_USE.md)。
 
 > [!NOTE]
-> **本仓库发布升级版 v1.5.1。** 默认打开经典图库 `http://127.0.0.1:8797/`，`/app` 工作区仍可用。  
-> Windows 一键包请从本仓库 [Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1) 下载，并用发布说明中的 SHA-256 核对压缩包。需要冻结的 v1.4.0 修复版时，请到 [稳定版仓库](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0)。
+> **本仓库发布升级版 v1.5.2。** 默认打开经典图库 `http://127.0.0.1:8797/`，`/app` 工作区仍可用。  
+> Windows 一键包请从本仓库 [Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) 下载，并用发布说明中的 SHA-256 核对压缩包。需要冻结的 v1.4.0 修复版时，请到 [稳定版仓库](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0)。
 
 ## 与稳定版的关系
 
 | | 稳定版 | 本仓库（升级版） |
 |---|---|---|
 | 仓库 | [`NaiXueZhang-Studio`](https://github.com/h1neolzr7f/NaiXueZhang-Studio) | [`NaiXueZhang-Studio-Upgrade`](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade) |
-| 定位 | 已冻结的 v1.4.0 修复版 | 当前维护线，现发布 **v1.5.1** |
+| 定位 | 已冻结的 v1.4.0 修复版 | 当前维护线，现发布 **v1.5.2** |
 | 默认入口 | 经典图库 `/` | 经典图库 `/`（`/app` 工作区保留） |
-| 一键 Windows 包 | [v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0) | **[v1.5.1](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1)** |
+| 一键 Windows 包 | [v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0) | **[v1.5.2](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2)** |
 | 付费出图闸门 | v1.4.0 已落地 | 保持；工作台与换角默认锁免费档 |
 
 完整对照见 [docs/UPGRADE.md](docs/UPGRADE.md)。第一次使用见 [docs/user-guide.md](docs/user-guide.md)。
+
+## v1.5.2 相对 v1.5.1
+
+- **生成文件夹按作品分类**：本机 `data/generated` 不再平铺。每个源作品一个目录。
+- **三份图分开**：`images/原图` 仍带 NovelAI 元数据；`images/已去元数据` 收 `_clean` / `_final`；`files` 收 meta 和缩略图。
+- **打开文件夹可用**：生成库「打开生成文件夹」会打开本机目录；失败会提示。
+- **假成功收口**：采集没起来不再报绿色成功；生成失败改为真实 HTTP 错误。
+- **设置说清楚**：本包只收 NovelAI，相关开关锁定。Live2D 开关也管边缘立绘。
+
+Windows 一键包**不含**手机 APK。`android/` 与 `/m` 仍在源码里，不作为本版交付。
 
 ## v1.5.1 相对 v1.5.0
 
@@ -150,7 +160,7 @@ http://127.0.0.1:8797/
 
 ### 方式一：升级版一键包（推荐）
 
-从 [升级版 Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1) 下载 **v1.5.1** 便携包。解压后双击「一键启动.bat」。程序默认打开：
+从 [升级版 Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) 下载 **v1.5.2** 便携包。解压后双击「一键启动.bat」。程序默认打开：
 
 ```text
 http://127.0.0.1:8797/
@@ -249,7 +259,7 @@ python scripts/scan_sensitive.py --git-candidates
 
 <div align="center">
 
-**Nai学长工作室 · 升级版 v1.5.1** · 一键包与源码  
-请从 [本仓库 Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1) 下载并核对 SHA-256。
+**Nai学长工作室 · 升级版 v1.5.2** · 一键包与源码  
+请从 [本仓库 Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) 下载并核对 SHA-256。
 
 </div>

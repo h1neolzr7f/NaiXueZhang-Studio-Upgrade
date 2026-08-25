@@ -1,18 +1,19 @@
-# Nai学长工作室 · v1.5.1 已发布
+# Nai学长工作室 · v1.5.2 已发布
 
-当前维护线是 **升级版 v1.5.1**。这是日常出图打磨，不是换一套软件。
+当前维护线是 **升级版 v1.5.2**。这是日常出图打磨，不是换一套软件。
 
-请从本仓库 [Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.1) 下载 Windows 一键包，并用发布说明里的 SHA-256 核对。需要冻结界面时，继续使用 [稳定版 v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0)。
+请从本仓库 [Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) 下载 Windows 一键包，并用发布说明里的 SHA-256 核对。需要冻结界面时，继续使用 [稳定版 v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0)。
 
 ## 这版解决什么
 
-- 一级导航只留图库、生成库、工作台、换角、发布、设置。其他入口在「更多」，功能都在。
-- 工作台可一次入队本系列全部页；重启后可以续跑未发出的页。
-- 生成库按源作品收套；删除进回收站，可恢复，不会自动清空。
-- 工作台和换角锁 Opus 免费档。
-- NovelAI Token 以设置中心为准。
+- 生成文件夹按源作品分目录。打开后不再是一堆散文件。
+- 同一张图的三份不再混在一起：`原图`、`已去元数据`（`_clean` / `_final`）、`files`（meta 和缩略图）。
+- 「打开生成文件夹」会真正打开本机目录；失败会提示，不再空点。
+- 采集维护中或没起来时不再报绿色成功。
+- 设置里写明本包只收 NovelAI，相关开关已锁定。
+- Live2D 开关同时管管家页和边缘的小祥 / 凑企鹅。
 
-本包是电脑版。不含手机 APK，也不把 `/m` 当正式手机产品。
+本包是电脑版。不含手机 APK，也不把 `/m` 当正式手机产品。付费 Anlas 仍锁免费档。
 
 ## 测试与反馈
 

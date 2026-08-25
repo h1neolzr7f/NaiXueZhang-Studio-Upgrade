@@ -28,6 +28,8 @@ class CrawlerControlUiTests(unittest.TestCase):
         self.assertIn('id="pixivTaskPresets"', source)
         self.assertIn("reset_search", intake_script)
         self.assertIn("renderPresets", intake_script)
+        self.assertIn("pixiv.started !== false", intake_script)
+        self.assertIn("采集未启动", intake_script)
 
 
 if __name__ == "__main__":

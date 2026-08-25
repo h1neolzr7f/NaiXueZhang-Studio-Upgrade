@@ -58,6 +58,7 @@
     openId: "",
     pinned: "",
     hideTimer: 0,
+    live2dEnabled: true,
     starting: { sakiko: false, tomori: false },
     widgets: { sakiko: null, tomori: null },
     canvases: { sakiko: null, tomori: null },
@@ -192,7 +193,7 @@
   }
 
   async function initLive2d(agentId) {
-    if (reducedMotion()) return;
+    if (!state.live2dEnabled || reducedMotion()) return;
     if (state.widgets[agentId] || state.starting[agentId]) return;
     const profile = state.catalog[agentId];
     const costumeId = costumeFor(agentId);
@@ -407,12 +408,24 @@
     return dock;
   }
 
+  async function live2dPrefEnabled() {
+    if (!api() || typeof api().get !== "function") return true;
+    try {
+      const data = await api().get("/api/settings/prefs");
+      const prefs = (data && data.prefs) || {};
+      return prefs.assistant_live2d_enabled !== false;
+    } catch (_) {
+      return true;
+    }
+  }
+
   async function mount() {
     if (onButlerPage() || document.getElementById("companionDocks")) return;
     if (window.matchMedia && (
       window.matchMedia("(max-width: 1100px)").matches ||
       window.matchMedia("(hover: none)").matches
     )) return;
+    state.live2dEnabled = await live2dPrefEnabled();
     ensureCss();
     const host = document.createElement("div");
     host.id = "companionDocks";

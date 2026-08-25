@@ -579,7 +579,7 @@ def api_storage_open(target: str = "images") -> dict:
             "ok": True,
             "opened": False,
             "target": str(target or "images").strip().lower(),
-            "message": "Only Windows can open folders automatically",
+            "message": "当前系统无法自动打开文件夹",
         }
     subprocess.Popen(["explorer", str(folder)])
     return {
@@ -592,14 +592,14 @@ def api_storage_open(target: str = "images") -> dict:
 
 @router.post("/api/generated/reveal/{image_id}")
 def api_generated_reveal(image_id: str) -> dict:
-    from generated_gallery import files_for_generated_image, open_local_folder, stage_reveal_folder
+    from generated_gallery import files_for_generated_image, open_local_folder, reveal_target_folder
 
     stem = Path(str(image_id or "").strip()).stem
     if not stem:
         raise HTTPException(status_code=400, detail="image_id cannot be empty")
     try:
         paths = files_for_generated_image(stem)
-        folder = stage_reveal_folder(paths, f"item-{stem}")
+        folder = reveal_target_folder(paths, f"item-{stem}")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
@@ -610,7 +610,7 @@ def api_generated_reveal(image_id: str) -> dict:
         "opened": opened,
         "count": len(paths),
         "files": [path.name for path in paths],
-        "message": "已打开该图全部原文件" if opened else "Only Windows can reveal files automatically",
+        "message": "已打开该图所在作品文件夹" if opened else "当前系统无法自动打开文件夹，请到本机 data/generated 按作品查看",
     }
 
 
@@ -950,7 +950,7 @@ def api_work_reveal(work_id: int, gallery_id: str = Query("site")) -> dict:
         "opened": opened,
         "count": len(paths),
         "files": [path.name for path in paths],
-        "message": "已打开该作品全部原文件" if opened else "Only Windows can reveal files automatically",
+        "message": "已打开该作品全部原文件" if opened else "当前系统无法自动打开文件夹，请到本机图库目录查看",
     }
 
 
@@ -984,22 +984,28 @@ def _image_response(path: Path) -> FileResponse:
 
 @router.get("/data/generated/{filename}")
 def serve_generated(filename: str) -> FileResponse:
-    path = _safe_child_file(GENERATED_DIR, filename)
-    if path.exists() and path.is_file():
-        return FileResponse(path, headers=_GENERATED_CACHE_HEADERS)
+    from generated_layout import find_generated_file
+
+    name = Path(str(filename or "")).name
+    found = find_generated_file(name, root=GENERATED_DIR)
+    if found is not None and found.is_file() and path_is_within(found, GENERATED_DIR):
+        return FileResponse(found, headers=_GENERATED_CACHE_HEADERS)
     # 与 serve_image 一致：允许兄弟扩展名命中（如历史 .webp/.jpg 产物），
     # 避免前端写死 .png 时非 PNG 生成图 404。
-    stem = Path(filename)
+    stem = Path(name)
     if stem.suffix:
         for alt_ext in (".png", ".webp", ".jpg", ".jpeg"):
             if alt_ext.lower() == stem.suffix.lower():
                 continue
-            try:
-                alt_path = _safe_child_file(GENERATED_DIR, stem.with_suffix(alt_ext).as_posix())
-            except Exception:
-                continue
-            if alt_path.exists() and alt_path.is_file():
-                return FileResponse(alt_path, headers=_GENERATED_CACHE_HEADERS)
+            alt = find_generated_file(stem.with_suffix(alt_ext).name, root=GENERATED_DIR)
+            if alt is not None and alt.is_file() and path_is_within(alt, GENERATED_DIR):
+                return FileResponse(alt, headers=_GENERATED_CACHE_HEADERS)
+    try:
+        path = _safe_child_file(GENERATED_DIR, name)
+    except HTTPException:
+        path = None
+    if path is not None and path.exists() and path.is_file():
+        return FileResponse(path, headers=_GENERATED_CACHE_HEADERS)
     raise HTTPException(status_code=404, detail="generated image not found")
 
 

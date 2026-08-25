@@ -17,6 +17,7 @@ from atomic_io import atomic_write_text
 from local_secrets import protect_secret, unprotect_secret
 
 from generated_gallery import get_group, group_key_for_item, list_groups, scan_all_items
+from generated_layout import find_generated_file, resolve_png
 from pixiv_accounts import (
     account_display_name,
     accounts_auth_status,
@@ -273,7 +274,7 @@ def _resolve_upload_paths(
         stem = Path(str(image_id or "")).stem
         if not stem:
             continue
-        final_path = GENERATED_DIR / f"{stem}_final.png"
+        final_path = resolve_png(f"{stem}_final.png", root=GENERATED_DIR)
         if cfg and require_processed:
             _assert_pipeline_ready(stem, cfg)
         if final_path.exists():
@@ -284,7 +285,7 @@ def _resolve_upload_paths(
                 f"图片 {stem} 尚未完成后处理，缺少 {final_path.name}。"
                 "请先在生成图库跑流水线，或开启「上传前自动后处理」。"
             )
-        source = GENERATED_DIR / f"{stem}.png"
+        source = resolve_png(f"{stem}.png", root=GENERATED_DIR)
         if not source.exists():
             raise FileNotFoundError(f"图片不存在: {image_id}")
         out.append(source)
@@ -575,7 +576,15 @@ def _build_image_context(image_id: str, cfg: dict[str, Any] | None = None) -> di
     if not image_id:
         return ctx
     stem = Path(image_id).stem
-    meta_path = GENERATED_DIR / f"{stem}.png.meta.json"
+    meta_path = find_generated_file(f"{stem}.png.meta.json", root=GENERATED_DIR)
+    if meta_path is None:
+        png = find_generated_file(f"{stem}.png", root=GENERATED_DIR)
+        if png is not None:
+            from generated_layout import sidecar_path_for
+
+            meta_path = sidecar_path_for(png, f"{stem}.png.meta.json")
+        else:
+            meta_path = GENERATED_DIR / f"{stem}.png.meta.json"
     if meta_path.exists():
         try:
             ctx.update(json.loads(meta_path.read_text(encoding="utf-8")))
@@ -594,7 +603,7 @@ def _build_image_context(image_id: str, cfg: dict[str, Any] | None = None) -> di
     patched_tags.extend(_tags_from_prompt_snapshot(snapshot))
     patched_tags.extend(_tags_from_pipeline_meta_cfg(pipe_meta))
     if not (patched_prompt or patched_tags):
-        source_png = GENERATED_DIR / f"{stem}.png"
+        source_png = resolve_png(f"{stem}.png", root=GENERATED_DIR)
         if source_png.exists():
             for t in _read_png_text_tags(source_png):
                 if t not in patched_tags:
@@ -673,7 +682,7 @@ def _ensure_upload_ready(
     overrides = _upload_pipeline_overrides(cfg)
     for idx, image_id in enumerate(image_ids, start=1):
         stem = Path(image_id).stem
-        final_path = GENERATED_DIR / f"{stem}_final.png"
+        final_path = resolve_png(f"{stem}_final.png", root=GENERATED_DIR)
         try:
             state = pipeline_item_state(stem, overrides=overrides)
             if state.get("excluded"):
@@ -1762,7 +1771,7 @@ def _candidate_item(
     pipeline_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     stem = str(item.get("id") or "")
-    final = GENERATED_DIR / f"{stem}_final.png"
+    final = resolve_png(f"{stem}_final.png", root=GENERATED_DIR)
     pipe_state = pipeline_item_state(
         stem,
         overrides=pipe_overrides,

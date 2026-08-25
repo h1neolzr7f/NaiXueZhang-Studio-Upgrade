@@ -135,15 +135,33 @@ function updateJobProgress(job, fallbackLabel = "") {
 }
 
 async function revealGeneratedImage(imageId) {
+  const id = String(imageId || "").trim();
+  if (!id) {
+    alert("缺少图片 ID，无法定位文件");
+    return;
+  }
   try {
-    await window.ApiClient.raw(`/api/generated/reveal/${encodeURIComponent(imageId)}`, { method: "POST" });
-  } catch {}
+    const data = await window.ApiClient.request(
+      `/api/generated/reveal/${encodeURIComponent(id)}`,
+      { method: "POST" }
+    );
+    if (!data || data.opened === false) {
+      alert((data && data.message) || "当前系统无法自动打开文件夹");
+    }
+  } catch (err) {
+    alert((err && err.message) || "无法打开文件夹");
+  }
 }
 
 async function reviewPipelineImage(imageId, action) {
+  const id = String(imageId || "").trim();
   const label = action === "approve" ? "通过" : "剔除";
-  if (!confirm(`确认${label}这张图？\n${imageId}`)) return;
-  const res = await window.ApiClient.raw(`/api/pipeline/review/${encodeURIComponent(imageId)}`, {
+  if (!id) {
+    alert(`缺少图片 ID，无法${label}`);
+    return;
+  }
+  if (!confirm(`确认${label}这张图？\n${id}`)) return;
+  const res = await window.ApiClient.raw(`/api/pipeline/review/${encodeURIComponent(id)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action }),
@@ -154,7 +172,7 @@ async function reviewPipelineImage(imageId, action) {
     return;
   }
   const current = collectPipelineFailures(window.__lastPixivJob || {});
-  const next = current.filter((x) => x.id !== imageId);
+  const next = current.filter((x) => x.id !== id);
   const job = { pipeline_failures: next };
   if (window.__lastPixivJob) {
     window.__lastPixivJob.pipeline_failures = next;
@@ -1215,8 +1233,13 @@ document.getElementById("launchBtn").addEventListener("click", () => doLaunch(fa
 document.getElementById("uploadOnly").addEventListener("click", () => doLaunch(true));
 document.getElementById("pipelineReviewOpenFolder").addEventListener("click", async () => {
   try {
-    await window.ApiClient.raw("/api/storage/open?target=generated", { method: "POST" });
-  } catch {}
+    const data = await window.ApiClient.request("/api/storage/open?target=generated", { method: "POST" });
+    if (!data || data.opened === false) {
+      alert((data && data.message) || "当前系统无法自动打开文件夹");
+    }
+  } catch (err) {
+    alert((err && err.message) || "无法打开生成目录");
+  }
 });
 
 async function loadHistory() {

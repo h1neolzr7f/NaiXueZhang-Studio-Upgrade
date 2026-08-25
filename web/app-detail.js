@@ -693,7 +693,12 @@ async function openDetail(workId, options = {}) {
           alert(String(err && err.message ? err.message : err));
         }
       });
-    } catch { }
+    } catch (err) {
+      console.error(err);
+      if (window.UiToast && typeof window.UiToast.err === 'function') {
+        window.UiToast.err('详情操作初始化失败');
+      }
+    }
     try {
       wireOnlineRemixPanel(data, workId);
       if (window.location.hash === '#onlineRemixPanel') {
