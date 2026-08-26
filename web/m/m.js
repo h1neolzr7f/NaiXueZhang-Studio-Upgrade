@@ -2,6 +2,7 @@
   const TOKEN_KEY = "nai-mobile-pair-token";
   const QUEUE_KEY = "nai-mobile-online-queue";
   const LAST_WORK_KEY = "nai-mobile-last-work";
+  const DRAFTS_KEY = "nai-mobile-work-drafts";
   const state = {
     route: { name: "browse" },
     canWrite: false,
@@ -19,6 +20,10 @@
     busy: false,
     favIds: {},
     browseMode: "online",
+    searchPage: 1,
+    searchSort: "new",
+    searchQ: "明日方舟",
+    lastSearchMeta: {},
   };
 
   function isStandalone() {
@@ -118,6 +123,23 @@
 
   function saveQueue(items) {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(items.slice(0, 80)));
+  }
+
+  function persistDrafts(workId) {
+    const id = String(workId || "");
+    if (!id) return;
+    try { localStorage.setItem(DRAFTS_KEY + ":" + id, JSON.stringify(state.drafts || {})); } catch (_) { /* ignore */ }
+  }
+
+  function restoreDrafts(workId) {
+    const id = String(workId || "");
+    if (!id) return {};
+    try {
+      const raw = JSON.parse(localStorage.getItem(DRAFTS_KEY + ":" + id) || "{}");
+      return raw && typeof raw === "object" ? raw : {};
+    } catch (_) {
+      return {};
+    }
   }
 
   function parseRoute() {
@@ -261,12 +283,13 @@
       </section>` : ""}
       <section class="m-card">
         <h2>在线发现</h2>
-        <p class="m-hint">搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。</p>
+        <p class="m-hint">搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。在线挂了也能先用内置样例把换角跑通。</p>
         <div class="m-row">
-          <input id="mSearch" placeholder="角色 / 作品 / 标签" enterkeyhint="search" />
+          <input id="mSearch" placeholder="角色 / 作品 / 标签" enterkeyhint="search" value="${escapeHtml(state.searchQ || "")}" />
           <button type="button" id="mSearchBtn" class="m-primary">搜索</button>
         </div>
         <div class="m-chips" id="mModeChips"></div>
+        <div class="m-chips" id="mSortChips"></div>
         <div class="m-chips" id="mQuickChips"></div>
       </section>
       <div id="mBrowseGrid" class="m-grid"></div>
@@ -280,11 +303,26 @@
       chip.textContent = label;
       chip.onclick = () => {
         state.browseMode = value;
+        state.searchPage = 1;
         renderBrowse(root);
       };
       document.getElementById("mModeChips").appendChild(chip);
     });
-    [["明日方舟", "明日方舟"], ["高松灯", "高松灯"], ["丰川祥子", "丰川祥子"], ["能天使", "能天使"]].forEach(([label, q]) => {
+    if (standalone && document.getElementById("mSortChips")) {
+      [["new", "最新"], ["popular", "热门"]].forEach(([value, label]) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "m-chip" + (state.searchSort === value ? " active" : "");
+        chip.textContent = label;
+        chip.onclick = () => {
+          state.searchSort = value;
+          state.searchPage = 1;
+          renderBrowse(root);
+        };
+        document.getElementById("mSortChips").appendChild(chip);
+      });
+    }
+    [["内置样例", "内置样例"], ["明日方舟", "明日方舟"], ["高松灯", "高松灯"], ["丰川祥子", "丰川祥子"], ["能天使", "能天使"]].forEach(([label, q]) => {
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "m-chip";
@@ -295,37 +333,67 @@
       };
       document.getElementById("mQuickChips").appendChild(chip);
     });
-    const run = async () => {
+    const run = async (page) => {
       const q = document.getElementById("mSearch").value.trim();
+      state.searchQ = q;
+      if (q === "内置样例") {
+        location.hash = "#/work/" + encodeURIComponent("demo-ark-amiya");
+        return;
+      }
+      if (page) state.searchPage = page;
       const status = document.getElementById("mBrowseStatus");
+      status.className = "m-status";
       status.textContent = state.browseMode === "library" ? "读取本地库…" : "搜索中…";
       try {
         await refreshFavIds();
         const data = state.browseMode === "library"
           ? await api().get("/api/mobile/library/works?q=" + encodeURIComponent(q))
-          : await api().get("/api/nai/aitag/search?q=" + encodeURIComponent(q) + "&page=1&page_size=24&nai_only=true");
+          : await api().get("/api/nai/aitag/search?q=" + encodeURIComponent(q)
+            + "&page=" + state.searchPage + "&page_size=60&nai_only=true&sort=" + encodeURIComponent(state.searchSort || "new"));
+        state.lastSearchMeta = data;
         const items = data.items || data.works || [];
         const grid = document.getElementById("mBrowseGrid");
         grid.innerHTML = items.map((item) => workCardHtml(item)).join("") || "";
         bindFavButtons(grid);
+        const offline = !!data.offline_demo;
         status.textContent = items.length
           ? (state.browseMode === "library"
             ? `本地库 ${items.length} 个，点进去就能离线换角`
-            : `找到 ${items.length} 个作品，角标是图片张数`)
+            : (offline
+              ? "在线库暂时打不开，先用内置样例把换角跑通。连上后再搜。"
+              : `第 ${state.searchPage} 页 · ${items.length} 个作品，角标是图片张数`))
           : (state.browseMode === "library" ? "本地库是空的。在线库点☆收藏就会入库。" : "没有结果，换个词再搜");
+        if (state.browseMode !== "library") {
+          const pager = document.createElement("div");
+          pager.className = "m-row";
+          pager.style.marginTop = "10px";
+          pager.innerHTML = `
+            <button type="button" class="m-ghost" id="mPrevPage" ${state.searchPage <= 1 ? "disabled" : ""}>上一页</button>
+            <button type="button" class="m-ghost" id="mNextPage" ${data.has_more ? "" : "disabled"}>下一页</button>`;
+          status.insertAdjacentElement("beforebegin", pager);
+          const prev = document.getElementById("mPrevPage");
+          const next = document.getElementById("mNextPage");
+          if (prev) prev.onclick = () => run(Math.max(1, state.searchPage - 1));
+          if (next) next.onclick = () => run(state.searchPage + 1);
+        }
       } catch (error) {
         status.textContent = friendlyError(error);
         status.className = "m-status m-err";
+        const fallback = document.createElement("div");
+        fallback.className = "m-row";
+        fallback.style.marginTop = "10px";
+        fallback.innerHTML = `<a class="m-primary" href="#/work/${encodeURIComponent("demo-ark-amiya")}">打开内置样例</a>`;
+        status.insertAdjacentElement("afterend", fallback);
       }
     };
-    document.getElementById("mSearchBtn").onclick = run;
+    document.getElementById("mSearchBtn").onclick = () => { state.searchPage = 1; run(1); };
     document.getElementById("mSearch").addEventListener("keydown", (event) => {
-      if (event.key === "Enter") run();
+      if (event.key === "Enter") { state.searchPage = 1; run(1); }
     });
     if (!document.getElementById("mSearch").value.trim()) {
-      document.getElementById("mSearch").value = "明日方舟";
+      document.getElementById("mSearch").value = state.searchQ || "明日方舟";
     }
-    run();
+    run(state.searchPage);
   }
 
   async function renderWork(root, workId) {
@@ -351,6 +419,7 @@
       state.work = (isStandalone() && window.StandaloneCore) ? window.StandaloneCore.decorateWork(data) : data;
       state.pageIndex = 0;
       state.slot = (state.work.character_candidates || [])[0] || null;
+      state.drafts = restoreDrafts(workId);
       paintWork(root);
     } catch (error) {
       root.innerHTML = `<section class="m-card"><h2>换角</h2><p class="m-err">${escapeHtml(friendlyError(error))}</p>
@@ -381,11 +450,13 @@
     const href = (isStandalone() && (state.browseMode === "library" || item.local))
       ? `#/library/${encodeURIComponent(id)}`
       : `#/work/${encodeURIComponent(id)}`;
+    const saveState = String(item.save_state || "");
+    const saveLabel = saveState === "ready" ? "可离线换角" : saveState === "pending" ? "入库中" : saveState === "partial" ? "入库不完整" : "";
     return `<div class="m-work-card">
       <a class="m-work" href="${href}">
         <img src="${escapeHtml(cover)}" alt="">
         <em class="m-page-badge">${count}张</em>
-        <span>${escapeHtml(item.title || id)}</span>
+        <span>${escapeHtml(item.title || id)}${saveLabel ? " · " + saveLabel : ""}</span>
       </a>
       ${fav}
     </div>`;
@@ -504,6 +575,28 @@
     searchTargets();
   }
 
+  function currentDraftEntry() {
+    return state.drafts[String(state.pageIndex)] || null;
+  }
+
+  function draftPreviewHtml(entry) {
+    const comment = draftComment(entry);
+    if (!comment) return '<p class="m-hint">还没有本页草稿。先点「本页换角」。</p>';
+    const snap = (window.StandaloneCore && window.StandaloneCore.promptSnapshot)
+      ? window.StandaloneCore.promptSnapshot(comment)
+      : { prompt: comment.prompt || "", uc: comment.uc || comment.negative_prompt || "", char_captions: [] };
+    const slots = Array.isArray(snap.char_captions) ? snap.char_captions : [];
+    return `<div class="m-draft" id="mDraftPreview">
+      <p><strong>草稿预览</strong> · 还没扣 Anlas</p>
+      <p class="m-meta">底栏：${escapeHtml(String(snap.base_caption || snap.prompt || "").slice(0, 280))}</p>
+      ${slots.map((slot, index) => {
+        const text = slot && typeof slot === "object" ? (slot.caption || slot.char_caption || "") : slot;
+        return `<p class="m-meta">槽${index + 1}：${escapeHtml(String(text || "").slice(0, 180))}</p>`;
+      }).join("")}
+      <p class="m-meta">负面：${escapeHtml(String(snap.uc || "").slice(0, 160))}</p>
+    </div>`;
+  }
+
   function paintWork(root) {
     const work = (state.work && state.work.work) || {};
     const images = state.work.images || [];
@@ -513,6 +606,12 @@
     const workId = String(work.work_id || work.id || "");
     const favOn = !!state.favIds[workId];
     const pageCount = imageCountOf(state.work);
+    const comment = (window.StandaloneCore && window.StandaloneCore.imageComment)
+      ? window.StandaloneCore.imageComment(img)
+      : {};
+    const promptText = String((comment && (comment.prompt || (comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.base_caption))) || img.prompt_text || "").trim();
+    const tags = Array.isArray(work.tags) ? work.tags.map((tag) => String(tag || "")).filter(Boolean).slice(0, 8) : [];
+    const saveState = String((state.work && state.work.save_state) || "");
     root.innerHTML = `
       <section class="m-card">
         <p class="m-eyebrow">第 1 步 · 看图</p>
@@ -521,7 +620,11 @@
           ${isStandalone() ? `<button type="button" class="m-fav${favOn ? " on" : ""}" data-fav="${escapeHtml(workId)}" aria-label="收藏">${favOn ? "★" : "☆"}</button>` : ""}
         </div>
         <img class="m-preview" src="${escapeHtml(cover)}" alt="">
-        <p class="m-hint">${pageCount}张 · ${images.length} 页已加载 · 先点准要换的人，再点开搜索换成谁。</p>
+        <p class="m-hint">${pageCount}张 · ${images.length} 页已加载${work.creator ? " · " + escapeHtml(work.creator) : ""}${work.ai_type ? " · " + escapeHtml(work.ai_type) : ""}${saveState === "pending" ? " · 入库中" : ""}</p>
+        ${tags.length ? `<p class="m-meta">标签：${escapeHtml(tags.join(" / "))}</p>` : ""}
+        ${promptText
+          ? `<p class="m-meta">原图咒语：${escapeHtml(promptText.slice(0, 220))}</p>`
+          : `<p class="m-err">这页没有 NovelAI 咒语，不能换角。换一页或换一张图。</p>`}
         <div class="m-row" id="mPages"></div>
       </section>
       <section class="m-card">
@@ -552,6 +655,7 @@
           <button type="button" id="mGenOne" class="m-primary">生成本页</button>
           <button type="button" id="mQueueBtn" class="m-ghost">加入批量</button>
         </div>
+        ${draftPreviewHtml(currentDraftEntry())}
         <p id="mWorkStatus" class="m-status"></p>
         <img id="mGenImg" class="m-preview hidden" alt="生成结果">
       </section>`;
@@ -812,7 +916,7 @@
         });
       }
       host.innerHTML = "";
-      items.slice(0, 20).forEach((item) => {
+      items.slice(0, 40).forEach((item) => {
         const row = document.createElement("button");
         row.type = "button";
         row.className = "m-chip" + (state.targetId === item.reference_id ? " active" : "");
@@ -864,8 +968,13 @@
         } else {
           state.drafts[String(state.pageIndex)] = result;
         }
-        status.textContent = result.message || "草稿已就绪，还没扣 Anlas";
-        status.className = "m-status m-ok";
+        persistDrafts(workId);
+        paintWork(document.getElementById("mApp"));
+        const next = document.getElementById("mWorkStatus");
+        if (next) {
+          next.textContent = result.message || "草稿已就绪，还没扣 Anlas";
+          next.className = "m-status m-ok";
+        }
         return;
       }
       const payload = {
@@ -891,8 +1000,13 @@
       } else {
         state.drafts[String(state.pageIndex)] = result;
       }
-      status.textContent = result.message || "草稿已就绪，还没扣 Anlas";
-      status.className = "m-status m-ok";
+      persistDrafts(workId);
+      paintWork(document.getElementById("mApp"));
+      const next = document.getElementById("mWorkStatus");
+      if (next) {
+        next.textContent = result.message || "草稿已就绪，还没扣 Anlas";
+        next.className = "m-status m-ok";
+      }
     } catch (error) {
       status.textContent = error.message || String(error);
       status.className = "m-status m-err";
@@ -971,6 +1085,13 @@
       if (imgEl && lastOk.image_url) {
         imgEl.src = lastOk.image_url + (lastOk.image_url.includes("?") ? "&" : "?") + "t=" + Date.now();
         imgEl.classList.remove("hidden");
+      }
+      if (statusEl && lastOk.library_id) {
+        const extra = document.createElement("div");
+        extra.className = "m-row";
+        extra.style.marginTop = "8px";
+        extra.innerHTML = `<a class="m-ghost" href="#/library/${encodeURIComponent(lastOk.library_id)}">去本地库再换</a><a class="m-ghost" href="#/gallery">看成果</a>`;
+        statusEl.insertAdjacentElement("afterend", extra);
       }
       return lastOk;
     } finally {

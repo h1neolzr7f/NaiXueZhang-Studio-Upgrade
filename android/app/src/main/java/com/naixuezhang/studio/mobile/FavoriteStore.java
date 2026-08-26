@@ -64,6 +64,7 @@ final class FavoriteStore {
                 item.put("gallery_id", "phone-local");
                 item.put("kind", row.optString("kind", "aitag"));
                 item.put("save_state", row.optString("save_state", "pending"));
+                item.put("last_error", row.optString("last_error"));
                 JSONArray images = new JSONArray();
                 JSONObject cover = new JSONObject();
                 String local = imageFile(id, 0) != null
@@ -140,6 +141,7 @@ final class FavoriteStore {
         File dir = new File(root, id);
         if (!dir.exists()) dir.mkdirs();
         writeText(new File(dir, "snapshot.json"), (snapshot == null ? new JSONObject() : snapshot).toString());
+        writeText(new File(dir, "work.json"), stubWork(id, row).toString());
         startDownload(id);
         out.put("ok", true);
         out.put("favorited", true);
@@ -213,6 +215,7 @@ final class FavoriteStore {
             overlayLocalImages(payload, id);
             payload.put("source", "phone-local");
             payload.put("local", true);
+            payload.put("save_state", rowState(id));
             if (payload.optJSONObject("work") != null) {
                 payload.getJSONObject("work").put("gallery_id", "phone-local");
             }
@@ -274,10 +277,39 @@ final class FavoriteStore {
         new Thread(() -> {
             try {
                 download(workId);
-            } catch (Exception ignored) {
-                mark(workId, "partial");
+            } catch (Exception error) {
+                mark(workId, "partial", error.getMessage());
             }
         }, "fav-" + workId).start();
+    }
+
+    private JSONObject stubWork(String id, JSONObject row) throws Exception {
+        JSONObject work = new JSONObject();
+        work.put("work_id", id);
+        work.put("id", id);
+        work.put("title", row.optString("title", id));
+        work.put("creator", row.optString("creator"));
+        work.put("image_count", row.optInt("image_count", 1));
+        work.put("tags", row.optJSONArray("tags") == null ? new JSONArray() : row.optJSONArray("tags"));
+        JSONObject cover = new JSONObject();
+        cover.put("url", row.optString("cover_url"));
+        cover.put("thumbnail_url", row.optString("cover_url"));
+        JSONArray images = new JSONArray().put(cover);
+        work.put("images", images);
+        JSONObject payload = new JSONObject();
+        payload.put("ok", true);
+        payload.put("work", work);
+        payload.put("images", images);
+        payload.put("save_state", "pending");
+        payload.put("generation_calls", 0);
+        return payload;
+    }
+
+    private String rowState(String workId) {
+        JSONArray index = readIndex();
+        int found = find(index, workId);
+        JSONObject row = found >= 0 ? index.optJSONObject(found) : null;
+        return row == null ? "pending" : row.optString("save_state", "pending");
     }
 
     private void download(String workId) throws Exception {
@@ -292,13 +324,13 @@ final class FavoriteStore {
             updateRow(workId, work, images.length(), "saving");
         }
         int saved = 0;
+        String lastError = "";
         int limit = Math.min(images.length(), MAX_PAGES);
         for (int i = 0; i < limit; i++) {
             JSONObject image = images.optJSONObject(i);
             if (image == null) continue;
             try {
-                HttpOutbound.Result result = fetchImage(image, workId);
-                byte[] data = result.body;
+                byte[] data = DemoWorks.isDemo(workId) ? DemoWorks.png(i) : fetchImage(image, workId).body;
                 File dir = new File(root, workId);
                 if (i == 0) {
                     writeBytes(new File(dir, "p0.orig"), data);
@@ -306,9 +338,11 @@ final class FavoriteStore {
                     writeBytes(new File(dir, "p" + i + ".jpg"), compress(data));
                 }
                 saved += 1;
-            } catch (Exception ignored) {}
+            } catch (Exception error) {
+                lastError = error.getMessage() == null ? "image failed" : error.getMessage();
+            }
         }
-        mark(workId, saved > 0 ? "ready" : "partial");
+        mark(workId, saved > 0 ? "ready" : "partial", lastError);
     }
 
     private HttpOutbound.Result fetchImage(JSONObject image, String workId) throws Exception {
@@ -367,6 +401,10 @@ final class FavoriteStore {
     }
 
     private synchronized void mark(String workId, String state) {
+        mark(workId, state, "");
+    }
+
+    private synchronized void mark(String workId, String state, String error) {
         JSONArray index = readIndex();
         int found = find(index, workId);
         if (found < 0) return;
@@ -374,6 +412,7 @@ final class FavoriteStore {
         if (row == null) return;
         try {
             row.put("save_state", state);
+            if (error != null && !error.trim().isEmpty()) row.put("last_error", error);
             index.put(found, row);
             writeIndex(index);
         } catch (Exception ignored) {}

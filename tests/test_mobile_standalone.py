@@ -24,6 +24,11 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("PhoneApp", main)
         self.assertIn("openAitagVerify", main)
         self.assertIn("SettingsActivity", main)
+        demo = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/DemoWorks.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("demo-ark-amiya", demo)
+        self.assertIn("nai-diffusion-4-5-full", demo)
         self.assertIn("waitForLocalServer", (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/SplashActivity.java").read_text(encoding="utf-8"))
         self.assertIn("onReceivedError", main)
         self.assertIn("MIXED_CONTENT_COMPATIBILITY_MODE", main)
@@ -95,6 +100,9 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("image_count", gateway)
         self.assertIn("onlineCandidates", gateway)
         self.assertIn("BrowserSession", gateway)
+        self.assertIn("unwrapAiJson", gateway)
+        self.assertIn("offline_demo", gateway)
+        self.assertIn("DemoWorks", gateway)
         browser = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/BrowserSession.java").read_text(
             encoding="utf-8"
         )
@@ -137,6 +145,10 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("打开在线库过验证", js)
         self.assertIn("/api/nai/aitag/probe", js)
         self.assertIn("openAitagVerify", js)
+        self.assertIn("草稿预览", js)
+        self.assertIn("下一页", js)
+        self.assertIn("内置样例", js)
+        self.assertIn("demo-ark-amiya", js)
         self.assertGreaterEqual(js.count("先在设置里填 NovelAI Token"), 2)
         css = (WEB / "m" / "m.css").read_text(encoding="utf-8")
         self.assertIn("min-height: 44px", css)
@@ -147,6 +159,8 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("buildGeneratePayload", core)
         self.assertIn("applyOptimizeTexts", core)
         self.assertIn("analyzeSlotCaption", core)
+        self.assertIn("imageComment", core)
+        self.assertIn("promptSnapshot", core)
         self.assertIn("没找到这个角色槽", core)
         server = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/LocalStudioServer.java").read_text(
             encoding="utf-8"
