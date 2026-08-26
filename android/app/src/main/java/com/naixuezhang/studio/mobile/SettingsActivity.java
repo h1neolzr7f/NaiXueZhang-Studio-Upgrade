@@ -3,6 +3,7 @@ package com.naixuezhang.studio.mobile;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.os.Bundle;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -12,6 +13,9 @@ public class SettingsActivity extends Activity {
     private EditText tokenInput;
     private TextView deepseekState;
     private EditText deepseekInput;
+    private EditText proxyInput;
+    private CheckBox onlineProxyBox;
+    private CheckBox naiProxyBox;
     private TextView setStatus;
 
     @Override
@@ -23,12 +27,16 @@ public class SettingsActivity extends Activity {
         tokenInput = findViewById(R.id.tokenInput);
         deepseekState = findViewById(R.id.deepseekState);
         deepseekInput = findViewById(R.id.deepseekInput);
+        proxyInput = findViewById(R.id.proxyInput);
+        onlineProxyBox = findViewById(R.id.onlineProxyBox);
+        naiProxyBox = findViewById(R.id.naiProxyBox);
         setStatus = findViewById(R.id.setStatus);
         findViewById(R.id.backBtn).setOnClickListener(v -> finish());
         findViewById(R.id.saveBtn).setOnClickListener(v -> confirmSaveNai());
         findViewById(R.id.clearBtn).setOnClickListener(v -> confirmClearNai());
         findViewById(R.id.saveDeepseekBtn).setOnClickListener(v -> confirmSaveDeepseek());
         findViewById(R.id.clearDeepseekBtn).setOnClickListener(v -> confirmClearDeepseek());
+        findViewById(R.id.saveNetworkBtn).setOnClickListener(v -> saveNetwork());
         refreshState();
     }
 
@@ -39,6 +47,22 @@ public class SettingsActivity extends Activity {
         tokenState.setTextColor(hasNai ? 0xFF3DDC97 : 0xFFFF7A90);
         deepseekState.setText(hasDs ? "当前：已配置 DeepSeek" : "当前：还没填 DeepSeek");
         deepseekState.setTextColor(hasDs ? 0xFF3DDC97 : 0xFFFF7A90);
+        proxyInput.setText(tokens.getProxy());
+        onlineProxyBox.setChecked(tokens.onlineUseProxy());
+        naiProxyBox.setChecked(tokens.naiUseProxy());
+    }
+
+    private void saveNetwork() {
+        try {
+            tokens.setNetwork(
+                String.valueOf(proxyInput.getText()).trim(),
+                onlineProxyBox.isChecked(),
+                naiProxyBox.isChecked()
+            );
+            setStatus.setText("网络设置已保存。搜图走代理，出图默认直连。");
+        } catch (Exception error) {
+            setStatus.setText(error.getMessage() == null ? "代理格式不对" : error.getMessage());
+        }
     }
 
     private void confirmSaveNai() {

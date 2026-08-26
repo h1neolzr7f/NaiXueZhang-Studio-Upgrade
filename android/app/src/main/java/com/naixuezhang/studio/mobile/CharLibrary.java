@@ -36,6 +36,59 @@ final class CharLibrary {
         return out;
     }
 
+    JSONObject searchAll(String gender, String query, int limit) {
+        String bucket = normalizeGender(gender, "female");
+        String needle = String.valueOf(query == null ? "" : query).trim().toLowerCase(Locale.ROOT);
+        int cap = Math.max(1, Math.min(limit <= 0 ? 24 : limit, 80));
+        JSONArray items = new JSONArray();
+        try {
+            JSONArray customItems = custom == null ? new JSONArray() : custom.list(bucket).optJSONArray("items");
+            if (customItems != null) {
+                for (int i = 0; i < customItems.length() && items.length() < cap; i++) {
+                    JSONObject item = customItems.optJSONObject(i);
+                    if (item == null) continue;
+                    if (!needle.isEmpty() && !hay(item).contains(needle)) continue;
+                    items.put(wrap(item, "custom:" + bucket + ":" + item.optString("id"), "我的角色"));
+                }
+            }
+            JSONArray presets = this.presets.optJSONArray(bucket);
+            if (presets != null) {
+                for (int i = 0; i < presets.length() && items.length() < cap; i++) {
+                    JSONObject item = presets.optJSONObject(i);
+                    if (item == null) continue;
+                    if (!needle.isEmpty() && !hay(item).contains(needle)) continue;
+                    items.put(wrap(item, "preset:" + bucket + ":" + item.optString("id"), "常用角色"));
+                }
+            }
+            JSONArray arkItems = searchArk(bucket, query, cap).optJSONArray("items");
+            if (arkItems != null) {
+                for (int i = 0; i < arkItems.length() && items.length() < cap; i++) {
+                    JSONObject item = arkItems.optJSONObject(i);
+                    if (item == null) continue;
+                    items.put(wrap(item, "ark:" + bucket + ":" + item.optString("id"), "内置 D 站角色库"));
+                }
+            }
+        } catch (Exception ignored) {}
+        JSONObject out = new JSONObject();
+        try {
+            out.put("ok", true);
+            out.put("q", query == null ? "" : query);
+            out.put("gender", bucket);
+            out.put("total", items.length());
+            out.put("items", items);
+        } catch (Exception ignored) {}
+        return out;
+    }
+
+    private JSONObject wrap(JSONObject item, String referenceId, String source) throws Exception {
+        JSONObject out = new JSONObject();
+        out.put("reference_id", referenceId);
+        out.put("label", JsonUtil.first(item, "label", "name", "id"));
+        out.put("source", source);
+        out.put("record", item);
+        return out;
+    }
+
     JSONObject searchArk(String gender, String query, int limit) {
         String bucket = normalizeGender(gender, "female");
         JSONArray pool = ark.optJSONArray(bucket);

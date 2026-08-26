@@ -46,6 +46,8 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("NovelAI", strings)
         self.assertIn("DeepSeek", strings)
         self.assertIn("不遥控电脑", strings)
+        self.assertIn("搜图 / 写角色走代理", strings)
+        self.assertIn("出图走代理", strings)
         icon = ANDROID / "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
         self.assertTrue(icon.is_file())
         note = (ANDROID / "说明.txt").read_text(encoding="utf-8")
@@ -71,7 +73,23 @@ class MobileStandaloneTests(unittest.TestCase):
         )
         self.assertIn("image.novelai.net", generator)
         self.assertIn("http_5xx", generator)
+        self.assertIn("routeNai", generator)
         self.assertNotIn("System.out.println(token", generator)
+        outbound = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/HttpOutbound.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Proxy.NO_PROXY", outbound)
+        tokens = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/TokenStore.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("online_use_proxy", tokens)
+        self.assertIn("nai_use_proxy", tokens)
+        self.assertIn("127.0.0.1", tokens)
+        gateway = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/AitagGateway.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("image_count", gateway)
+        self.assertIn("routeOnline", gateway)
 
     def test_web_shell_has_standalone_mode(self) -> None:
         js = (WEB / "m" / "m.js").read_text(encoding="utf-8")
@@ -86,6 +104,12 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("PhoneApp", js)
         self.assertIn("搜明日方舟", js)
         self.assertIn("保存自定义", js)
+        self.assertIn("点开搜索", js)
+        self.assertIn("收藏", js)
+        self.assertIn("image_count", js)
+        self.assertIn("/api/nai/aitag/favorites", js)
+        self.assertIn("/api/plugin/char-swap/search", js)
+        self.assertIn("张", js)
         self.assertIn("candidate_id", js)
         self.assertIn("manageBusy", js)
         self.assertIn("开始在线批量", js)
@@ -112,6 +136,10 @@ class MobileStandaloneTests(unittest.TestCase):
         )
         self.assertIn("/api/plugin/char-swap/custom", server)
         self.assertIn("CustomCharStore", server)
+        self.assertIn("FavoriteStore", server)
+        self.assertIn("/api/nai/aitag/favorites", server)
+        self.assertIn("/api/plugin/char-swap/search", server)
+        self.assertIn("/api/nai/network", server)
 
     def test_user_guide_describes_phone_local_app(self) -> None:
         guide = (ROOT / "使用说明.txt").read_text(encoding="utf-8")

@@ -17,6 +17,8 @@
     slot: null,
     pageIndex: 0,
     busy: false,
+    favIds: {},
+    browseMode: "online",
   };
 
   function isStandalone() {
@@ -258,12 +260,24 @@
           <input id="mSearch" placeholder="角色 / 作品 / 标签" enterkeyhint="search" />
           <button type="button" id="mSearchBtn" class="m-primary">搜索</button>
         </div>
+        <div class="m-chips" id="mModeChips"></div>
         <div class="m-chips" id="mQuickChips"></div>
       </section>
       <div id="mBrowseGrid" class="m-grid"></div>
       <p id="mBrowseStatus" class="m-status">正在给你找图…</p>`;
     const goSet = document.getElementById("mGoSettings");
     if (goSet) goSet.onclick = openSettings;
+    (isStandalone() ? [["online", "在线库"], ["favorites", "收藏"]] : [["online", "在线库"]]).forEach(([value, label]) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "m-chip" + (state.browseMode === value ? " active" : "");
+      chip.textContent = label;
+      chip.onclick = () => {
+        state.browseMode = value;
+        renderBrowse(root);
+      };
+      document.getElementById("mModeChips").appendChild(chip);
+    });
     [["明日方舟", "明日方舟"], ["高松灯", "高松灯"], ["丰川祥子", "丰川祥子"], ["能天使", "能天使"]].forEach(([label, q]) => {
       const chip = document.createElement("button");
       chip.type = "button";
@@ -278,21 +292,21 @@
     const run = async () => {
       const q = document.getElementById("mSearch").value.trim();
       const status = document.getElementById("mBrowseStatus");
-      status.textContent = "搜索中…";
+      status.textContent = state.browseMode === "favorites" ? "读取本机收藏…" : "搜索中…";
       try {
-        const data = await api().get("/api/nai/aitag/search?q=" + encodeURIComponent(q) + "&page=1&page_size=24&nai_only=true");
+        await refreshFavIds();
+        const data = state.browseMode === "favorites"
+          ? await api().get("/api/nai/aitag/favorites/works")
+          : await api().get("/api/nai/aitag/search?q=" + encodeURIComponent(q) + "&page=1&page_size=24&nai_only=true");
         const items = data.items || data.works || [];
         const grid = document.getElementById("mBrowseGrid");
-        grid.innerHTML = items.map((item) => {
-          const id = String(item.work_id || item.id || "");
-          const cover = (item.images && item.images[0] && (item.images[0].thumbnail_url || item.images[0].url))
-            || ("/api/nai/aitag/cover/" + encodeURIComponent(id));
-          return `<a class="m-work" href="#/work/${encodeURIComponent(id)}">
-            <img src="${escapeHtml(cover)}" alt="">
-            <span>${escapeHtml(item.title || id)}</span>
-          </a>`;
-        }).join("") || "";
-        status.textContent = items.length ? `找到 ${items.length} 个作品，点一张就能换角` : "没有结果，换个词再搜";
+        grid.innerHTML = items.map((item) => workCardHtml(item)).join("") || "";
+        bindFavButtons(grid);
+        status.textContent = items.length
+          ? (state.browseMode === "favorites"
+            ? `本机收藏 ${items.length} 个，数据和首图已留下`
+            : `找到 ${items.length} 个作品，角标是图片张数`)
+          : (state.browseMode === "favorites" ? "还没有收藏。点卡片左上角☆就会存到本机。" : "没有结果，换个词再搜");
       } catch (error) {
         status.textContent = friendlyError(error);
         status.className = "m-status m-err";
@@ -324,6 +338,7 @@
     root.innerHTML = `<p class="m-status">加载作品…</p>`;
     try {
       const data = await api().get("/api/nai/aitag/work/" + encodeURIComponent(workId));
+      await refreshFavIds();
       state.work = (isStandalone() && window.StandaloneCore) ? window.StandaloneCore.decorateWork(data) : data;
       state.pageIndex = 0;
       state.slot = (state.work.character_candidates || [])[0] || null;
@@ -339,18 +354,162 @@
     return images[state.pageIndex] || images[0] || {};
   }
 
+  function imageCountOf(item) {
+    const work = (item && item.work) || item || {};
+    const images = (item && item.images) || work.images || [];
+    return Number(work.image_count || item.image_count || images.length || 0);
+  }
+
+  function workCardHtml(item) {
+    const id = String(item.work_id || item.id || "");
+    const cover = (item.images && item.images[0] && (item.images[0].thumbnail_url || item.images[0].url))
+      || ("/api/nai/aitag/cover/" + encodeURIComponent(id));
+    const count = imageCountOf(item);
+    const on = !!state.favIds[id];
+    const fav = isStandalone()
+      ? `<button type="button" class="m-fav${on ? " on" : ""}" data-fav="${escapeHtml(id)}" aria-label="收藏">${on ? "★" : "☆"}</button>`
+      : "";
+    return `<div class="m-work-card">
+      <a class="m-work" href="#/work/${encodeURIComponent(id)}">
+        <img src="${escapeHtml(cover)}" alt="">
+        <em class="m-page-badge">${count}张</em>
+        <span>${escapeHtml(item.title || id)}</span>
+      </a>
+      ${fav}
+    </div>`;
+  }
+
+  function bindFavButtons(host) {
+    if (!host) return;
+    host.querySelectorAll("[data-fav]").forEach((button) => {
+      button.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleFavorite(button.getAttribute("data-fav"), button);
+      };
+    });
+  }
+
+  async function refreshFavIds() {
+    try {
+      const data = await api().get("/api/nai/aitag/favorites");
+      const next = {};
+      (data.ids || []).forEach((id) => { next[String(id)] = true; });
+      state.favIds = next;
+    } catch (_) { /* ignore */ }
+  }
+
+  async function toggleFavorite(workId, button) {
+    const id = String(workId || "");
+    if (!id) return;
+    try {
+      const work = (state.work && state.work.work) || {};
+      const snapshot = {
+        title: work.title || (button && button.closest(".m-work-card") && button.closest(".m-work-card").querySelector("span")
+          ? button.closest(".m-work-card").querySelector("span").textContent
+          : id),
+        creator: work.creator || "",
+        cover_url: currentImage().thumbnail_url || currentImage().url || "",
+        image_count: imageCountOf(state.work || work),
+        tags: work.tags || [],
+      };
+      const result = await api().post("/api/nai/aitag/favorites/" + encodeURIComponent(id) + "/toggle", snapshot);
+      if (result.favorited) state.favIds[id] = true;
+      else delete state.favIds[id];
+      if (button) {
+        button.textContent = result.favorited ? "★" : "☆";
+        button.classList.toggle("on", !!result.favorited);
+      }
+      toast(result.message || (result.favorited ? "已收藏到本机" : "已取消收藏"));
+    } catch (error) {
+      toast(friendlyError(error), "err");
+    }
+  }
+
+  function closeCharPicker() {
+    const picker = document.getElementById("mPicker");
+    if (!picker) return;
+    picker.classList.add("hidden");
+    picker.setAttribute("aria-hidden", "true");
+  }
+
+  function openCharPicker() {
+    const picker = document.getElementById("mPicker");
+    const body = document.getElementById("mPickerBody");
+    if (!picker || !body) return;
+    body.innerHTML = `
+      <p class="m-hint">点开搜索后，在本机内置 D 站角色库里找，或本地创建。和电脑版同一套明日方舟库 + 常用角色。</p>
+      <div class="m-row" id="mGenderRow"></div>
+      <div class="m-row">
+        <input id="mTargetQ" placeholder="阿米娅 / 能天使 / 自定义名" value="${escapeHtml(state.targetQuery || "")}" enterkeyhint="search" />
+        <button type="button" id="mTargetBtn" class="m-primary">搜明日方舟</button>
+      </div>
+      <div id="mTargets" class="m-list" style="margin-top:8px"></div>
+      <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "先搜再点一个名字"}</p>
+      <div class="m-quote" style="margin-top:12px">小祥：也可以用中文描述角色，DeepSeek 帮你写成槽位 tag。这步不扣 Anlas。</div>
+      <textarea id="mDescribe" placeholder="例如：粉头发红眼睛的阿米娅风 OC，短外套" style="margin-top:8px"></textarea>
+      <div class="m-row" style="margin-top:8px">
+        <button type="button" id="mDescribeBtn" class="m-ghost">DeepSeek 写角色</button>
+      </div>
+      <details class="m-adv">
+        <summary>本地创建 / 保存自定义</summary>
+        <div class="m-row" style="margin-top:10px">
+          <input id="mCustomName" placeholder="自定义名字" />
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mCustomIdentity" placeholder="身份标签，如 my_oc_(oc)" />
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mCustomAppear" placeholder="外观，如 white_hair, red_eyes" />
+        </div>
+        <textarea id="mCustomCaption" placeholder="完整槽位咒语（可选，会保留原槽动作）" style="margin-top:8px"></textarea>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mCustomUse" class="m-ghost">用这次不保存</button>
+          <button type="button" id="mCustomSave" class="m-primary">保存自定义</button>
+        </div>
+      </details>`;
+    picker.classList.remove("hidden");
+    picker.setAttribute("aria-hidden", "false");
+    const genderRow = document.getElementById("mGenderRow");
+    [["female", "明日方舟·女"], ["male", "明日方舟·男"]].forEach(([value, label]) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "m-chip" + (state.targetGender === value ? " active" : "");
+      chip.textContent = label;
+      chip.onclick = () => { state.targetGender = value; openCharPicker(); };
+      genderRow.appendChild(chip);
+    });
+    document.getElementById("mTargetBtn").onclick = searchTargets;
+    const targetBox = document.getElementById("mTargetQ");
+    if (targetBox) {
+      targetBox.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") searchTargets();
+      });
+    }
+    document.getElementById("mCustomUse").onclick = () => useCustomRecord(false);
+    document.getElementById("mCustomSave").onclick = () => useCustomRecord(true);
+    document.getElementById("mDescribeBtn").onclick = describeWithDeepSeek;
+    searchTargets();
+  }
+
   function paintWork(root) {
     const work = (state.work && state.work.work) || {};
     const images = state.work.images || [];
     const img = currentImage();
     const candidates = (state.work.character_candidates || []).filter((item) => Number(item.image_index || 0) === state.pageIndex);
     const cover = img.thumbnail_url || img.url || ("/api/nai/aitag/cover/" + encodeURIComponent(work.work_id || ""));
+    const workId = String(work.work_id || work.id || "");
+    const favOn = !!state.favIds[workId];
+    const pageCount = imageCountOf(state.work);
     root.innerHTML = `
       <section class="m-card">
         <p class="m-eyebrow">第 1 步 · 看图</p>
-        <h2>${escapeHtml(work.title || work.work_id || "作品")}</h2>
+        <div class="m-target-row">
+          <h2>${escapeHtml(work.title || work.work_id || "作品")}</h2>
+          ${isStandalone() ? `<button type="button" class="m-fav${favOn ? " on" : ""}" data-fav="${escapeHtml(workId)}" aria-label="收藏">${favOn ? "★" : "☆"}</button>` : ""}
+        </div>
         <img class="m-preview" src="${escapeHtml(cover)}" alt="">
-        <p class="m-hint">${images.length} 页 · 先点准要换的人，再选换成谁。</p>
+        <p class="m-hint">${pageCount}张 · ${images.length} 页已加载 · 先点准要换的人，再点开搜索换成谁。</p>
         <div class="m-row" id="mPages"></div>
       </section>
       <section class="m-card">
@@ -362,35 +521,10 @@
       <section class="m-card">
         <p class="m-eyebrow">第 3 步 · 换成谁</p>
         <h3>换成谁</h3>
-        <div class="m-row" id="mGenderRow"></div>
+        <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "点开搜索，从内置 D 站角色库查找，或本地创建"}</p>
         <div class="m-row">
-          <input id="mTargetQ" placeholder="阿米娅 / 能天使 / 自定义名" value="${escapeHtml(state.targetQuery || "")}" enterkeyhint="search" />
-          <button type="button" id="mTargetBtn" class="m-ghost">搜明日方舟</button>
+          <button type="button" id="mOpenPicker" class="m-primary">点开搜索</button>
         </div>
-        <div id="mTargets" class="m-list" style="margin-top:8px"></div>
-        <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "默认明日方舟库，点一个名字即可"}</p>
-        <div class="m-quote" style="margin-top:12px">小祥：也可以用中文描述角色，DeepSeek 帮你写成槽位 tag。这步不扣 Anlas。</div>
-        <textarea id="mDescribe" placeholder="例如：粉头发红眼睛的阿米娅风 OC，短外套" style="margin-top:8px"></textarea>
-        <div class="m-row" style="margin-top:8px">
-          <button type="button" id="mDescribeBtn" class="m-ghost">DeepSeek 写角色</button>
-        </div>
-        <details class="m-adv">
-          <summary>高级：自己填标签 / 保存自定义</summary>
-          <div class="m-row" style="margin-top:10px">
-            <input id="mCustomName" placeholder="自定义名字" />
-          </div>
-          <div class="m-row" style="margin-top:8px">
-            <input id="mCustomIdentity" placeholder="身份标签，如 my_oc_(oc)" />
-          </div>
-          <div class="m-row" style="margin-top:8px">
-            <input id="mCustomAppear" placeholder="外观，如 white_hair, red_eyes" />
-          </div>
-          <textarea id="mCustomCaption" placeholder="完整槽位咒语（可选，会保留原槽动作）" style="margin-top:8px"></textarea>
-          <div class="m-row" style="margin-top:8px">
-            <button type="button" id="mCustomUse" class="m-ghost">用这次不保存</button>
-            <button type="button" id="mCustomSave" class="m-primary">保存自定义</button>
-          </div>
-        </details>
       </section>
       <section class="m-card">
         <p class="m-eyebrow">第 4 步 · 写草稿再出图</p>
@@ -445,25 +579,9 @@
     if (state.slot) {
       hint.textContent = (state.slot.label || "角色") + " · 槽 " + (Number(state.slot.slot_index || 0) + 1) + " · " + String(state.slot.caption || "").slice(0, 80);
     }
-    const genderRow = document.getElementById("mGenderRow");
-    [["female", "明日方舟·女"], ["male", "明日方舟·男"]].forEach(([value, label]) => {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "m-chip" + (state.targetGender === value ? " active" : "");
-      chip.textContent = label;
-      chip.onclick = () => { state.targetGender = value; paintWork(root); };
-      genderRow.appendChild(chip);
-    });
-    document.getElementById("mTargetBtn").onclick = searchTargets;
-    const targetBox = document.getElementById("mTargetQ");
-    if (targetBox) {
-      targetBox.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") searchTargets();
-      });
-    }
-    document.getElementById("mCustomUse").onclick = () => useCustomRecord(false);
-    document.getElementById("mCustomSave").onclick = () => useCustomRecord(true);
-    document.getElementById("mDescribeBtn").onclick = describeWithDeepSeek;
+    const openPicker = document.getElementById("mOpenPicker");
+    if (openPicker) openPicker.onclick = openCharPicker;
+    bindFavButtons(root);
     document.getElementById("mOptimize").onclick = optimizeCurrentDraft;
     document.getElementById("mApplyOne").onclick = () => applyDraft({ allPages: false, genderScope: "" });
     document.getElementById("mApplyAll").onclick = () => applyDraft({
@@ -472,7 +590,6 @@
     });
     document.getElementById("mGenOne").onclick = generateCurrent;
     document.getElementById("mQueueBtn").onclick = enqueueCurrent;
-    searchTargets();
   }
 
   function pickTarget(item) {
@@ -483,6 +600,7 @@
       : item.record || null;
     const hint = document.getElementById("mTargetHint");
     if (hint) hint.textContent = "已选 " + item.label;
+    closeCharPicker();
   }
 
   function customDraftFromForm() {
@@ -644,29 +762,40 @@
     const gender = state.targetGender === "male" ? "male" : "female";
     host.textContent = "搜索中…";
     try {
-      const [ark, customItems] = await Promise.all([
-        api().get("/api/plugin/char-swap/ark-library?gender=" + gender + "&q=" + encodeURIComponent(q) + "&limit=20"),
-        listCustom(gender),
-      ]);
-      const items = [];
-      (customItems || []).forEach((item) => {
-        items.push({
-          reference_id: "custom:" + (item.gender || gender) + ":" + item.id,
-          label: "自定义：" + (item.label || item.id),
-          record: Object.assign({ kind: "oc" }, item),
+      let items = [];
+      try {
+        const found = await api().get("/api/plugin/char-swap/search?gender=" + gender + "&q=" + encodeURIComponent(q) + "&limit=24");
+        (found.items || []).forEach((item) => {
+          items.push({
+            reference_id: item.reference_id,
+            label: (item.source ? item.source + " · " : "") + (item.label || item.reference_id),
+            record: item.record || item,
+          });
         });
-      });
-      (ark.items || []).forEach((item) => {
-        items.push({
-          reference_id: "ark:" + gender + ":" + item.id,
-          label: item.label || item.id,
-          record: item,
+      } catch (_) {
+        const [ark, customItems] = await Promise.all([
+          api().get("/api/plugin/char-swap/ark-library?gender=" + gender + "&q=" + encodeURIComponent(q) + "&limit=20"),
+          listCustom(gender),
+        ]);
+        (customItems || []).forEach((item) => {
+          items.push({
+            reference_id: "custom:" + (item.gender || gender) + ":" + item.id,
+            label: "自定义：" + (item.label || item.id),
+            record: Object.assign({ kind: "oc" }, item),
+          });
         });
-      });
+        (ark.items || []).forEach((item) => {
+          items.push({
+            reference_id: "ark:" + gender + ":" + item.id,
+            label: item.label || item.id,
+            record: item,
+          });
+        });
+      }
       if (q) {
         items.unshift({
           reference_id: "custom:" + gender + ":typed",
-          label: "自定义：" + q,
+          label: "本地创建：" + q,
           record: { id: "typed", label: q, gender: gender, kind: "oc", identity: [q], appearance: [], tag: q },
         });
       }
@@ -1208,6 +1337,18 @@
           <button type="button" id="mSaveDeepseek" class="m-primary">保存 DeepSeek</button>
           <button type="button" id="mClearDeepseek" class="m-danger">清除 DeepSeek</button>
         </div>
+        <p style="margin-top:16px">网络分流</p>
+        <p class="m-hint">开了全局代理常常搜得到图、出不了图。只让搜图走代理，出图默认直连。不要开全局 VPN，把 Clash HTTP 填下面，例如 http://127.0.0.1:7890。</p>
+        <input id="mProxy" placeholder="代理，可空：搜图用系统代理" autocomplete="off" />
+        <label class="m-hint" style="display:flex;gap:8px;align-items:center;margin-top:10px">
+          <input id="mOnlineProxy" type="checkbox" style="width:auto;min-height:22px" /> 搜图 / 写角色走代理
+        </label>
+        <label class="m-hint" style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <input id="mNaiProxy" type="checkbox" style="width:auto;min-height:22px" /> 出图走代理（默认关）
+        </label>
+        <div class="m-row" style="margin-top:10px">
+          <button type="button" id="mSaveNet" class="m-primary">保存网络设置</button>
+        </div>
         <p id="mSetStatus" class="m-status"></p>
       </section>`;
     document.getElementById("mSaveToken").onclick = async () => {
@@ -1260,6 +1401,28 @@
         toast(error.message || String(error), "err");
       }
     };
+    let net = { proxy: "", online_use_proxy: true, nai_use_proxy: false };
+    try { net = await api().get("/api/nai/network"); } catch (_) { /* ignore */ }
+    const proxyBox = document.getElementById("mProxy");
+    const onlineBox = document.getElementById("mOnlineProxy");
+    const naiBox = document.getElementById("mNaiProxy");
+    if (proxyBox) proxyBox.value = net.proxy || "";
+    if (onlineBox) onlineBox.checked = net.online_use_proxy !== false;
+    if (naiBox) naiBox.checked = !!net.nai_use_proxy;
+    document.getElementById("mSaveNet").onclick = async () => {
+      try {
+        const saved = await api().post("/api/nai/network", {
+          proxy: proxyBox ? proxyBox.value.trim() : "",
+          online_use_proxy: !!(onlineBox && onlineBox.checked),
+          nai_use_proxy: !!(naiBox && naiBox.checked),
+        });
+        document.getElementById("mSetStatus").textContent = saved.message || "网络设置已保存";
+        document.getElementById("mSetStatus").className = "m-status m-ok";
+      } catch (error) {
+        document.getElementById("mSetStatus").textContent = error.message || String(error);
+        document.getElementById("mSetStatus").className = "m-status m-err";
+      }
+    };
     if (window.PhoneApp && typeof window.PhoneApp.openSettings === "function") {
       const nativeBtn = document.createElement("button");
       nativeBtn.type = "button";
@@ -1270,6 +1433,8 @@
     }
   }
 
+  const pickerClose = document.getElementById("mPickerClose");
+  if (pickerClose) pickerClose.onclick = closeCharPicker;
   const pairBtn = document.getElementById("mPairBtn");
   if (pairBtn) {
     pairBtn.textContent = isStandalone() ? "设置" : "配对";
