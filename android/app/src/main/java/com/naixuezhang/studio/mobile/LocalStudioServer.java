@@ -36,7 +36,7 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         this.images = new ImageStore(this.context);
         this.pipeline = new PipelineStore(this.context, this.images);
         this.outputs = new OutputCatalog(this.context);
-        this.jobs = new JobStore(new NaiGenerator(this.tokens), this.images, this.pipeline, this.outputs);
+        this.jobs = new JobStore(new NaiGenerator(this.tokens), this.images, this.pipeline, this.outputs, this.favorites);
         this.http = new LocalHttpServer(this);
     }
 
@@ -165,7 +165,16 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             return json(200, favorites.ids().toString());
         }
         if ("GET".equals(request.method) && "/api/nai/aitag/favorites/works".equals(path)) {
-            return json(200, favorites.works().toString());
+            return json(200, favorites.works(request.query("q")).toString());
+        }
+        if ("GET".equals(request.method) && "/api/mobile/library/works".equals(path)) {
+            return json(200, favorites.works(request.query("q")).toString());
+        }
+        if ("GET".equals(request.method) && path.startsWith("/api/mobile/library/work/")) {
+            String id = LocalHttpServer.decode(path.substring("/api/mobile/library/work/".length()));
+            JSONObject local = favorites.workPayload(id);
+            if (local == null) return json(404, "{\"ok\":false,\"detail\":\"本地库没有这个作品\"}");
+            return json(200, local.toString());
         }
         if ("POST".equals(request.method) && path.startsWith("/api/nai/aitag/favorites/") && path.endsWith("/toggle")) {
             String id = path.substring("/api/nai/aitag/favorites/".length(), path.length() - "/toggle".length());

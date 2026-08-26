@@ -39,11 +39,17 @@ final class FavoriteStore {
     }
 
     synchronized JSONObject works() {
+        return works("");
+    }
+
+    synchronized JSONObject works(String query) {
+        String needle = String.valueOf(query == null ? "" : query).trim().toLowerCase(java.util.Locale.ROOT);
         JSONArray items = new JSONArray();
         JSONArray index = readIndex();
         for (int i = 0; i < index.length(); i++) {
             JSONObject row = index.optJSONObject(i);
             if (row == null) continue;
+            if (!needle.isEmpty() && !hay(row).contains(needle)) continue;
             JSONObject item = new JSONObject();
             try {
                 String id = row.optString("work_id");
@@ -54,6 +60,9 @@ final class FavoriteStore {
                 item.put("image_count", row.optInt("image_count", 0));
                 item.put("tags", row.optJSONArray("tags") == null ? new JSONArray() : row.optJSONArray("tags"));
                 item.put("favorited", true);
+                item.put("local", true);
+                item.put("gallery_id", "phone-local");
+                item.put("kind", row.optString("kind", "aitag"));
                 item.put("save_state", row.optString("save_state", "pending"));
                 JSONArray images = new JSONArray();
                 JSONObject cover = new JSONObject();
@@ -122,6 +131,7 @@ final class FavoriteStore {
         row.put("tags", snapshot == null ? new JSONArray() : JsonUtil.arr(snapshot, "tags"));
         row.put("cover_url", snapshot == null ? "" : JsonUtil.first(snapshot, "cover_url"));
         row.put("added_at", System.currentTimeMillis());
+        row.put("kind", "aitag");
         row.put("save_state", "pending");
         JSONArray next = new JSONArray();
         next.put(row);
@@ -133,7 +143,64 @@ final class FavoriteStore {
         startDownload(id);
         out.put("ok", true);
         out.put("favorited", true);
-        out.put("message", "已收藏，正在把数据和图片存到本机");
+        out.put("message", "已加入本地库。数据和咒语留下后，可离线换角。");
+        return out;
+    }
+
+    synchronized JSONObject importGenerated(String imageId, JSONObject comment, byte[] png) throws Exception {
+        String rawId = String.valueOf(imageId == null ? "" : imageId).trim();
+        String id = normalizeId("g" + rawId);
+        if (id.length() < 2) throw new IllegalArgumentException("缺少生成图 id");
+        JSONObject work = new JSONObject();
+        work.put("work_id", id);
+        work.put("id", id);
+        work.put("title", comment == null ? id : JsonUtil.first(comment, "title", "source_title"));
+        if (work.optString("title").isEmpty()) work.put("title", "本机生成");
+        work.put("creator", "phone-local");
+        work.put("gallery_id", "phone-local");
+        JSONObject image = new JSONObject();
+        image.put("image_id", id + "_p0");
+        image.put("id", id + "_p0");
+        image.put("page_index", 0);
+        image.put("ai_json", comment == null ? new JSONObject() : comment);
+        image.put("url", localUrl(id, 0));
+        image.put("thumbnail_url", localUrl(id, 0));
+        JSONArray images = new JSONArray().put(image);
+        work.put("images", images);
+        work.put("image_count", 1);
+        JSONObject payload = new JSONObject();
+        payload.put("ok", true);
+        payload.put("work", work);
+        payload.put("images", images);
+        payload.put("source", "phone-local");
+        payload.put("generation_calls", 0);
+        File dir = new File(root, id);
+        if (!dir.exists()) dir.mkdirs();
+        writeText(new File(dir, "work.json"), payload.toString());
+        if (png != null && png.length > 0) writeBytes(new File(dir, "p0.orig"), png);
+        JSONArray index = readIndex();
+        int found = find(index, id);
+        JSONObject row = found >= 0 ? index.optJSONObject(found) : new JSONObject();
+        if (row == null) row = new JSONObject();
+        row.put("work_id", id);
+        row.put("title", work.optString("title"));
+        row.put("creator", "phone-local");
+        row.put("image_count", 1);
+        row.put("kind", "generated");
+        row.put("save_state", "ready");
+        row.put("added_at", System.currentTimeMillis());
+        if (found >= 0) index.put(found, row);
+        else {
+            JSONArray next = new JSONArray();
+            next.put(row);
+            for (int i = 0; i < index.length(); i++) next.put(index.opt(i));
+            index = next;
+        }
+        writeIndex(index);
+        JSONObject out = new JSONObject();
+        out.put("ok", true);
+        out.put("work_id", id);
+        out.put("message", "生成图已入本地库，可继续换角");
         return out;
     }
 
@@ -144,6 +211,11 @@ final class FavoriteStore {
         try {
             JSONObject payload = JsonUtil.obj(readText(file));
             overlayLocalImages(payload, id);
+            payload.put("source", "phone-local");
+            payload.put("local", true);
+            if (payload.optJSONObject("work") != null) {
+                payload.getJSONObject("work").put("gallery_id", "phone-local");
+            }
             return payload;
         } catch (Exception e) {
             return null;
@@ -326,6 +398,19 @@ final class FavoriteStore {
             if (row != null && workId.equals(row.optString("work_id"))) return i;
         }
         return -1;
+    }
+
+    private static String hay(JSONObject row) {
+        StringBuilder blob = new StringBuilder();
+        blob.append(row.optString("title")).append(' ');
+        blob.append(row.optString("creator")).append(' ');
+        blob.append(row.optString("work_id")).append(' ');
+        blob.append(row.optString("kind")).append(' ');
+        org.json.JSONArray tags = row.optJSONArray("tags");
+        if (tags != null) {
+            for (int i = 0; i < tags.length(); i++) blob.append(tags.opt(i)).append(' ');
+        }
+        return blob.toString().toLowerCase(java.util.Locale.ROOT);
     }
 
     private static String localUrl(String workId, int index) {

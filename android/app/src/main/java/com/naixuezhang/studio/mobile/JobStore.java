@@ -16,12 +16,14 @@ final class JobStore {
     private final ImageStore images;
     private final PipelineStore pipeline;
     private final OutputCatalog catalog;
+    private final FavoriteStore library;
 
-    JobStore(NaiGenerator generator, ImageStore images, PipelineStore pipeline, OutputCatalog catalog) {
+    JobStore(NaiGenerator generator, ImageStore images, PipelineStore pipeline, OutputCatalog catalog, FavoriteStore library) {
         this.generator = generator;
         this.images = images;
         this.pipeline = pipeline;
         this.catalog = catalog;
+        this.library = library;
     }
 
     JSONObject start(JSONObject comment, boolean forceFree) throws Exception {
@@ -63,16 +65,38 @@ final class JobStore {
         try {
             put(job, "status", "running");
             byte[] png = generator.generatePng(comment, forceFree);
-            String imageId = images.save(id, png, pipeline.autoAfterGenerate());
+            String imageId = images.save(id, png, false);
+            byte[] processed = pipeline.process(png);
+            images.saveFinal(imageId, processed);
+            if (pipeline.autoAfterGenerate()) {
+                images.exportOne(imageId + "-final", processed);
+            }
             if (catalog != null) {
                 JSONObject source = comment == null ? new JSONObject() : comment.optJSONObject("_aitag_source");
+                if (source == null) source = new JSONObject();
+                if (source.optString("title").isEmpty() && comment != null) {
+                    source.put("title", comment.optString("title"));
+                }
                 catalog.add(imageId, source);
+            }
+            if (library != null) {
+                JSONObject record = comment == null ? new JSONObject() : new JSONObject(comment.toString());
+                if (catalog != null) {
+                    JSONObject source = comment == null ? null : comment.optJSONObject("_aitag_source");
+                    if (source != null) {
+                        record.put("title", JsonUtil.first(source, "title", "source_title"));
+                    }
+                }
+                library.importGenerated(imageId, record, processed);
             }
             JSONObject item = new JSONObject();
             item.put("ok", true);
             item.put("image_url", "/api/mobile/output/" + imageId + ".png");
             item.put("gallery_url", item.optString("image_url"));
-            item.put("message", pipeline.autoAfterGenerate() ? "完成，已保存到相册" : "完成");
+            item.put("library_id", "g" + imageId);
+            item.put("message", pipeline.autoAfterGenerate()
+                ? "完成：已入本地库、跑完超分/清元数据、存进相册"
+                : "完成：已入本地库并跑完流水线");
             synchronized (job) {
                 job.put("items", new JSONArray().put(item));
                 job.put("done", 1);
