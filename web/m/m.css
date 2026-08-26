@@ -485,3 +485,13 @@ button:disabled { opacity: 0.45; }
 .m-status { min-height: 1.4em; color: var(--muted); font-size: 13px; }
 .m-ok { color: var(--ok); }
 .m-err { color: var(--err); }
+.m-meta { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; word-break: break-word; }
+.m-draft {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(18, 12, 34, 0.72);
+  border: 1px solid var(--gold-line);
+}
+.m-draft p { margin: 0 0 8px; }
+.m-draft p:last-child { margin-bottom: 0; }

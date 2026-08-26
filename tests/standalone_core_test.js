@@ -226,4 +226,38 @@ assert.ok(String(optimized.prompt).includes("cinematic lighting"));
 assert.strictEqual(optimized.uc, "lowres, blurry");
 assert.ok(optimized.v4_prompt.caption.char_captions[0].char_caption.includes("skadi_(arknights)"));
 
+const demoLike = core.decorateWork({
+  work: { work_id: "demo-ark-amiya", title: "内置样例 · 阿米娅换角" },
+  images: [{
+    image_id: "demo-ark-amiya_p0",
+    prompt_text: "2girls, rhodes island infirmary, soft lighting, official art",
+    ai_json: {
+      Comment: {
+        prompt: "2girls, rhodes island infirmary, soft lighting, official art",
+        v4_prompt: {
+          caption: {
+            base_caption: "2girls, rhodes island infirmary, soft lighting, official art",
+            char_captions: [
+              { char_caption: "amiya_(arknights), 1girl, brown_hair, blue_eyes, rabbit_ears, standing" },
+              { char_caption: "kaltsit_(arknights), 1girl, white_hair, green_eyes, labcoat" },
+            ],
+          },
+        },
+      },
+    },
+  }],
+});
+assert.strictEqual(demoLike.character_candidates.length, 2);
+assert.ok(core.imageComment(demoLike.images[0]).prompt.includes("rhodes island"));
+const amiyaSwap = core.compileDraft(demoLike, {
+  image_index: 0,
+  candidate_id: demoLike.character_candidates[0].candidate_id,
+  target_record: target,
+  target_reference_id: "preset:female:skadi_f",
+});
+const demoSnap = core.promptSnapshot(amiyaSwap.draft.comment);
+assert.ok(String(demoSnap.char_captions[0].caption).includes("skadi_(arknights)"));
+assert.ok(String(demoSnap.char_captions[1].caption).includes("kaltsit_(arknights)"));
+assert.ok(String(demoSnap.base_caption || demoSnap.prompt).includes("rhodes island"));
+
 console.log("standalone-core ok");

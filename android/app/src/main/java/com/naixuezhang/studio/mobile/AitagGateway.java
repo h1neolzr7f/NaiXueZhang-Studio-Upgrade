@@ -27,10 +27,39 @@ final class AitagGateway {
     }
 
     JSONObject search(String query, int page, boolean naiOnly) throws Exception {
+        return search(query, page, naiOnly, "new");
+    }
+
+    JSONObject search(String query, int page, boolean naiOnly, String sort) throws Exception {
         String q = query == null ? "" : query.trim();
-        String url = SITE + "/api/ai_works_search?page=" + Math.max(1, page)
-            + "&page_size=60&q=" + enc(q) + "&prompt=&sort=new&time_range=all";
-        JSONObject raw = fetchJson(url);
+        int pageNo = Math.max(1, page);
+        String mode = "popular".equalsIgnoreCase(String.valueOf(sort == null ? "" : sort).trim()) ? "popular" : "new";
+        String url = mode.equals("popular")
+            ? SITE + "/api/rank/monthly/real?page=" + pageNo + "&page_size=60"
+                + (q.isEmpty() ? "" : "&q=" + enc(q))
+            : SITE + "/api/ai_works_search?page=" + pageNo
+                + "&page_size=60&q=" + enc(q) + "&prompt=&sort=new&time_range=all";
+        JSONObject raw;
+        try {
+            raw = fetchJson(url);
+        } catch (Exception error) {
+            if (pageNo != 1) throw error;
+            JSONArray fallback = new JSONArray().put(DemoWorks.searchHit());
+            JSONObject out = new JSONObject();
+            out.put("ok", true);
+            out.put("source", "phone-demo");
+            out.put("query", q);
+            out.put("page", 1);
+            out.put("page_size", 60);
+            out.put("items", fallback);
+            out.put("works", fallback);
+            out.put("offline_demo", true);
+            out.put("has_more", false);
+            out.put("via", lastVia);
+            out.put("detail", error.getMessage());
+            out.put("generation_calls", 0);
+            return out;
+        }
         JSONObject root = raw.optJSONObject("data");
         if (root == null) root = raw;
         JSONArray source = firstArray(root, "works", "items", "results");
@@ -44,6 +73,12 @@ final class AitagGateway {
             if (looksNai(work)) naiItems.put(work);
         }
         JSONArray items = naiOnly && naiItems.length() > 0 ? naiItems : safeItems;
+        if (pageNo == 1) {
+            JSONArray withDemo = new JSONArray();
+            withDemo.put(DemoWorks.searchHit());
+            for (int i = 0; i < items.length(); i++) withDemo.put(items.opt(i));
+            items = withDemo;
+        }
         JSONObject out = new JSONObject();
         out.put("ok", true);
         out.put("source", "aitag-online");
@@ -54,6 +89,8 @@ final class AitagGateway {
         out.put("works", items);
         out.put("relaxed", naiOnly && naiItems.length() == 0 && safeItems.length() > 0);
         out.put("via", lastVia);
+        out.put("sort", mode);
+        out.put("has_more", source.length() >= 60);
         out.put("generation_calls", 0);
         return out;
     }
@@ -64,12 +101,19 @@ final class AitagGateway {
             JSONObject result = search("arknights", 1, false);
             JSONArray items = result.optJSONArray("items");
             int count = items == null ? 0 : items.length();
-            out.put("ok", count > 0 || result.optBoolean("ok", false));
+            boolean offline = result.optBoolean("offline_demo", false);
+            int onlineCount = count;
+            if (items != null && count > 0 && DemoWorks.isDemo(items.optJSONObject(0).optString("work_id"))) {
+                onlineCount = count - 1;
+            }
+            out.put("ok", !offline && onlineCount > 0);
             out.put("via", lastVia);
-            out.put("item_count", count);
-            out.put("message", count > 0
-                ? ("在线库已接通（" + (lastVia.isEmpty() ? "java" : lastVia) + "），搜到 " + count + " 条")
-                : "在线库通了，但这页没有结果");
+            out.put("item_count", onlineCount);
+            out.put("message", offline
+                ? "在线库暂时打不开，但内置样例可用"
+                : (onlineCount > 0
+                    ? ("在线库已接通（" + (lastVia.isEmpty() ? "java" : lastVia) + "），搜到 " + onlineCount + " 条")
+                    : "在线库通了，但这页没有结果"));
         } catch (Exception error) {
             try {
                 out.put("ok", false);
@@ -89,6 +133,7 @@ final class AitagGateway {
 
     JSONObject work(String workId) throws Exception {
         String id = String.valueOf(workId == null ? "" : workId).trim();
+        if (DemoWorks.isDemo(id)) return DemoWorks.payload();
         if (!WORK_ID.matcher(id).matches()) throw new IllegalArgumentException("AITag work id is invalid");
         JSONObject raw = fetchJson(SITE + "/api/work/" + enc(id));
         JSONObject root = raw.optJSONObject("data");
@@ -124,6 +169,9 @@ final class AitagGateway {
     }
 
     HttpOutbound.Result cover(String workId) throws Exception {
+        if (DemoWorks.isDemo(workId)) {
+            return new HttpOutbound.Result(200, DemoWorks.png(0), "image/png");
+        }
         JSONObject detail = work(workId);
         JSONArray images = detail.optJSONArray("images");
         JSONObject image = images != null && images.length() > 0 ? images.optJSONObject(0) : null;
@@ -193,12 +241,19 @@ final class AitagGateway {
         image.put("image_type", JsonUtil.first(raw, "image_type", "imageType"));
         image.put("file_name", JsonUtil.first(raw, "file_name", "fileName"));
         image.put("model", JsonUtil.first(raw, "model"));
-        image.put("prompt_text", JsonUtil.first(raw, "prompt_text", "promptText"));
         image.put("width", raw.opt("width"));
         image.put("height", raw.opt("height"));
-        Object aiJson = raw.opt("ai_json");
-        if (aiJson == null) aiJson = raw.opt("aiJson");
+        Object aiJson = unwrapAiJson(raw.opt("ai_json") != null ? raw.opt("ai_json") : raw.opt("aiJson"));
         if (aiJson != null) image.put("ai_json", aiJson);
+        String prompt = JsonUtil.first(raw, "prompt_text", "promptText", "prompt", "Description");
+        if (prompt.isEmpty() && aiJson instanceof JSONObject) {
+            JSONObject comment = (JSONObject) aiJson;
+            prompt = JsonUtil.first(comment, "prompt", "Description");
+            JSONObject v4 = comment.optJSONObject("v4_prompt");
+            JSONObject cap = v4 == null ? null : v4.optJSONObject("caption");
+            if (prompt.isEmpty() && cap != null) prompt = cap.optString("base_caption");
+        }
+        image.put("prompt_text", prompt);
         String type = image.optString("image_type");
         String author = image.optString("author_id");
         String file = image.optString("file_name");
@@ -348,6 +403,19 @@ final class AitagGateway {
         String cookie = BrowserSession.cookiesFor(SITE + "/");
         if (!cookie.isEmpty()) headers.put("Cookie", cookie);
         return headers;
+    }
+
+    private static Object unwrapAiJson(Object raw) {
+        if (raw == null || raw == JSONObject.NULL) return null;
+        Object value = raw;
+        if (value instanceof String) value = JsonUtil.obj((String) value);
+        if (!(value instanceof JSONObject)) return value;
+        JSONObject obj = (JSONObject) value;
+        Object comment = obj.opt("Comment");
+        if (comment == null) comment = obj.opt("comment");
+        if (comment instanceof String) comment = JsonUtil.obj((String) comment);
+        if (comment instanceof JSONObject && ((JSONObject) comment).length() > 0) return comment;
+        return obj;
     }
 
     private static boolean looksHtml(String text) {

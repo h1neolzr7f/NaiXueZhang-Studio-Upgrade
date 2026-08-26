@@ -816,6 +816,7 @@
     applyCharacterToComment: applyCharacterToComment,
     analyzeSlotCaption: analyzeSlotCaption,
     discoverCandidates: discoverCandidates,
+    imageComment: imageComment,
     decorateWork: decorateWork,
     targetRecord: targetRecord,
     compileDraft: compileDraft,

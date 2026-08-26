@@ -162,7 +162,19 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             return json(200, aitag.probe().toString());
         }
         if ("GET".equals(request.method) && "/api/nai/aitag/search".equals(path)) {
-            return json(200, aitag.search(request.query("q"), parseInt(request.query("page"), 1), true).toString());
+            return json(200, aitag.search(
+                request.query("q"),
+                parseInt(request.query("page"), 1),
+                true,
+                request.query("sort")
+            ).toString());
+        }
+        if ("GET".equals(request.method) && "/api/mobile/demo/work".equals(path)) {
+            return json(200, DemoWorks.payload().toString());
+        }
+        if ("GET".equals(request.method) && path.startsWith("/api/mobile/demo/image/")) {
+            int index = parseInt(path.substring("/api/mobile/demo/image/".length()), 0);
+            return new LocalHttpServer.Response(200, "image/png", DemoWorks.png(index));
         }
         if ("GET".equals(request.method) && "/api/nai/aitag/favorites".equals(path)) {
             return json(200, favorites.ids().toString());
