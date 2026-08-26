@@ -1,17 +1,20 @@
-Nai学长工作室 · 安卓独立版 1.5.2-phone.3（debug）
+Nai学长工作室 · 安卓独立版 1.5.2-phone.4（debug）
 
 安装包：NaiXueZhang-Phone-1.5.2.apk
 包名：com.naixuezhang.studio.mobile
-SHA256：4b3b454dc705743a60361b0c5f5dd137641a4cd84f470bd2b49597324c1e24af
+SHA256：8acb15bd879b69d87074b91f73bbb3e386c6499ae1588aa60f27fd2bcc2cb960
 
 这是 debug 签名包，不是官方 Windows 一键 zip。
 装完只填 NovelAI Token 和 DeepSeek Key，不连电脑，不遥控电脑。
 搜图可走代理，出图默认直连。收藏会把数据和图片存到本机。
 
+在线库：Clash 填 HTTP（例如 http://127.0.0.1:7890），不要只开全局 VPN。
+还打不开就到设置点「测试在线库」或「打开在线库过验证」。
+
 手机浏览器直接下载：
 https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/raw/cursor/android-phone-standalone-9162/android/download/NaiXueZhang-Phone-1.5.2.apk
 
 装法：
-1. 用手机浏览器打开上面的链接，等 APK 下完。
+1. 先卸载旧的「Nai学长工作室」，再用手机浏览器打开上面的链接，等 APK 下完。
 2. 打开下载文件。若系统拦截，到设置里允许「安装未知应用」。
-3. 打开「Nai学长工作室」，点设置，粘贴两把钥匙。
+3. 打开应用，点设置，粘贴两把钥匙；需要时代理填 7890。
