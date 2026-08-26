@@ -94,6 +94,8 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("不遥控电脑", js)
         self.assertIn("三步就会用", js)
         self.assertIn("standalone=1", js)
+        self.assertIn("friendlyError", js)
+        self.assertIn("在线库暂时打不开", js)
         self.assertGreaterEqual(js.count("先在设置里填 NovelAI Token"), 2)
         css = (WEB / "m" / "m.css").read_text(encoding="utf-8")
         self.assertIn("min-height: 44px", css)

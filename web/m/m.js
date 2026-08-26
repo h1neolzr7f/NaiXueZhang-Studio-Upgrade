@@ -83,6 +83,17 @@
     });
   }
 
+  function friendlyError(error) {
+    const raw = String((error && (error.message || error.detail)) || error || "");
+    if (/<!DOCTYPE|Just a moment|cloudflare|HTTP 403|HTTP 502|Bad Gateway/i.test(raw)) {
+      return "在线库暂时打不开。连一下手机网络，再点搜索试一次。";
+    }
+    if (/not found|404/i.test(raw)) {
+      return "这一页还没有数据。先去发现选一张图。";
+    }
+    return raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 140) || "出了点问题，再试一次";
+  }
+
   function escapeHtml(value) {
     return String(value || "")
       .replace(/&/g, "&amp;")
@@ -281,9 +292,9 @@
             <span>${escapeHtml(item.title || id)}</span>
           </a>`;
         }).join("") || "";
-        status.textContent = items.length ? `找到 ${items.length} 个作品` : "没有结果";
+        status.textContent = items.length ? `找到 ${items.length} 个作品，点一张就能换角` : "没有结果，换个词再搜";
       } catch (error) {
-        status.textContent = error.message || String(error);
+        status.textContent = friendlyError(error);
         status.className = "m-status m-err";
       }
     };
@@ -318,7 +329,8 @@
       state.slot = (state.work.character_candidates || [])[0] || null;
       paintWork(root);
     } catch (error) {
-      root.innerHTML = `<section class="m-card"><h2>换角</h2><p class="m-err">${escapeHtml(error.message || error)}</p></section>`;
+      root.innerHTML = `<section class="m-card"><h2>换角</h2><p class="m-err">${escapeHtml(friendlyError(error))}</p>
+        <div class="m-row"><a class="m-primary" href="#/browse">回发现再选</a></div></section>`;
     }
   }
 
@@ -1170,7 +1182,7 @@
         renderGallery(root);
       };
     } catch (error) {
-      root.innerHTML = `<section class="m-card"><h2>成果</h2><p class="m-err">${escapeHtml(error.message || error)}</p></section>`;
+      root.innerHTML = `<section class="m-card"><h2>成果</h2><p class="m-hint">装到手机后，这里会列出本机生成图。电脑预览没有这份相册。</p></section>`;
     }
   }
 

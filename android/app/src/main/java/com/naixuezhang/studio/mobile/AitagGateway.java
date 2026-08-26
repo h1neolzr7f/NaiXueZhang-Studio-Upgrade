@@ -213,7 +213,7 @@ final class AitagGateway {
     private JSONObject fetchJson(String url) throws Exception {
         Map<String, String> headers = new HashMap<>();
         headers.put("Accept", "application/json");
-        headers.put("User-Agent", "NaiXueZhang-Phone/1.5");
+        headers.put("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
         HttpOutbound.Result result = HttpOutbound.get(url, headers, 30000, JSON_LIMIT);
         if (result.status < 200 || result.status >= 300) {
             throw new IllegalStateException("AITag returned HTTP " + result.status);
@@ -225,7 +225,7 @@ final class AitagGateway {
         if (!url.startsWith(CDN + "/")) throw new IllegalStateException("AITag image response escaped the fixed CDN origin");
         Map<String, String> headers = new HashMap<>();
         headers.put("Accept", "image/webp,image/*");
-        headers.put("User-Agent", "NaiXueZhang-Phone/1.5");
+        headers.put("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
         HttpOutbound.Result result = HttpOutbound.get(url, headers, 30000, IMAGE_LIMIT);
         if (result.status != 200) throw new IllegalStateException("AITag image was unavailable");
         return result;
