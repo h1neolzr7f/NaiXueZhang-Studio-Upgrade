@@ -23,8 +23,12 @@ Nai学长工作室 · 安卓独立版（以电脑版 1.5.2 为基准）
   · 不配对电脑、不填电脑服务地址
   · 手机上不做超分 / 打码
 
+直接下载（已打好的 debug 安装包）：
+  android/download/NaiXueZhang-Phone-1.5.2.apk
+  手机浏览器点开 raw 链接会开始下载。装完后允许未知来源，打开「Nai学长工作室」。
+
 用法：
-  1. 用 Android Studio 打开本目录，JDK 17，Run 到手机或模拟器。
+  1. 直接装上面的 APK；或用 Android Studio 打开本目录，JDK 17，Run 到手机或模拟器。
      或在本目录执行 gradlew.bat assembleDebug，安装 app/build/outputs/apk/debug/app-debug.apk。
   2. 桌面图标和启动页是独立应用壳，不是浏览器标签。
   3. 打开应用后点「设置」，粘贴自己的 NovelAI Token 和 DeepSeek Key。
