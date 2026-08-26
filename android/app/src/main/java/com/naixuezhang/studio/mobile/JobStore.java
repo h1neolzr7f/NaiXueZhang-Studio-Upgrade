@@ -15,11 +15,13 @@ final class JobStore {
     private final NaiGenerator generator;
     private final ImageStore images;
     private final PipelineStore pipeline;
+    private final OutputCatalog catalog;
 
-    JobStore(NaiGenerator generator, ImageStore images, PipelineStore pipeline) {
+    JobStore(NaiGenerator generator, ImageStore images, PipelineStore pipeline, OutputCatalog catalog) {
         this.generator = generator;
         this.images = images;
         this.pipeline = pipeline;
+        this.catalog = catalog;
     }
 
     JSONObject start(JSONObject comment, boolean forceFree) throws Exception {
@@ -62,6 +64,10 @@ final class JobStore {
             put(job, "status", "running");
             byte[] png = generator.generatePng(comment, forceFree);
             String imageId = images.save(id, png, pipeline.autoAfterGenerate());
+            if (catalog != null) {
+                JSONObject source = comment == null ? new JSONObject() : comment.optJSONObject("_aitag_source");
+                catalog.add(imageId, source);
+            }
             JSONObject item = new JSONObject();
             item.put("ok", true);
             item.put("image_url", "/api/mobile/output/" + imageId + ".png");

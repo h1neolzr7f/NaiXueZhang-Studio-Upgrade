@@ -38,12 +38,19 @@ class MobileStandaloneTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("TokenStore", settings)
-        self.assertIn("NovelAI", (ANDROID / "app/src/main/res/values/strings.xml").read_text(encoding="utf-8"))
+        self.assertIn("DeepSeek", settings)
+        strings = (ANDROID / "app/src/main/res/values/strings.xml").read_text(encoding="utf-8")
+        self.assertIn("NovelAI", strings)
+        self.assertIn("DeepSeek", strings)
+        self.assertIn("不遥控电脑", strings)
         icon = ANDROID / "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
         self.assertTrue(icon.is_file())
         note = (ANDROID / "说明.txt").read_text(encoding="utf-8")
         self.assertIn("不连电脑", note)
         self.assertIn("NovelAI Token", note)
+        self.assertIn("DeepSeek", note)
+        self.assertIn("不遥控", note)
+        self.assertNotIn("工作室地址", note)
 
     def test_local_server_keeps_paid_gates(self) -> None:
         server = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/LocalStudioServer.java").read_text(
@@ -52,6 +59,10 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("force_free", server)
         self.assertIn("/api/nai/generate", server)
         self.assertIn("/api/nai/token", server)
+        self.assertIn("/api/ai/key", server)
+        self.assertIn("/api/studio/optimize", server)
+        self.assertIn("/api/mobile/char-describe", server)
+        self.assertIn("手机独立版不读取电脑待生成队列", server)
         generator = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/NaiGenerator.java").read_text(
             encoding="utf-8"
         )
@@ -75,11 +86,15 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("candidate_id", js)
         self.assertIn("manageBusy", js)
         self.assertIn("开始在线批量", js)
+        self.assertIn("DeepSeek 写角色", js)
+        self.assertIn("/api/mobile/char-describe", js)
+        self.assertIn("不遥控电脑", js)
         self.assertGreaterEqual(js.count("先在设置里填 NovelAI Token"), 2)
         core = (WEB / "m" / "standalone-core.js").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"\bfetch\s*\(", core))
         self.assertIn("generation_calls: 0", core)
         self.assertIn("buildGeneratePayload", core)
+        self.assertIn("applyOptimizeTexts", core)
         self.assertIn("analyzeSlotCaption", core)
         self.assertIn("没找到这个角色槽", core)
         server = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/LocalStudioServer.java").read_text(

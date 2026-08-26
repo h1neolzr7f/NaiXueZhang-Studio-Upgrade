@@ -34,6 +34,7 @@ class MobileShellTests(unittest.TestCase):
         self.assertIn("换角", html)
         self.assertIn("批量", html)
         self.assertIn("流水线", html)
+        self.assertIn("1.5.2", html)
         self.assertIn("m-sky", html)
         self.assertIn("m-tab-ico", html)
         css = (WEB / "m" / "m.css").read_text(encoding="utf-8")

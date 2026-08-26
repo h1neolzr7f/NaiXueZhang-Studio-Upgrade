@@ -16,9 +16,11 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
     private final CustomCharStore customChars;
     private final CharLibrary library;
     private final AitagGateway aitag = new AitagGateway();
+    private final DeepSeekClient deepseek;
     private final JobStore jobs;
     private final ImageStore images;
     private final PipelineStore pipeline;
+    private final OutputCatalog outputs;
     private final LocalHttpServer http;
     private int port;
 
@@ -27,9 +29,11 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         this.tokens = new TokenStore(this.context);
         this.customChars = new CustomCharStore(this.context);
         this.library = new CharLibrary(this.context, this.customChars);
+        this.deepseek = new DeepSeekClient(this.tokens);
         this.images = new ImageStore(this.context);
         this.pipeline = new PipelineStore(this.context, this.images);
-        this.jobs = new JobStore(new NaiGenerator(this.tokens), this.images, this.pipeline);
+        this.outputs = new OutputCatalog(this.context);
+        this.jobs = new JobStore(new NaiGenerator(this.tokens), this.images, this.pipeline, this.outputs);
         this.http = new LocalHttpServer(this);
     }
 
@@ -65,6 +69,8 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             out.put("loopback", true);
             out.put("remote_listen", false);
             out.put("has_token", tokens.hasToken());
+            out.put("has_deepseek", tokens.hasDeepSeek());
+            out.put("has_ai_key", tokens.hasDeepSeek());
             return json(200, out.toString());
         }
         if ("GET".equals(request.method) && "/api/nai/status".equals(path)) {
@@ -72,6 +78,7 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             boolean has = tokens.hasToken();
             out.put("ok", has);
             out.put("has_token", has);
+            out.put("has_deepseek", tokens.hasDeepSeek());
             out.put("message", has ? "token configured" : "NAI token is not configured");
             return json(200, out.toString());
         }
@@ -85,6 +92,46 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             out.put("has_token", tokens.hasToken());
             out.put("message", tokens.hasToken() ? "已保存到本机" : "已清除");
             return json(200, out.toString());
+        }
+        if ("GET".equals(request.method) && "/api/ai/status".equals(path)) {
+            return json(200, deepseek.status().toString());
+        }
+        if ("POST".equals(request.method) && "/api/ai/key".equals(path)) {
+            JSONObject payload = JsonUtil.obj(request.text());
+            String key = JsonUtil.first(payload, "api_key", "key", "token");
+            if (key.isEmpty()) tokens.clearDeepSeek();
+            else tokens.setDeepSeek(key);
+            JSONObject out = new JSONObject();
+            out.put("ok", true);
+            out.put("has_api_key", tokens.hasDeepSeek());
+            out.put("has_deepseek", tokens.hasDeepSeek());
+            out.put("message", tokens.hasDeepSeek() ? "DeepSeek 已保存到本机" : "已清除 DeepSeek");
+            return json(200, out.toString());
+        }
+        if ("POST".equals(request.method) && "/api/studio/optimize".equals(path)) {
+            try {
+                JSONObject payload = JsonUtil.obj(request.text());
+                JSONObject comment = payload.optJSONObject("comment");
+                if (comment == null) comment = payload.optJSONObject("patched_comment");
+                if (comment == null) return json(400, "{\"ok\":false,\"detail\":\"comment is required\"}");
+                return json(200, deepseek.optimize(comment).toString());
+            } catch (Exception error) {
+                return json(400, errorJson(error.getMessage()));
+            }
+        }
+        if ("POST".equals(request.method) && "/api/mobile/char-describe".equals(path)) {
+            try {
+                JSONObject payload = JsonUtil.obj(request.text());
+                return json(200, deepseek.describeCharacter(
+                    JsonUtil.first(payload, "text", "description"),
+                    JsonUtil.str(payload, "gender")
+                ).toString());
+            } catch (Exception error) {
+                return json(400, errorJson(error.getMessage()));
+            }
+        }
+        if ("GET".equals(request.method) && "/api/mobile/outputs".equals(path)) {
+            return json(200, outputs.list(images).toString());
         }
         if ("GET".equals(request.method) && "/api/nai/aitag/search".equals(path)) {
             return json(200, aitag.search(request.query("q"), parseInt(request.query("page"), 1), true).toString());
@@ -195,6 +242,15 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
 
     private static LocalHttpServer.Response json(int status, String body) {
         return LocalHttpServer.Response.json(status, body);
+    }
+
+    private static String errorJson(String message) {
+        JSONObject out = new JSONObject();
+        try {
+            out.put("ok", false);
+            out.put("detail", message == null || message.trim().isEmpty() ? "request failed" : message);
+        } catch (Exception ignored) {}
+        return out.toString();
     }
 
     private static int parseInt(String raw, int fallback) {

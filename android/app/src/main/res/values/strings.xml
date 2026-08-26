@@ -1,11 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Nai学长工作室</string>
-    <string name="app_tagline">升级版 · 手机本地换角出图</string>
+    <string name="app_tagline">1.5.2 · 手机独立换角出图</string>
     <string name="settings_title">本机设置</string>
-    <string name="settings_hint">Token 只写进这台手机的应用存储，不连电脑，出图直接走 NovelAI。</string>
+    <string name="settings_hint">这是独立安卓应用，不遥控电脑。密钥只写进这台手机。出图走 NovelAI，写角色/优化咒语走 DeepSeek。</string>
     <string name="token_hint">粘贴 NovelAI Token（pst- 或 Bearer 后面那段）</string>
-    <string name="save_token">保存 Token</string>
-    <string name="clear_token">清除 Token</string>
+    <string name="deepseek_hint">粘贴 DeepSeek API Key（sk- 开头）</string>
+    <string name="save_token">保存 NovelAI Token</string>
+    <string name="clear_token">清除 NovelAI Token</string>
+    <string name="save_deepseek">保存 DeepSeek Key</string>
+    <string name="clear_deepseek">清除 DeepSeek Key</string>
     <string name="back">返回</string>
+    <string name="nai_section">NovelAI</string>
+    <string name="deepseek_section">DeepSeek</string>
 </resources>

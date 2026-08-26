@@ -66,6 +66,8 @@ body {
 .m-star.s3 { top: 8%; left: 62%; animation-delay: 1.1s; }
 .m-star.s4 { top: 30%; left: 78%; animation-delay: 1.7s; }
 .m-star.s5 { top: 16%; left: 88%; animation-delay: 0.3s; }
+.m-star.s6 { top: 40%; left: 8%; animation-delay: 1.4s; }
+.m-star.s7 { top: 52%; left: 92%; animation-delay: 2.1s; }
 .m-petal {
   position: absolute;
   top: -20px;
@@ -160,6 +162,52 @@ body {
 .m-pill.ok { border-color: rgba(61, 220, 151, 0.45); color: var(--ok); }
 
 .m-app { padding: 14px 14px 22px; }
+.m-hero {
+  position: relative;
+  margin-bottom: 14px;
+  padding: 18px 16px 16px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(180px 80px at 92% 0%, rgba(244, 210, 122, 0.18), transparent 70%),
+    linear-gradient(180deg, rgba(72, 36, 88, 0.92), rgba(26, 18, 48, 0.94));
+  box-shadow: 0 0 0 1px var(--gold-line), 0 12px 28px rgba(12, 6, 24, 0.38);
+  overflow: hidden;
+}
+.m-hero::after {
+  content: "学";
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  width: 36px;
+  height: 36px;
+  border: 2px solid rgba(255, 143, 184, 0.55);
+  border-radius: 6px;
+  color: #ff8fb8;
+  font-weight: 800;
+  font-size: 18px;
+  display: grid;
+  place-items: center;
+  transform: rotate(12deg);
+  opacity: 0.8;
+}
+.m-eyebrow {
+  margin: 0 0 6px;
+  color: var(--gold);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.m-hero h2 { margin: 0 0 8px; font-size: 20px; color: #fff4e8; }
+.m-quote {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-left: 3px solid #ff8fb8;
+  background: rgba(255, 143, 184, 0.08);
+  color: var(--lavender);
+  font-size: 12px;
+  border-radius: 0 10px 10px 0;
+}
+.m-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .m-card {
   position: relative;
   margin-bottom: 14px;
