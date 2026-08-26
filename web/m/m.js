@@ -1351,7 +1351,7 @@
           </div>`).join("") || '<p class="m-hint">队列是空的。在本地库换角后点「加入队列」。</p>'}
         </div>
       </section>` : ""}
-      <section class="m-card">
+      <section class="m-card" ${isStandalone() ? "hidden" : ""}>
         <h2>在线批量</h2>
         <p class="m-hint">把已换角草稿按页依次生成。默认免费档，开始前会再确认一次。</p>
         <div id="mOnlineQueue" class="m-list"></div>

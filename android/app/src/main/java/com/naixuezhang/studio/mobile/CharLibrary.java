@@ -162,28 +162,45 @@ final class CharLibrary {
         ensureDanbooru();
         if (danbooru == null || danbooru.isEmpty()) return items;
         try {
-            List<JSONObject> prefix = new ArrayList<>();
-            List<JSONObject> rest = new ArrayList<>();
+            List<String> hits = new ArrayList<>();
             for (String tag : danbooru) {
-                if (prefix.size() + rest.size() >= Math.max(limit * 4, 80)) break;
-                boolean hit = tag.startsWith(compact) || tag.contains(compact)
-                    || (!series.isEmpty() && tag.contains(series));
-                if (!hit) continue;
-                JSONObject record = danbooruRecord(gender, tag);
-                JSONObject wrapped = wrap(record, "danbooru:" + gender + ":" + tag, "D 站角色库");
-                if (tag.startsWith(compact) || tag.contains("_" + compact)) prefix.add(wrapped);
-                else rest.add(wrapped);
+                String name = nameOf(tag);
+                boolean nameHit = !compact.isEmpty() && (tag.startsWith(compact) || name.startsWith(compact) || name.contains(compact));
+                boolean seriesHit = !series.isEmpty() && tag.contains(series);
+                if (nameHit || seriesHit) hits.add(tag);
             }
-            for (JSONObject item : prefix) {
-                if (items.length() >= limit) break;
-                items.put(item);
-            }
-            for (JSONObject item : rest) {
-                if (items.length() >= limit) break;
-                items.put(item);
+            hits.sort((a, b) -> {
+                int sa = rank(a, compact, series);
+                int sb = rank(b, compact, series);
+                if (sa != sb) return Integer.compare(sa, sb);
+                return Integer.compare(nameOf(a).length(), nameOf(b).length());
+            });
+            for (int i = 0; i < hits.size() && items.length() < limit; i++) {
+                String tag = hits.get(i);
+                items.put(wrap(danbooruRecord(gender, tag), "danbooru:" + gender + ":" + tag, "D 站角色库"));
             }
         } catch (Exception ignored) {}
         return items;
+    }
+
+    private static int rank(String tag, String compact, String series) {
+        String name = nameOf(tag);
+        int junk = (name.contains("abyss") || name.contains("slime") || name.contains("hilichurl")
+            || name.contains("samachurl") || name.contains("mitachurl") || name.contains("spectator")
+            || name.contains("npc") || name.contains("monster") || name.contains("enemy")) ? 8 : 0;
+        if (!compact.isEmpty() && (name.equals(compact) || tag.equals(compact) || tag.startsWith(compact + "_("))) return junk;
+        if (!compact.isEmpty() && name.startsWith(compact)) return 1 + junk;
+        int tokens = 0;
+        for (int i = 0; i < name.length(); i++) if (name.charAt(i) == '_') tokens++;
+        if (!series.isEmpty() && tag.endsWith("_(" + series + ")")) return 2 + junk + Math.min(tokens, 3);
+        if (!series.isEmpty() && tag.contains(series)) return 6 + junk;
+        return 7 + junk;
+    }
+
+    private static String nameOf(String tag) {
+        String raw = String.valueOf(tag == null ? "" : tag);
+        int open = raw.lastIndexOf("_(");
+        return open > 0 ? raw.substring(0, open) : raw;
     }
 
     private JSONObject danbooruRecord(String gender, String tag) {
