@@ -216,4 +216,14 @@ const stringJson = core.decorateWork({
 assert.strictEqual(stringJson.character_candidates[0].identity_name, "amiya");
 assert.strictEqual(stringJson.character_candidates[0].role, "female");
 
+const optimized = core.applyOptimizeTexts(draft.draft.comment, {
+  prompt: "1girl, school uniform, classroom, cinematic lighting",
+  base_caption: "1girl, school uniform, classroom, cinematic lighting",
+  uc: "lowres, blurry",
+  char_captions: ["skadi_(arknights), 1girl, white_hair, red_eyes"],
+});
+assert.ok(String(optimized.prompt).includes("cinematic lighting"));
+assert.strictEqual(optimized.uc, "lowres, blurry");
+assert.ok(optimized.v4_prompt.caption.char_captions[0].char_caption.includes("skadi_(arknights)"));
+
 console.log("standalone-core ok");

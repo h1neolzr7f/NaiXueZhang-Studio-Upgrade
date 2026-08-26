@@ -776,6 +776,39 @@
     };
   }
 
+  function applyOptimizeTexts(comment, texts) {
+    const patched = JSON.parse(JSON.stringify(comment || {}));
+    const incoming = texts || {};
+    const prompt = String(incoming.prompt || patched.prompt || "");
+    const uc = incoming.uc != null ? String(incoming.uc) : String(patched.uc || "");
+    const base = String(incoming.base_caption || prompt || "");
+    const nextCaps = Array.isArray(incoming.char_captions) ? incoming.char_captions : null;
+    if (nextCaps && nextCaps.length) {
+      const v4 = patched.v4_prompt && typeof patched.v4_prompt === "object" ? patched.v4_prompt : {};
+      const cap = v4.caption && typeof v4.caption === "object" ? v4.caption : {};
+      const existing = Array.isArray(cap.char_captions) ? cap.char_captions : [];
+      cap.char_captions = nextCaps.map((raw, index) => {
+        const text = raw && typeof raw === "object"
+          ? String(raw.char_caption || raw.caption || "")
+          : String(raw || "");
+        const old = existing[index] || {};
+        const centers = old.centers && old.centers.length ? old.centers : [{ x: 0.5, y: 0.5 }];
+        return { char_caption: text, centers: centers };
+      });
+      cap.base_caption = base;
+      v4.caption = cap;
+      patched.v4_prompt = v4;
+      patched.prompt = base || prompt;
+    } else {
+      patched.prompt = prompt || base;
+      if (patched.v4_prompt && patched.v4_prompt.caption && base) {
+        patched.v4_prompt.caption.base_caption = base;
+      }
+    }
+    patched.uc = uc;
+    return patched;
+  }
+
   const api = {
     effectiveComment: effectiveComment,
     splitPromptTags: splitPromptTags,
@@ -789,6 +822,7 @@
     compileDrafts: compileDrafts,
     buildGeneratePayload: buildGeneratePayload,
     naiRequestBody: naiRequestBody,
+    applyOptimizeTexts: applyOptimizeTexts,
     fitOpusFreeSize: fitOpusFreeSize,
     promptSnapshot: promptSnapshot,
   };

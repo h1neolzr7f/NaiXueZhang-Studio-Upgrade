@@ -47,34 +47,43 @@
         </LinearLayout>
 
         <TextView
-            android:id="@+id/tokenState"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:textColor="@color/gold"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="14dp"
             android:lineSpacingExtra="3dp"
             android:text="@string/settings_hint"
             android:textColor="@color/muted"
             android:textSize="13sp" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="@string/nai_section"
+            android:textColor="@color/gold"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tokenState"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/gold"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
         <EditText
             android:id="@+id/tokenInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="12dp"
             android:background="@drawable/field_night"
             android:gravity="top"
             android:hint="@string/token_hint"
             android:importantForAutofill="no"
             android:inputType="textMultiLine|textNoSuggestions"
-            android:minHeight="120dp"
+            android:minHeight="96dp"
             android:padding="14dp"
             android:textColor="@color/cream"
             android:textColorHint="@color/muted"
@@ -84,7 +93,7 @@
             android:id="@+id/saveBtn"
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="12dp"
             android:background="@drawable/btn_primary"
             android:text="@string/save_token"
             android:textColor="@color/night_deep"
@@ -100,10 +109,64 @@
             android:textColor="@color/danger" />
 
         <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="26dp"
+            android:text="@string/deepseek_section"
+            android:textColor="@color/gold"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/deepseekState"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/lavender"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/deepseekInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/field_night"
+            android:gravity="top"
+            android:hint="@string/deepseek_hint"
+            android:importantForAutofill="no"
+            android:inputType="textMultiLine|textNoSuggestions"
+            android:minHeight="80dp"
+            android:padding="14dp"
+            android:textColor="@color/cream"
+            android:textColorHint="@color/muted"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/saveDeepseekBtn"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/btn_primary"
+            android:text="@string/save_deepseek"
+            android:textColor="@color/night_deep"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/clearDeepseekBtn"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/btn_ghost"
+            android:text="@string/clear_deepseek"
+            android:textColor="@color/danger" />
+
+        <TextView
             android:id="@+id/setStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
+            android:paddingBottom="20dp"
             android:textColor="@color/lavender"
             android:textSize="13sp" />
     </LinearLayout>

@@ -105,7 +105,8 @@
     if (parts[0] === "work" && parts[1]) return { name: "work", id: String(parts[1]) };
     if (parts[0] === "work") return { name: "work", id: state.lastWorkId || "" };
     if (parts[0] === "batch") return { name: "batch" };
-    if (parts[0] === "pipeline") return { name: "pipeline" };
+    if (parts[0] === "gallery" || parts[0] === "outputs") return { name: "gallery" };
+    if (parts[0] === "pipeline") return { name: isStandalone() ? "gallery" : "pipeline" };
     if (parts[0] === "pair" || parts[0] === "settings") {
       return { name: isStandalone() ? "settings" : "pair" };
     }
@@ -121,7 +122,10 @@
 
   function markTabs(name) {
     document.querySelectorAll(".m-tabbar a").forEach((link) => {
-      link.classList.toggle("active", link.dataset.tab === name || ((name === "pair" || name === "settings") && link.dataset.tab === "browse"));
+      const tab = link.dataset.tab;
+      const onSettings = name === "pair" || name === "settings";
+      const onGallery = name === "gallery" && (tab === "gallery" || tab === "pipeline");
+      link.classList.toggle("active", tab === name || onGallery || (onSettings && tab === "browse"));
     });
   }
 
@@ -188,12 +192,22 @@
     if (state.route.name === "pair") return renderPair(root);
     if (state.route.name === "work") return renderWork(root, state.route.id);
     if (state.route.name === "batch") return renderBatch(root);
+    if (state.route.name === "gallery") return renderGallery(root);
     if (state.route.name === "pipeline") return renderPipeline(root);
     return renderBrowse(root);
   }
 
   async function renderBrowse(root) {
+    const standalone = isStandalone();
     root.innerHTML = `
+      <section class="m-hero">
+        <p class="m-eyebrow">Nai学长工作室 · ${standalone ? "1.5.2 手机独立版" : "手机预览"}</p>
+        <h2>在线发现 · 换角出图</h2>
+        <p class="m-hint">${standalone
+          ? "不遥控电脑。搜 AITag 在线库，点进作品换角，确认后走 NovelAI。写角色和优化咒语用 DeepSeek。"
+          : "搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。"}</p>
+        <div class="m-quote">凑企鹅：先选图，再点准角色槽。没填 Token 我不会替你出图。</div>
+      </section>
       <section class="m-card">
         <h2>在线发现</h2>
         <p class="m-hint">搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。</p>
@@ -201,9 +215,21 @@
           <input id="mSearch" placeholder="角色 / 作品 / 标签" />
           <button type="button" id="mSearchBtn" class="m-primary">搜索</button>
         </div>
+        <div class="m-chips" id="mQuickChips"></div>
       </section>
       <div id="mBrowseGrid" class="m-grid"></div>
       <p id="mBrowseStatus" class="m-status">输入关键词后搜索。</p>`;
+    [["明日方舟", "明日方舟"], ["高松灯", "高松灯"], ["丰川祥子", "丰川祥子"], ["能天使", "能天使"]].forEach(([label, q]) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "m-chip";
+      chip.textContent = label;
+      chip.onclick = () => {
+        document.getElementById("mSearch").value = q;
+        run();
+      };
+      document.getElementById("mQuickChips").appendChild(chip);
+    });
     const run = async () => {
       const q = document.getElementById("mSearch").value.trim();
       const status = document.getElementById("mBrowseStatus");
@@ -298,11 +324,19 @@
           <button type="button" id="mCustomUse" class="m-ghost">用这次不保存</button>
           <button type="button" id="mCustomSave" class="m-primary">保存自定义</button>
         </div>
+        <div class="m-quote" style="margin-top:12px">小祥：也可以用中文描述角色，DeepSeek 帮你写成槽位 tag。这步不扣 Anlas。</div>
+        <textarea id="mDescribe" placeholder="例如：粉头发红眼睛的阿米娅风 OC，短外套" style="margin-top:8px"></textarea>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mDescribeBtn" class="m-ghost">DeepSeek 写角色</button>
+        </div>
       </section>
       <section class="m-card">
         <div class="m-row">
           <button type="button" id="mApplyOne" class="m-primary">本页换角</button>
           <button type="button" id="mApplyAll" class="m-ghost">全部页换同性别</button>
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mOptimize" class="m-ghost">DeepSeek 优化草稿</button>
         </div>
         <div class="m-row" style="margin-top:8px">
           <button type="button" id="mGenOne" class="m-primary">生成本页</button>
@@ -359,6 +393,8 @@
     document.getElementById("mTargetBtn").onclick = searchTargets;
     document.getElementById("mCustomUse").onclick = () => useCustomRecord(false);
     document.getElementById("mCustomSave").onclick = () => useCustomRecord(true);
+    document.getElementById("mDescribeBtn").onclick = describeWithDeepSeek;
+    document.getElementById("mOptimize").onclick = optimizeCurrentDraft;
     document.getElementById("mApplyOne").onclick = () => applyDraft({ allPages: false, genderScope: "" });
     document.getElementById("mApplyAll").onclick = () => applyDraft({
       allPages: true,
@@ -444,6 +480,89 @@
       } catch (_) { /* fall through */ }
     }
     return loadLocalCustom().filter((item) => !gender || item.gender === gender);
+  }
+
+  async function describeWithDeepSeek() {
+    const box = document.getElementById("mDescribe");
+    const text = box ? box.value.trim() : "";
+    if (!text) {
+      toast("先写角色描述", "err");
+      return;
+    }
+    const status = document.getElementById("mWorkStatus");
+    try {
+      const ai = await api().get("/api/ai/status");
+      if (!ai.has_api_key && !ai.has_deepseek) {
+        toast("先在设置里填 DeepSeek Key", "err");
+        if (isStandalone()) openSettings();
+        return;
+      }
+      if (status) status.textContent = "DeepSeek 正在写角色槽…";
+      const result = await api().post("/api/mobile/char-describe", {
+        text: text,
+        gender: state.targetGender,
+      });
+      if (!result || Number(result.generation_calls) !== 0) {
+        throw new Error("角色草稿未通过零生成安全检查");
+      }
+      const record = result.item || result.record;
+      if (!record) throw new Error(result.detail || "DeepSeek 没有返回角色");
+      if (document.getElementById("mCustomName")) document.getElementById("mCustomName").value = record.label || "";
+      if (document.getElementById("mCustomIdentity")) document.getElementById("mCustomIdentity").value = (record.identity || []).join(", ");
+      if (document.getElementById("mCustomAppear")) document.getElementById("mCustomAppear").value = (record.appearance || []).join(", ");
+      if (document.getElementById("mCustomCaption")) document.getElementById("mCustomCaption").value = record.char_caption || "";
+      pickTarget({
+        reference_id: "custom:" + (record.gender || state.targetGender) + ":typed",
+        label: "DeepSeek：" + (record.label || "自定义"),
+        record: record,
+      });
+      if (status) {
+        status.textContent = result.message || "角色槽已写好，还没扣 Anlas";
+        status.className = "m-status m-ok";
+      }
+    } catch (error) {
+      toast(error.message || String(error), "err");
+    }
+  }
+
+  async function optimizeCurrentDraft() {
+    const entry = state.drafts[String(state.pageIndex)];
+    const comment = draftComment(entry);
+    if (!comment) {
+      toast("先做本页换角草稿", "err");
+      return;
+    }
+    const status = document.getElementById("mWorkStatus");
+    try {
+      const ai = await api().get("/api/ai/status");
+      if (!ai.has_api_key && !ai.has_deepseek) {
+        toast("先在设置里填 DeepSeek Key", "err");
+        if (isStandalone()) openSettings();
+        return;
+      }
+      if (status) status.textContent = "DeepSeek 正在优化咒语…";
+      const result = await api().post("/api/studio/optimize", { comment: comment, mode: "smart" });
+      if (!result || Number(result.generation_calls) !== 0) {
+        throw new Error("优化未通过零生成安全检查");
+      }
+      const next = result.comment
+        || (window.StandaloneCore && window.StandaloneCore.applyOptimizeTexts
+          ? window.StandaloneCore.applyOptimizeTexts(comment, result.texts || {})
+          : comment);
+      if (entry.draft) entry.draft.comment = next;
+      else entry.comment = next;
+      if (status) {
+        status.textContent = result.notes || "草稿已优化，还没扣 Anlas";
+        status.className = "m-status m-ok";
+      }
+    } catch (error) {
+      if (status) {
+        status.textContent = error.message || String(error);
+        status.className = "m-status m-err";
+      } else {
+        toast(error.message || String(error), "err");
+      }
+    }
   }
 
   async function searchTargets() {
@@ -943,18 +1062,81 @@
     };
   }
 
+  async function renderGallery(root) {
+    root.innerHTML = `<section class="m-card"><h2>成果</h2><p class="m-status">读取中…</p></section>`;
+    try {
+      const [data, cfg] = await Promise.all([
+        api().get("/api/mobile/outputs"),
+        api().get("/api/pipeline/config").catch(() => ({ config: {} })),
+      ]);
+      const items = data.items || [];
+      const auto = !!(cfg.config && cfg.config.auto_after_generate);
+      root.innerHTML = `
+        <section class="m-hero">
+          <p class="m-eyebrow">生成库</p>
+          <h2>本机成果</h2>
+          <p class="m-hint">只存在这台手机。生成成功后可进系统相册「Nai学长工作室」。手机不做超分 / 打码。</p>
+        </section>
+        <section class="m-card">
+          <h2>流水线</h2>
+          <p>生成后自动存相册：<strong class="${auto ? "m-ok" : "m-err"}">${auto ? "已开" : "未开"}</strong></p>
+          <div class="m-row">
+            <button type="button" id="mPipeRun" class="m-primary">补存到相册</button>
+            <button type="button" id="mPipeAuto" class="m-ghost">${auto ? "关闭自动" : "打开自动"}</button>
+          </div>
+          <p id="mPipeStatus" class="m-status"></p>
+        </section>
+        <div class="m-grid" id="mOutGrid"></div>
+        <p class="m-status">${items.length ? ("共 " + items.length + " 张") : "还没有生成图。先在发现里换角出图。"}</p>`;
+      const grid = document.getElementById("mOutGrid");
+      grid.innerHTML = items.map((item) => `
+        <a class="m-work" href="${escapeHtml(item.image_url || "")}" target="_blank" rel="noopener">
+          <img src="${escapeHtml(item.image_url || item.thumb || "")}" alt="">
+          <span>${escapeHtml(item.title || item.work_id || item.id || "生成图")}</span>
+        </a>`).join("");
+      document.getElementById("mPipeRun").onclick = async () => {
+        if (!await confirmAction("补存到相册", "只把本机已生成图补进相册，不会重新出图。")) return;
+        const box = document.getElementById("mPipeStatus");
+        try {
+          const result = await api().post("/api/pipeline/run", { only_missing: true });
+          box.textContent = result.message || "已开始";
+          box.className = "m-status m-ok";
+        } catch (error) {
+          box.textContent = error.message || String(error);
+          box.className = "m-status m-err";
+        }
+      };
+      document.getElementById("mPipeAuto").onclick = async () => {
+        if (!await confirmAction(auto ? "关闭自动存相册" : "打开自动存相册", "只改这台手机的开关，不会立刻出图。")) return;
+        await api().post("/api/pipeline/config", { auto_after_generate: !auto });
+        renderGallery(root);
+      };
+    } catch (error) {
+      root.innerHTML = `<section class="m-card"><h2>成果</h2><p class="m-err">${escapeHtml(error.message || error)}</p></section>`;
+    }
+  }
+
   async function renderSettings(root) {
     let nai = { has_token: false };
+    let ai = { has_api_key: false };
     try { nai = await api().get("/api/nai/status"); } catch (_) { /* ignore */ }
+    try { ai = await api().get("/api/ai/status"); } catch (_) { /* ignore */ }
+    const hasAi = !!(ai.has_api_key || ai.has_deepseek);
     root.innerHTML = `
       <section class="m-card">
         <h2>手机本地设置</h2>
-        <p class="m-hint">Token 只存在这台手机。不连电脑，出图直接走 NovelAI。</p>
-        <p>当前：<strong class="${nai.has_token ? "m-ok" : "m-err"}">${nai.has_token ? "已配置 Token" : "还没填 Token"}</strong></p>
+        <p class="m-hint">独立软件，不遥控电脑。NovelAI 负责出图，DeepSeek 负责写角色和优化咒语。密钥只存在这台手机。</p>
+        <p>NovelAI：<strong class="${nai.has_token ? "m-ok" : "m-err"}">${nai.has_token ? "已配置 Token" : "还没填 Token"}</strong></p>
         <textarea id="mToken" placeholder="粘贴 NovelAI Token（pst- 或 Bearer 后面那段）" autocomplete="off"></textarea>
         <div class="m-row" style="margin-top:10px">
           <button type="button" id="mSaveToken" class="m-primary">保存</button>
           <button type="button" id="mClearToken" class="m-danger">清除</button>
+        </div>
+        <p style="margin-top:16px">DeepSeek：<strong class="${hasAi ? "m-ok" : "m-err"}">${hasAi ? "已配置 Key" : "还没填 Key"}</strong></p>
+        <textarea id="mDeepseek" placeholder="粘贴 DeepSeek API Key（sk- 开头）" autocomplete="off"></textarea>
+        <div class="m-row" style="margin-top:10px">
+          <button type="button" id="mSaveDeepseek" class="m-primary">保存 DeepSeek</button>
+          <button type="button" id="mClearDeepseek" class="m-danger">清除 DeepSeek</button>
         </div>
         <p id="mSetStatus" class="m-status"></p>
       </section>`;
@@ -983,6 +1165,31 @@
         toast(error.message || String(error), "err");
       }
     };
+    document.getElementById("mSaveDeepseek").onclick = async () => {
+      const key = document.getElementById("mDeepseek").value.trim();
+      if (!key) { toast("先粘贴 DeepSeek Key", "err"); return; }
+      if (!await confirmAction("保存 DeepSeek", "只写进本机应用存储，不连电脑。")) return;
+      try {
+        const saved = await api().post("/api/ai/key", { api_key: key });
+        document.getElementById("mDeepseek").value = "";
+        document.getElementById("mSetStatus").textContent = saved.message || "DeepSeek 已保存";
+        document.getElementById("mSetStatus").className = "m-status m-ok";
+        renderSettings(root);
+      } catch (error) {
+        document.getElementById("mSetStatus").textContent = error.message || String(error);
+        document.getElementById("mSetStatus").className = "m-status m-err";
+      }
+    };
+    document.getElementById("mClearDeepseek").onclick = async () => {
+      if (!await confirmAction("清除 DeepSeek", "清除后不能再用自然语言写角色或智能优化。")) return;
+      try {
+        await api().post("/api/ai/key", { api_key: "" });
+        toast("已清除 DeepSeek");
+        renderSettings(root);
+      } catch (error) {
+        toast(error.message || String(error), "err");
+      }
+    };
   }
 
   const pairBtn = document.getElementById("mPairBtn");
@@ -992,6 +1199,15 @@
       if (isStandalone()) openSettings();
       else location.hash = "#/pair";
     };
+  }
+  if (isStandalone()) {
+    const last = document.querySelector('.m-tabbar a[data-tab="pipeline"]');
+    if (last) {
+      last.dataset.tab = "gallery";
+      last.setAttribute("href", "#/gallery");
+      const label = last.querySelector("span");
+      if (label) label.textContent = "成果";
+    }
   }
   window.__NAI_REFRESH__ = () => refreshWriteAccess().finally(render);
   window.addEventListener("hashchange", () => { render(); });
