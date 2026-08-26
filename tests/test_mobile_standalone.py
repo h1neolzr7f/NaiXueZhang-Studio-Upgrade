@@ -149,6 +149,12 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("下一页", js)
         self.assertIn("内置样例", js)
         self.assertIn("demo-ark-amiya", js)
+        self.assertIn("先收藏入本地库", js)
+        self.assertIn("D 站角色库", js)
+        self.assertIn("画风", js)
+        self.assertIn("/api/mobile/gallery", js)
+        self.assertIn("/api/mobile/queue", js)
+        self.assertIn("/api/plugin/char-swap/styles", js)
         self.assertGreaterEqual(js.count("先在设置里填 NovelAI Token"), 2)
         css = (WEB / "m" / "m.css").read_text(encoding="utf-8")
         self.assertIn("min-height: 44px", css)
@@ -173,6 +179,17 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("/api/plugin/char-swap/search", server)
         self.assertIn("/api/nai/network", server)
         self.assertIn("/api/nai/aitag/probe", server)
+        self.assertIn("/api/mobile/gallery", server)
+        self.assertIn("/api/mobile/queue", server)
+        self.assertIn("StyleStore", server)
+        self.assertIn("GalleryStore", server)
+        self.assertIn("先收藏入本地库", server)
+        chars = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/CharLibrary.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("phone_char_index.txt", chars)
+        self.assertIn("D 站角色库", chars)
+        self.assertIn("phone_series_aliases.json", chars)
         pipeline = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/PipelineStore.java").read_text(
             encoding="utf-8"
         )

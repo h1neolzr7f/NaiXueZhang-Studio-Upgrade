@@ -101,15 +101,35 @@ def _load_json(name: str) -> dict:
 
 ARK = _load_json("ark_char_library.json")
 PRESETS = _load_json("char_presets.json")
-FAV_IDS: list[str] = []
+STYLES = _load_json("phone_style_index.json")
+SERIES = _load_json("phone_series_aliases.json")
+CHAR_INDEX = (DATA / "phone_char_index.txt").read_text(encoding="utf-8").splitlines() if (DATA / "phone_char_index.txt").is_file() else []
+FAV_IDS: list[str] = [DEMO_ID]
 OUTPUTS: list[dict] = []
+ALBUMS: list[dict] = []
 JOBS: dict[str, dict] = {}
 CUSTOM: list[dict] = []
+CUSTOM_STYLES: list[dict] = []
+
+
+def _human_tag(tag: str) -> str:
+    raw = str(tag or "")
+    if "_(" in raw and raw.endswith(")"):
+        name, series = raw.rsplit("_(", 1)
+        return f"{name.replace('_', ' ')} · {series[:-1].replace('_', ' ')}"
+    return raw.replace("_", " ")
 
 
 def _search_chars(gender: str, q: str, limit: int) -> list[dict]:
     needle = (q or "").strip().lower()
+    compact = needle.replace(" ", "_")
     bucket = "male" if gender == "male" else "female"
+    series = str(SERIES.get(needle) or "").lower()
+    if not series:
+        for key, value in SERIES.items():
+            if needle and str(key).lower() in needle:
+                series = str(value).lower()
+                break
     items: list[dict] = []
     for row in PRESETS.get(bucket, []) or []:
         blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "name", "tag")).lower()
@@ -120,10 +140,45 @@ def _search_chars(gender: str, q: str, limit: int) -> list[dict]:
         blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "name", "tag")).lower()
         if needle and needle not in blob:
             continue
-        items.append({"reference_id": f"ark:{bucket}:{row.get('id')}", "label": row.get("label") or row.get("id"), "source": "内置 D 站角色库", "record": row})
+        items.append({"reference_id": f"ark:{bucket}:{row.get('id')}", "label": row.get("label") or row.get("id"), "source": "明日方舟库", "record": row})
         if len(items) >= limit:
             break
+    if needle and len(items) < limit:
+        for tag in CHAR_INDEX:
+            if compact not in tag and (not series or series not in tag):
+                continue
+            record = {
+                "id": tag,
+                "label": _human_tag(tag),
+                "gender": bucket,
+                "tag": tag,
+                "kind": "danbooru",
+                "identity": ["1boy" if bucket == "male" else "1girl", tag],
+            }
+            items.append({"reference_id": f"danbooru:{bucket}:{tag}", "label": record["label"], "source": "D 站角色库", "record": record})
+            if len(items) >= limit:
+                break
     return items[:limit]
+
+
+def _search_styles(q: str, limit: int) -> list[dict]:
+    needle = (q or "").strip().lower()
+    items = []
+    for row in CUSTOM_STYLES + (STYLES.get("styles") or []):
+        blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "tag")).lower()
+        if needle and needle not in blob:
+            continue
+        source = "我的画风" if row.get("source") == "phone-custom" else "内置画风"
+        items.append({
+            "reference_id": ("custom-style:" if row.get("source") == "phone-custom" else "style:") + str(row.get("id")),
+            "label": row.get("label") or row.get("tag"),
+            "source": source,
+            "kind": "style",
+            "record": row,
+        })
+        if len(items) >= limit:
+            break
+    return items
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -210,6 +265,19 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/plugin/char-swap/search":
             items = _search_chars(query.get("gender") or "female", query.get("q") or "", int(query.get("limit") or 24))
             return self._json({"ok": True, "items": items, "total": len(items)})
+        if path == "/api/plugin/char-swap/styles":
+            items = _search_styles(query.get("q") or "", int(query.get("limit") or 40))
+            return self._json({"ok": True, "items": items, "total": len(items)})
+        if path == "/api/mobile/queue":
+            return self._json({"ok": True, "items": list(JOBS.values()), "total": len(JOBS)})
+        if path == "/api/mobile/gallery":
+            return self._json({"ok": True, "albums": ALBUMS, "items": ALBUMS, "total": len(ALBUMS), "grouped": True})
+        if path.startswith("/api/mobile/gallery/"):
+            album_id = unquote(path.split("/gallery/", 1)[1])
+            album = next((item for item in ALBUMS if item.get("album_id") == album_id), None)
+            if not album:
+                return self._json({"ok": False, "detail": "图库里没有这个任务"}, 404)
+            return self._json({"ok": True, "album": album, "images": album.get("images") or [], "grouped": True})
         if path == "/api/plugin/char-swap/ark-library":
             gender = "male" if query.get("gender") == "male" else "female"
             q = (query.get("q") or "").lower()
@@ -225,7 +293,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/plugin/char-swap/custom":
             return self._json({"ok": True, "items": CUSTOM})
         if path == "/api/mobile/outputs":
-            return self._json({"ok": True, "items": OUTPUTS})
+            return self._json({"ok": True, "albums": ALBUMS, "items": ALBUMS, "total": len(ALBUMS), "grouped": True})
         if path == "/api/pipeline/config":
             return self._json({"ok": True, "config": {"auto_after_generate": True, "upscale": True, "metadata": True}})
         if path == "/api/pipeline/status":
@@ -255,6 +323,13 @@ class Handler(BaseHTTPRequestHandler):
             item.setdefault("id", "c" + str(len(CUSTOM) + 1))
             CUSTOM.insert(0, item)
             return self._json({"ok": True, "item": item, "message": "已保存自定义角色"})
+        if path == "/api/plugin/char-swap/styles":
+            item = dict(payload)
+            item.setdefault("id", "s" + str(len(CUSTOM_STYLES) + 1))
+            item["source"] = "phone-custom"
+            item["kind"] = "style"
+            CUSTOM_STYLES.insert(0, item)
+            return self._json({"ok": True, "item": item, "message": "已保存自定义画风"})
         if path == "/api/mobile/char-describe":
             record = {
                 "label": "预览角色",
@@ -273,26 +348,50 @@ class Handler(BaseHTTPRequestHandler):
                 "generation_calls": 0,
             })
         if path == "/api/nai/generate":
+            work_id = str(payload.get("work_id_str") or payload.get("remote_work_id") or payload.get("work_id") or "")
+            if work_id and work_id not in FAV_IDS and work_id != DEMO_ID and not str(work_id).startswith("g"):
+                return self._json({"ok": False, "detail": "先收藏入本地库，才能换角和生成"}, 400)
+            copies = max(1, min(8, int(payload.get("copies") or 1)))
             task_id = "previewjob01"
+            images = []
+            for index in range(copies):
+                images.append({
+                    "id": f"preview{index}",
+                    "image_url": "/api/mobile/output/preview.png",
+                    "thumbnail_url": "/api/mobile/output/preview.png",
+                    "page_index": index,
+                })
             item = {
                 "ok": True,
                 "image_url": "/api/mobile/output/preview.png",
                 "gallery_url": "/api/mobile/output/preview.png",
-                "library_id": "gpreview",
-                "message": "完成：已入本地库、跑完超分/清元数据、存进相册",
+                "library_id": "g" + task_id,
+                "album_id": task_id,
+                "message": "完成：已入图库并跑完流水线",
             }
             JOBS[task_id] = {
                 "ok": True,
                 "task_id": task_id,
+                "album_id": task_id,
                 "status": "done",
                 "terminal": True,
-                "done": 1,
-                "total": 1,
+                "done": copies,
+                "total": copies,
+                "title": payload.get("source_title") or "预览生成",
                 "items": [item],
-                "message": item["message"],
+                "message": f"完成 {copies} 张，已按同一任务收入图库",
             }
+            ALBUMS[:] = [{
+                "album_id": task_id,
+                "task_id": task_id,
+                "title": payload.get("source_title") or "预览生成",
+                "image_count": copies,
+                "cover_url": "/api/mobile/output/preview.png",
+                "images": images,
+                "source_work_id": work_id,
+            }] + [row for row in ALBUMS if row.get("album_id") != task_id]
             OUTPUTS.append({"image_url": item["image_url"], "title": "预览生成", "id": "preview"})
-            return self._json({"ok": True, "task_id": task_id, "queued": True})
+            return self._json({"ok": True, "task_id": task_id, "album_id": task_id, "queued": True, "total": copies, "message": "已加入生成队列"})
         if path == "/api/pipeline/config":
             return self._json({"ok": True, "config": payload})
         if path == "/api/pipeline/run":

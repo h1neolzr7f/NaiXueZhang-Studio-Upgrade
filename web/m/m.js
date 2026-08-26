@@ -15,6 +15,10 @@
     targetRecord: null,
     targetGender: "female",
     targetQuery: "",
+    styleId: "",
+    styleLabel: "",
+    styleRecord: null,
+    copies: 1,
     slot: null,
     pageIndex: 0,
     busy: false,
@@ -150,6 +154,7 @@
     if (parts[0] === "work" && parts[1]) return { name: "work", id: String(parts[1]), local: state.browseMode === "library" };
     if (parts[0] === "work") return { name: "work", id: state.lastWorkId || "", local: state.browseMode === "library" };
     if (parts[0] === "batch") return { name: "batch" };
+    if ((parts[0] === "gallery" || parts[0] === "outputs") && parts[1]) return { name: "album", id: String(parts[1]) };
     if (parts[0] === "gallery" || parts[0] === "outputs") return { name: "gallery" };
     if (parts[0] === "pipeline") return { name: isStandalone() ? "gallery" : "pipeline" };
     if (parts[0] === "pair" || parts[0] === "settings") {
@@ -168,7 +173,7 @@
   function markTabs(name) {
     document.querySelectorAll(".m-tabbar a").forEach((link) => {
       const tab = link.dataset.tab;
-      const onGallery = name === "gallery" && (tab === "gallery" || tab === "pipeline");
+      const onGallery = (name === "gallery" || name === "album") && (tab === "gallery" || tab === "pipeline");
       link.classList.toggle("active", tab === name || onGallery);
     });
   }
@@ -243,6 +248,7 @@
     if (state.route.name === "pair") return renderPair(root);
     if (state.route.name === "work") return renderWork(root, state.route.id);
     if (state.route.name === "batch") return renderBatch(root);
+    if (state.route.name === "album") return renderAlbum(root, state.route.id);
     if (state.route.name === "gallery") return renderGallery(root);
     if (state.route.name === "pipeline") return renderPipeline(root);
     return renderBrowse(root);
@@ -264,11 +270,11 @@
         <h2>三步就会用</h2>
         <ol class="m-guide">
           <li>点右上角「设置」，填 NovelAI 和 DeepSeek</li>
-          <li>下面搜一张图，点进去</li>
-          <li>选人 → 写草稿 → 确认出图</li>
+          <li>${standalone ? "发现里点☆收藏，入本地库" : "下面搜一张图，点进去"}</li>
+          <li>${standalone ? "本地库换角 / 画风，再排队生成" : "选人 → 写草稿 → 确认出图"}</li>
         </ol>
         <p class="m-hint">${standalone
-          ? "不遥控电脑。搜 AITag 在线库，点进作品换角，确认后走 NovelAI。写角色和优化咒语用 DeepSeek。"
+          ? "不遥控电脑。在线库只负责搜图收藏。必须先入库，才能换角色、换画风和生成。同一任务的图会收进图库一组。"
           : "搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。"}</p>
         <div class="m-quote">凑企鹅：先选图，再点准角色槽。没填 Token 我不会替你出图。</div>
       </section>
@@ -283,7 +289,9 @@
       </section>` : ""}
       <section class="m-card">
         <h2>在线发现</h2>
-        <p class="m-hint">搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。在线挂了也能先用内置样例把换角跑通。</p>
+        <p class="m-hint">${standalone
+          ? "在线库用来搜图和收藏。点☆入库后，去本地库才能换角和生成。在线挂了也能先用内置样例。"
+          : "搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。在线挂了也能先用内置样例把换角跑通。"}</p>
         <div class="m-row">
           <input id="mSearch" placeholder="角色 / 作品 / 标签" enterkeyhint="search" value="${escapeHtml(state.searchQ || "")}" />
           <button type="button" id="mSearchBtn" class="m-primary">搜索</button>
@@ -358,10 +366,10 @@
         const offline = !!data.offline_demo;
         status.textContent = items.length
           ? (state.browseMode === "library"
-            ? `本地库 ${items.length} 个，点进去就能离线换角`
+            ? `本地库 ${items.length} 个，点进去换角、换画风、排队生成`
             : (offline
               ? "在线库暂时打不开，先用内置样例把换角跑通。连上后再搜。"
-              : `第 ${state.searchPage} 页 · ${items.length} 个作品，角标是图片张数`))
+              : `第 ${state.searchPage} 页 · ${items.length} 个作品，先☆收藏入库`))
           : (state.browseMode === "library" ? "本地库是空的。在线库点☆收藏就会入库。" : "没有结果，换个词再搜");
         if (state.browseMode !== "library") {
           const pager = document.createElement("div");
@@ -400,9 +408,9 @@
     if (!workId) {
       root.innerHTML = `<section class="m-card">
         <h2>换角</h2>
-        <p class="m-hint">先在「发现」里点开一张在线作品。</p>
+        <p class="m-hint">${isStandalone() ? "先在「发现」收藏入本地库，再从本地库点进来。" : "先在「发现」里点开一张在线作品。"}</p>
         <div class="m-row" style="margin-top:10px">
-          <a class="m-primary" href="#/browse">去发现选图</a>
+          <a class="m-primary" href="#/${isStandalone() ? "library" : "browse"}">${isStandalone() ? "去本地库" : "去发现选图"}</a>
         </div>
       </section>`;
       return;
@@ -411,11 +419,21 @@
     try { localStorage.setItem(LAST_WORK_KEY, workId); } catch (_) { /* ignore */ }
     root.innerHTML = `<p class="m-status">加载作品…</p>`;
     try {
-      const local = !!(state.route && state.route.local);
-      const data = local
+      await refreshFavIds();
+      const local = !!(state.route && state.route.local) || workId === "demo-ark-amiya" || !!state.favIds[workId];
+      if (isStandalone() && !local) {
+        const data = await api().get("/api/nai/aitag/work/" + encodeURIComponent(workId));
+        state.work = (window.StandaloneCore) ? window.StandaloneCore.decorateWork(data) : data;
+        state.pageIndex = 0;
+        return paintCollect(root);
+      }
+      if (isStandalone() && local && !(state.route && state.route.local) && workId !== "demo-ark-amiya") {
+        location.hash = "#/library/" + encodeURIComponent(workId);
+        return;
+      }
+      const data = (isStandalone() && local)
         ? await api().get("/api/mobile/library/work/" + encodeURIComponent(workId))
         : await api().get("/api/nai/aitag/work/" + encodeURIComponent(workId));
-      await refreshFavIds();
       state.work = (isStandalone() && window.StandaloneCore) ? window.StandaloneCore.decorateWork(data) : data;
       state.pageIndex = 0;
       state.slot = (state.work.character_candidates || [])[0] || null;
@@ -451,7 +469,7 @@
       ? `#/library/${encodeURIComponent(id)}`
       : `#/work/${encodeURIComponent(id)}`;
     const saveState = String(item.save_state || "");
-    const saveLabel = saveState === "ready" ? "可离线换角" : saveState === "pending" ? "入库中" : saveState === "partial" ? "入库不完整" : "";
+    const saveLabel = saveState === "ready" ? "可换角生成" : saveState === "pending" ? "入库中" : saveState === "partial" ? "入库不完整" : "";
     return `<div class="m-work-card">
       <a class="m-work" href="${href}">
         <img src="${escapeHtml(cover)}" alt="">
@@ -503,7 +521,11 @@
         button.textContent = result.favorited ? "★" : "☆";
         button.classList.toggle("on", !!result.favorited);
       }
-      toast(result.message || (result.favorited ? "已收藏到本机" : "已取消收藏"));
+      toast(result.message || (result.favorited ? "已收藏到本机，可去本地库换角" : "已取消收藏"));
+      if (isStandalone() && result.favorited && id) {
+        const go = document.getElementById("mGoLocal");
+        if (go) go.setAttribute("href", "#/library/" + encodeURIComponent(id));
+      }
     } catch (error) {
       toast(friendlyError(error), "err");
     }
@@ -514,6 +536,8 @@
     if (!picker) return;
     picker.classList.add("hidden");
     picker.setAttribute("aria-hidden", "true");
+    const title = picker.querySelector(".m-sheet-head h3");
+    if (title) title.textContent = "换成谁";
   }
 
   function openCharPicker() {
@@ -521,12 +545,13 @@
     const body = document.getElementById("mPickerBody");
     if (!picker || !body) return;
     body.innerHTML = `
-      <p class="m-hint">点开搜索后，在本机内置 D 站角色库里找，或本地创建。和电脑版同一套明日方舟库 + 常用角色。</p>
+      <p class="m-hint">点开搜索后，在本机 D 站角色库里找全站角色，或保存 OC / 自定义。明日方舟只是其中一部分。</p>
       <div class="m-row" id="mGenderRow"></div>
       <div class="m-row">
-        <input id="mTargetQ" placeholder="阿米娅 / 能天使 / 自定义名" value="${escapeHtml(state.targetQuery || "")}" enterkeyhint="search" />
-        <button type="button" id="mTargetBtn" class="m-primary">搜明日方舟</button>
+        <input id="mTargetQ" placeholder="初音 / 阿米娅 / 原神 / OC 名" value="${escapeHtml(state.targetQuery || "")}" enterkeyhint="search" />
+        <button type="button" id="mTargetBtn" class="m-primary">搜角色</button>
       </div>
+      <p class="m-hint">也可点「搜明日方舟」只看方舟干员。</p>
       <div id="mTargets" class="m-list" style="margin-top:8px"></div>
       <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "先搜再点一个名字"}</p>
       <div class="m-quote" style="margin-top:12px">小祥：也可以用中文描述角色，DeepSeek 帮你写成槽位 tag。这步不扣 Anlas。</div>
@@ -554,7 +579,7 @@
     picker.classList.remove("hidden");
     picker.setAttribute("aria-hidden", "false");
     const genderRow = document.getElementById("mGenderRow");
-    [["female", "明日方舟·女"], ["male", "明日方舟·男"]].forEach(([value, label]) => {
+    [["female", "女角色"], ["male", "男角色"]].forEach(([value, label]) => {
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "m-chip" + (state.targetGender === value ? " active" : "");
@@ -563,6 +588,16 @@
       genderRow.appendChild(chip);
     });
     document.getElementById("mTargetBtn").onclick = searchTargets;
+    const arkChip = document.createElement("button");
+    arkChip.type = "button";
+    arkChip.className = "m-chip";
+    arkChip.textContent = "搜明日方舟";
+    arkChip.onclick = () => {
+      const box = document.getElementById("mTargetQ");
+      if (box && !box.value.trim()) box.value = "明日方舟";
+      searchTargets();
+    };
+    genderRow.appendChild(arkChip);
     const targetBox = document.getElementById("mTargetQ");
     if (targetBox) {
       targetBox.addEventListener("keydown", (event) => {
@@ -594,7 +629,32 @@
         return `<p class="m-meta">槽${index + 1}：${escapeHtml(String(text || "").slice(0, 180))}</p>`;
       }).join("")}
       <p class="m-meta">负面：${escapeHtml(String(snap.uc || "").slice(0, 160))}</p>
+      ${state.styleLabel ? `<p class="m-meta">画风：${escapeHtml(state.styleLabel)}</p>` : ""}
     </div>`;
+  }
+
+  function paintCollect(root) {
+    const work = (state.work && state.work.work) || {};
+    const img = currentImage();
+    const workId = String(work.work_id || work.id || "");
+    const cover = img.thumbnail_url || img.url || ("/api/nai/aitag/cover/" + encodeURIComponent(workId));
+    const pageCount = imageCountOf(state.work);
+    const tags = Array.isArray(work.tags) ? work.tags.map((tag) => String(tag || "")).filter(Boolean).slice(0, 8) : [];
+    root.innerHTML = `
+      <section class="m-card">
+        <p class="m-eyebrow">发现 · 先收藏</p>
+        <h2>${escapeHtml(work.title || workId || "作品")}</h2>
+        <img class="m-preview" src="${escapeHtml(cover)}" alt="">
+        <p class="m-hint">${pageCount}张${work.creator ? " · " + escapeHtml(work.creator) : ""}</p>
+        ${tags.length ? `<p class="m-meta">标签：${escapeHtml(tags.join(" / "))}</p>` : ""}
+        <p class="m-hint">代理不稳时，在线页不能直接换角。点☆收藏入本地库后，咒语和图都留在手机，再换角色和生成。</p>
+        <div class="m-row" style="margin-top:10px">
+          <button type="button" class="m-primary" data-fav="${escapeHtml(workId)}" aria-label="收藏">收藏入本地库</button>
+          <a class="m-ghost" id="mGoLocal" href="#/library">去本地库</a>
+        </div>
+        <p class="m-status">先收藏入本地库，才能换角和生成</p>
+      </section>`;
+    bindFavButtons(root);
   }
 
   function paintWork(root) {
@@ -636,14 +696,18 @@
       <section class="m-card">
         <p class="m-eyebrow">第 3 步 · 换成谁</p>
         <h3>换成谁</h3>
-        <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "点开搜索，从内置 D 站角色库查找，或本地创建"}</p>
+        <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "点开搜索，从 D 站角色库 / OC / 自定义查找"}</p>
         <div class="m-row">
           <button type="button" id="mOpenPicker" class="m-primary">点开搜索</button>
+        </div>
+        <p class="m-hint" id="mStyleHint" style="margin-top:10px">${state.styleLabel ? ("画风：" + state.styleLabel) : "画风可选。点开后选内置或自定义。"}</p>
+        <div class="m-row">
+          <button type="button" id="mOpenStyle" class="m-ghost">选画风</button>
         </div>
       </section>
       <section class="m-card">
         <p class="m-eyebrow">第 4 步 · 写草稿再出图</p>
-        <p class="m-hint">先点「本页换角」做零费用草稿，确认后再出图。默认免费档。</p>
+        <p class="m-hint">先点「本页换角」做零费用草稿，确认后再排队生成。同一任务的多张图会收进图库一组。</p>
         <div class="m-row">
           <button type="button" id="mApplyOne" class="m-primary">本页换角</button>
           <button type="button" id="mApplyAll" class="m-ghost">全部页换同性别</button>
@@ -652,7 +716,8 @@
           <button type="button" id="mOptimize" class="m-ghost">DeepSeek 优化草稿</button>
         </div>
         <div class="m-row" style="margin-top:8px">
-          <button type="button" id="mGenOne" class="m-primary">生成本页</button>
+          <input id="mCopies" inputmode="numeric" value="${escapeHtml(String(state.copies || 1))}" placeholder="张数 1-8" />
+          <button type="button" id="mGenOne" class="m-primary">加入队列</button>
           <button type="button" id="mQueueBtn" class="m-ghost">加入批量</button>
         </div>
         ${draftPreviewHtml(currentDraftEntry())}
@@ -697,6 +762,8 @@
     }
     const openPicker = document.getElementById("mOpenPicker");
     if (openPicker) openPicker.onclick = openCharPicker;
+    const openStyle = document.getElementById("mOpenStyle");
+    if (openStyle) openStyle.onclick = openStylePicker;
     bindFavButtons(root);
     document.getElementById("mOptimize").onclick = optimizeCurrentDraft;
     document.getElementById("mApplyOne").onclick = () => applyDraft({ allPages: false, genderScope: "" });
@@ -706,6 +773,84 @@
     });
     document.getElementById("mGenOne").onclick = generateCurrent;
     document.getElementById("mQueueBtn").onclick = enqueueCurrent;
+  }
+
+  function openStylePicker() {
+    const picker = document.getElementById("mPicker");
+    const body = document.getElementById("mPickerBody");
+    if (!picker || !body) return;
+    const title = picker.querySelector(".m-sheet-head h3");
+    if (title) title.textContent = "画风";
+    body.innerHTML = `
+      <p class="m-hint">选内置画风，或保存自己的画风串。应用时会先清掉原图识别到的画风词。</p>
+      <div class="m-row">
+        <input id="mStyleQ" placeholder="水彩 / 官方 / 赛璐璐" enterkeyhint="search" />
+        <button type="button" id="mStyleBtn" class="m-primary">搜画风</button>
+      </div>
+      <div id="mStyles" class="m-list" style="margin-top:8px"></div>
+      <details class="m-adv">
+        <summary>保存自定义画风</summary>
+        <div class="m-row" style="margin-top:10px">
+          <input id="mStyleName" placeholder="画风名，如 Granblue" />
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mStyleTag" placeholder="画风标签，如 watercolor, official art" />
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mStyleSave" class="m-primary">保存画风</button>
+        </div>
+      </details>`;
+    picker.classList.remove("hidden");
+    picker.setAttribute("aria-hidden", "false");
+    const search = async () => {
+      const host = document.getElementById("mStyles");
+      const q = document.getElementById("mStyleQ") ? document.getElementById("mStyleQ").value.trim() : "";
+      if (!host) return;
+      host.textContent = "搜索中…";
+      try {
+        const data = await api().get("/api/plugin/char-swap/styles?q=" + encodeURIComponent(q) + "&limit=40");
+        const items = data.items || [];
+        host.innerHTML = "";
+        items.forEach((item) => {
+          const row = document.createElement("button");
+          row.type = "button";
+          row.className = "m-chip" + (state.styleId === item.reference_id ? " active" : "");
+          row.textContent = (item.source ? item.source + " · " : "") + (item.label || item.reference_id);
+          row.onclick = () => {
+            state.styleId = item.reference_id;
+            state.styleLabel = item.label;
+            state.styleRecord = item.record || item;
+            const hint = document.getElementById("mStyleHint");
+            if (hint) hint.textContent = "画风：" + item.label;
+            closeCharPicker();
+            const sheetTitle = document.querySelector("#mPicker .m-sheet-head h3");
+            if (sheetTitle) sheetTitle.textContent = "换成谁";
+          };
+          host.appendChild(row);
+        });
+        if (!items.length) host.innerHTML = '<p class="m-hint">没有匹配画风，可在下方保存自定义</p>';
+      } catch (error) {
+        host.innerHTML = '<p class="m-err">' + escapeHtml(error.message || error) + "</p>";
+      }
+    };
+    document.getElementById("mStyleBtn").onclick = search;
+    document.getElementById("mStyleSave").onclick = async () => {
+      try {
+        const label = document.getElementById("mStyleName").value.trim();
+        const tag = document.getElementById("mStyleTag").value.trim();
+        const saved = await api().post("/api/plugin/char-swap/styles", { label: label, tag: tag });
+        state.styleId = "custom-style:" + ((saved.item && saved.item.id) || "");
+        state.styleLabel = label;
+        state.styleRecord = saved.item || { label: label, tag: tag, kind: "style" };
+        toast(saved.message || "已保存自定义画风");
+        closeCharPicker();
+        const sheetTitle = document.querySelector("#mPicker .m-sheet-head h3");
+        if (sheetTitle) sheetTitle.textContent = "换成谁";
+      } catch (error) {
+        toast(error.message || String(error), "err");
+      }
+    };
+    search();
   }
 
   function pickTarget(item) {
@@ -954,6 +1099,7 @@
           gender_scope: options.genderScope || "",
           target_record: state.targetRecord,
           target_reference_id: state.targetId,
+          style_record: state.styleRecord,
         };
         const result = options.allPages
           ? window.StandaloneCore.compileDrafts(state.work, compileOpts)
@@ -1029,8 +1175,72 @@
       if (isStandalone()) openSettings();
       return;
     }
-    if (!await confirmAction("生成本页", "默认免费档。点确认后才会调用 NovelAI。")) return;
+    const copiesBox = document.getElementById("mCopies");
+    const copies = Math.max(1, Math.min(8, Number(copiesBox && copiesBox.value) || state.copies || 1));
+    state.copies = copies;
+    if (!await confirmAction("加入队列", "默认免费档。同一任务会生成 " + copies + " 张，收进图库一组。点确认后才会调用 NovelAI。")) return;
+    if (isStandalone()) {
+      const status = document.getElementById("mWorkStatus");
+      try {
+        const started = await enqueueGenerate(entry, state.pageIndex, copies);
+        if (status) {
+          status.textContent = (started.message || "已加入生成队列") + " · " + copies + "张";
+          status.className = "m-status m-ok";
+        }
+        toast("已加入队列，去排队页看进度");
+        location.hash = "#/batch";
+      } catch (error) {
+        if (status) {
+          status.textContent = error.message || String(error);
+          status.className = "m-status m-err";
+        } else {
+          toast(error.message || String(error), "err");
+        }
+      }
+      return;
+    }
     await generateEntry(entry, state.pageIndex, document.getElementById("mWorkStatus"), document.getElementById("mGenImg"));
+  }
+
+  async function enqueueGenerate(entry, pageIndex, copies) {
+    const comment = draftComment(entry);
+    if (!comment) throw new Error("草稿不完整");
+    const work = (state.work && state.work.work) || {};
+    const workId = String(work.work_id || work.id || "");
+    if (isStandalone() && !DemoWorksSafe(workId) && !state.favIds[workId] && !(state.route && state.route.local) && !String(workId).startsWith("g")) {
+      throw new Error("先收藏入本地库，才能换角和生成");
+    }
+    const img = ((state.work && state.work.images) || [])[pageIndex] || {};
+    const snapshot = JSON.parse(JSON.stringify(comment));
+    snapshot._aitag_source = {
+      work_id: workId,
+      page_index: pageIndex,
+      title: work.title || "",
+      thumb: img.thumbnail_url || img.url || "",
+    };
+    const res = await api().request("/api/nai/generate", {
+      method: "POST",
+      body: {
+        patched_comment: snapshot,
+        work_id: work.work_id || null,
+        work_id_str: workId,
+        remote_work_id: workId,
+        source_gallery_id: "phone-local",
+        source_title: work.title || "",
+        source_thumb: img.thumbnail_url || img.url || "",
+        page_index: pageIndex,
+        copies: copies || 1,
+        force_free: true,
+        prompt_profile: "native",
+      },
+      timeoutMs: 60000,
+    });
+    if (!res || !res.ok) throw new Error((res && (res.message || res.detail)) || "入队失败");
+    return res;
+  }
+
+  function DemoWorksSafe(workId) {
+    return String(workId || "") === "demo-ark-amiya";
   }
 
   async function generateEntry(entry, pageIndex, statusEl, imgEl, options) {
@@ -1056,11 +1266,11 @@
           work_id: work.work_id || null,
           work_id_str: String(work.work_id || ""),
           remote_work_id: String(work.work_id || ""),
-          source_gallery_id: "aitag-online",
+          source_gallery_id: isStandalone() ? "phone-local" : "aitag-online",
           source_title: work.title || "",
           source_thumb: img.thumbnail_url || img.url || "",
           page_index: pageIndex,
-          copies: 1,
+          copies: isStandalone() ? (state.copies || 1) : 1,
           force_free: true,
           prompt_profile: "native",
         },
@@ -1090,7 +1300,7 @@
         const extra = document.createElement("div");
         extra.className = "m-row";
         extra.style.marginTop = "8px";
-        extra.innerHTML = `<a class="m-ghost" href="#/library/${encodeURIComponent(lastOk.library_id)}">去本地库再换</a><a class="m-ghost" href="#/gallery">看成果</a>`;
+        extra.innerHTML = `<a class="m-ghost" href="#/library/${encodeURIComponent(lastOk.library_id)}">去本地库再换</a><a class="m-ghost" href="#/gallery/${encodeURIComponent(lastOk.album_id || "")}">看图库</a>`;
         statusEl.insertAdjacentElement("afterend", extra);
       }
       return lastOk;
@@ -1120,7 +1330,27 @@
 
   async function renderBatch(root) {
     const online = loadQueue();
+    let serverQueue = { items: [] };
+    if (isStandalone()) {
+      try { serverQueue = await api().get("/api/mobile/queue"); } catch (_) { /* ignore */ }
+    }
+    const jobs = serverQueue.items || [];
     root.innerHTML = `
+      ${isStandalone() ? `
+      <section class="m-card">
+        <h2>生成队列</h2>
+        <p class="m-hint">本机单线程排队。同一任务的多张图会收进图库一组，点进去才看大图。</p>
+        <div class="m-list">${jobs.map((job) => `
+          <div class="m-item">
+            <div></div>
+            <div>
+              <strong>${escapeHtml(job.title || job.task_id || "任务")}</strong>
+              <div class="m-hint">${escapeHtml(job.status || "")} · ${job.done || 0}/${job.total || 1}张</div>
+            </div>
+            <a class="m-ghost" href="#/gallery/${encodeURIComponent(job.album_id || job.task_id || "")}">图库</a>
+          </div>`).join("") || '<p class="m-hint">队列是空的。在本地库换角后点「加入队列」。</p>'}
+        </div>
+      </section>` : ""}
       <section class="m-card">
         <h2>在线批量</h2>
         <p class="m-hint">把已换角草稿按页依次生成。默认免费档，开始前会再确认一次。</p>
@@ -1401,16 +1631,17 @@
         api().get("/api/mobile/outputs"),
         api().get("/api/pipeline/config").catch(() => ({ config: {} })),
       ]);
-      const items = data.items || [];
+      const albums = data.albums || data.items || [];
+      const items = albums;
       const cfgObj = cfg.config || {};
       const auto = !!cfgObj.auto_after_generate;
       const upscale = cfgObj.upscale !== false;
       const metadata = cfgObj.metadata !== false;
       root.innerHTML = `
         <section class="m-hero">
-          <p class="m-eyebrow">生成库</p>
-          <h2>本机成果</h2>
-          <p class="m-hint">生成图会入本地库，可继续换角。流水线做本机 2x 超分和清元数据，再存相册。打码需要电脑 ANR 模型，不打进这个包。</p>
+          <p class="m-eyebrow">图库</p>
+          <h2>本机图库</h2>
+          <p class="m-hint">按生成任务分组，和电脑大型图库一样：同一任务的图片放在一起，点进去才能看。流水线做本机 2x 超分和清元数据。</p>
         </section>
         <section class="m-card">
           <h2>后处理流水线</h2>
@@ -1429,13 +1660,18 @@
           <p id="mPipeStatus" class="m-status"></p>
         </section>
         <div class="m-grid" id="mOutGrid"></div>
-        <p class="m-status">${items.length ? ("共 " + items.length + " 张，点图可看大图；要换角请去发现→本地库") : "还没有生成图。先在发现里换角出图。"}</p>`;
+        <p class="m-status">${items.length ? ("共 " + items.length + " 个任务，点进去看这一组图") : "还没有生成任务。先收藏入本地库，再换角排队。"}</p>`;
       const grid = document.getElementById("mOutGrid");
-      grid.innerHTML = items.map((item) => `
-        <a class="m-work" href="${escapeHtml(item.image_url || "")}" target="_blank" rel="noopener">
-          <img src="${escapeHtml(item.image_url || item.thumb || "")}" alt="">
-          <span>${escapeHtml(item.title || item.work_id || item.id || "生成图")}</span>
-        </a>`).join("");
+      grid.innerHTML = items.map((item) => {
+        const albumId = item.album_id || item.task_id || item.id || "";
+        const cover = item.cover_url || item.image_url || item.thumb || "";
+        const count = item.image_count || (item.images && item.images.length) || 0;
+        return `<a class="m-work" href="#/gallery/${encodeURIComponent(albumId)}">
+          <img src="${escapeHtml(cover)}" alt="">
+          <em class="m-page-badge">${count}张</em>
+          <span>${escapeHtml(item.title || albumId || "生成任务")}</span>
+        </a>`;
+      }).join("");
       document.getElementById("mPipeRun").onclick = async () => {
         if (!await confirmAction("补跑流水线", "会对还没处理的生成图做超分和清元数据，并补存相册。不会重新出图，也不会打码。")) return;
         const box = document.getElementById("mPipeStatus");
@@ -1462,7 +1698,37 @@
         renderGallery(root);
       };
     } catch (error) {
-      root.innerHTML = `<section class="m-card"><h2>成果</h2><p class="m-hint">装到手机后，这里会列出本机生成图。电脑预览没有这份相册。</p></section>`;
+      root.innerHTML = `<section class="m-card"><h2>图库</h2><p class="m-hint">装到手机后，这里按生成任务分组。电脑预览也可先走一遍收藏→换角→队列。</p></section>`;
+    }
+  }
+
+  async function renderAlbum(root, albumId) {
+    root.innerHTML = `<section class="m-card"><h2>图库任务</h2><p class="m-status">读取中…</p></section>`;
+    try {
+      const data = await api().get("/api/mobile/gallery/" + encodeURIComponent(albumId));
+      const album = data.album || {};
+      const images = data.images || album.images || [];
+      root.innerHTML = `
+        <section class="m-card">
+          <p class="m-eyebrow">图库任务</p>
+          <h2>${escapeHtml(album.title || albumId)}</h2>
+          <p class="m-hint">${images.length}张 · 同一生成任务，点图看大图</p>
+          <div class="m-row">
+            <a class="m-ghost" href="#/gallery">返回图库</a>
+            ${album.source_work_id ? `<a class="m-ghost" href="#/library/${encodeURIComponent("g" + album.album_id)}">用这组再换角</a>` : ""}
+          </div>
+        </section>
+        <div class="m-grid" id="mAlbumGrid"></div>`;
+      const grid = document.getElementById("mAlbumGrid");
+      grid.innerHTML = images.map((item, index) => `
+        <a class="m-work" href="${escapeHtml(item.image_url || item.url || "")}" target="_blank" rel="noopener">
+          <img src="${escapeHtml(item.thumbnail_url || item.image_url || item.url || "")}" alt="">
+          <em class="m-page-badge">P${index + 1}</em>
+          <span>第 ${index + 1} 张</span>
+        </a>`).join("") || '<p class="m-hint">这个任务还没有图。</p>';
+    } catch (error) {
+      root.innerHTML = `<section class="m-card"><h2>图库任务</h2><p class="m-err">${escapeHtml(friendlyError(error))}</p>
+        <div class="m-row"><a class="m-primary" href="#/gallery">返回图库</a></div></section>`;
     }
   }
 
@@ -1631,7 +1897,12 @@
       last.dataset.tab = "gallery";
       last.setAttribute("href", "#/gallery");
       const label = last.querySelector("span");
-      if (label) label.textContent = "成果";
+      if (label) label.textContent = "图库";
+    }
+    const batch = document.querySelector('.m-tabbar a[data-tab="batch"]');
+    if (batch) {
+      const label = batch.querySelector("span");
+      if (label) label.textContent = "排队";
     }
   }
   window.__NAI_REFRESH__ = () => refreshWriteAccess().finally(render);

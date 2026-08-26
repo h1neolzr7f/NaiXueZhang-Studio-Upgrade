@@ -570,6 +570,7 @@
       comment.prompt = finalBase;
       if (comment.v4_prompt && comment.v4_prompt.caption) comment.v4_prompt.caption.base_caption = finalBase;
     }
+    if (opts.style_record) applyStyleToComment(comment, opts.style_record);
     const workId = String(work.work_id || work.id || "");
     const draft = {
       galleryId: "aitag-online",
@@ -649,6 +650,25 @@
       base_caption: String(cap.base_caption || (comment && comment.prompt) || "").slice(0, 2000),
       char_captions: characters,
     };
+  }
+
+  const STYLE_HINT_RE = /(style|artstyle|official art|official_art|watercolor|sketch|lineart|cel shading|cel_shading|flat color|flat_color|pixel art|pixel_art|chibi|manga|game cg|visual novel|oil painting|cinematic|painterly|monochrome|pastel|neon|impasto|gouache|1990s|2000s|light novel|manhwa|realistic|anime coloring)/i;
+
+  function applyStyleToComment(comment, styleRecord) {
+    if (!comment || !styleRecord) return comment;
+    const incoming = uniqueTags(splitPromptTags(String(styleRecord.tag || styleRecord.replace || styleRecord.style || "")));
+    if (!incoming.length) return comment;
+    const current = String((comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.base_caption) || comment.prompt || "");
+    const kept = splitPromptTags(current).filter((token) => !STYLE_HINT_RE.test(tagKey(token)));
+    const next = uniqueTags(kept.concat(incoming)).join(", ");
+    comment.prompt = next;
+    if (comment.v4_prompt && comment.v4_prompt.caption) comment.v4_prompt.caption.base_caption = next;
+    comment._style = {
+      id: String(styleRecord.id || ""),
+      label: String(styleRecord.label || styleRecord.name || incoming[0] || ""),
+      tag: incoming.join(", "),
+    };
+    return comment;
   }
 
   function inferModel(source, explicit) {
@@ -824,6 +844,7 @@
     buildGeneratePayload: buildGeneratePayload,
     naiRequestBody: naiRequestBody,
     applyOptimizeTexts: applyOptimizeTexts,
+    applyStyleToComment: applyStyleToComment,
     fitOpusFreeSize: fitOpusFreeSize,
     promptSnapshot: promptSnapshot,
   };
