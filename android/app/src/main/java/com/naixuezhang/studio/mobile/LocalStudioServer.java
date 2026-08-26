@@ -15,7 +15,8 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
     private final TokenStore tokens;
     private final CustomCharStore customChars;
     private final CharLibrary library;
-    private final AitagGateway aitag = new AitagGateway();
+    private final AitagGateway aitag;
+    private final FavoriteStore favorites;
     private final DeepSeekClient deepseek;
     private final JobStore jobs;
     private final ImageStore images;
@@ -29,6 +30,8 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         this.tokens = new TokenStore(this.context);
         this.customChars = new CustomCharStore(this.context);
         this.library = new CharLibrary(this.context, this.customChars);
+        this.aitag = new AitagGateway(this.tokens);
+        this.favorites = new FavoriteStore(this.context, this.aitag);
         this.deepseek = new DeepSeekClient(this.tokens);
         this.images = new ImageStore(this.context);
         this.pipeline = new PipelineStore(this.context, this.images);
@@ -71,6 +74,9 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             out.put("has_token", tokens.hasToken());
             out.put("has_deepseek", tokens.hasDeepSeek());
             out.put("has_ai_key", tokens.hasDeepSeek());
+            out.put("online_use_proxy", tokens.onlineUseProxy());
+            out.put("nai_use_proxy", tokens.naiUseProxy());
+            out.put("has_proxy", !tokens.getProxy().isEmpty());
             return json(200, out.toString());
         }
         if ("GET".equals(request.method) && "/api/nai/status".equals(path)) {
@@ -79,8 +85,27 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             out.put("ok", has);
             out.put("has_token", has);
             out.put("has_deepseek", tokens.hasDeepSeek());
+            out.put("online_use_proxy", tokens.onlineUseProxy());
+            out.put("nai_use_proxy", tokens.naiUseProxy());
+            out.put("has_proxy", !tokens.getProxy().isEmpty());
             out.put("message", has ? "token configured" : "NAI token is not configured");
             return json(200, out.toString());
+        }
+        if ("GET".equals(request.method) && "/api/nai/network".equals(path)) {
+            return json(200, tokens.networkStatus().toString());
+        }
+        if ("POST".equals(request.method) && "/api/nai/network".equals(path)) {
+            try {
+                JSONObject payload = JsonUtil.obj(request.text());
+                tokens.setNetwork(
+                    JsonUtil.first(payload, "proxy", "http_proxy"),
+                    payload.has("online_use_proxy") ? payload.optBoolean("online_use_proxy", true) : true,
+                    payload.has("nai_use_proxy") ? payload.optBoolean("nai_use_proxy", false) : false
+                );
+                return json(200, tokens.networkStatus().toString());
+            } catch (Exception error) {
+                return json(400, errorJson(error.getMessage()));
+            }
         }
         if ("POST".equals(request.method) && "/api/nai/token".equals(path)) {
             JSONObject payload = JsonUtil.obj(request.text());
@@ -136,10 +161,41 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         if ("GET".equals(request.method) && "/api/nai/aitag/search".equals(path)) {
             return json(200, aitag.search(request.query("q"), parseInt(request.query("page"), 1), true).toString());
         }
+        if ("GET".equals(request.method) && "/api/nai/aitag/favorites".equals(path)) {
+            return json(200, favorites.ids().toString());
+        }
+        if ("GET".equals(request.method) && "/api/nai/aitag/favorites/works".equals(path)) {
+            return json(200, favorites.works().toString());
+        }
+        if ("POST".equals(request.method) && path.startsWith("/api/nai/aitag/favorites/") && path.endsWith("/toggle")) {
+            String id = path.substring("/api/nai/aitag/favorites/".length(), path.length() - "/toggle".length());
+            try {
+                return json(200, favorites.toggle(LocalHttpServer.decode(id), JsonUtil.obj(request.text())).toString());
+            } catch (Exception error) {
+                return json(400, errorJson(error.getMessage()));
+            }
+        }
+        if ("GET".equals(request.method) && path.startsWith("/api/mobile/favorite-image/")) {
+            String rest = path.substring("/api/mobile/favorite-image/".length());
+            String[] parts = rest.split("/");
+            if (parts.length < 2) return json(400, "{\"ok\":false,\"detail\":\"invalid favorite image\"}");
+            File image = favorites.imageFile(LocalHttpServer.decode(parts[0]), parseInt(parts[1], 0));
+            if (image == null) return json(404, "{\"ok\":false,\"detail\":\"favorite image not found\"}");
+            return new LocalHttpServer.Response(200, favorites.contentType(image), favorites.readImage(image));
+        }
         if ("GET".equals(request.method) && path.startsWith("/api/nai/aitag/work/")) {
             String id = path.substring("/api/nai/aitag/work/".length());
             if (id.contains("/")) return json(404, "{\"ok\":false,\"detail\":\"not found\"}");
-            return json(200, aitag.work(LocalHttpServer.decode(id)).toString());
+            String workId = LocalHttpServer.decode(id);
+            try {
+                JSONObject payload = aitag.work(workId);
+                favorites.overlayLocalImages(payload, workId);
+                return json(200, payload.toString());
+            } catch (Exception error) {
+                JSONObject local = favorites.workPayload(workId);
+                if (local != null) return json(200, local.toString());
+                return json(400, errorJson(error.getMessage()));
+            }
         }
         if ("GET".equals(request.method) && path.startsWith("/api/nai/aitag/cover/")) {
             String id = LocalHttpServer.decode(path.substring("/api/nai/aitag/cover/".length()));
@@ -159,6 +215,9 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         }
         if ("GET".equals(request.method) && "/api/plugin/char-swap/presets".equals(path)) {
             return json(200, library.listPresets(request.query("gender")).toString());
+        }
+        if ("GET".equals(request.method) && "/api/plugin/char-swap/search".equals(path)) {
+            return json(200, library.searchAll(request.query("gender"), request.query("q"), parseInt(request.query("limit"), 24)).toString());
         }
         if ("GET".equals(request.method) && "/api/plugin/char-swap/ark-library".equals(path)) {
             return json(200, library.searchArk(request.query("gender"), request.query("q"), parseInt(request.query("limit"), 20)).toString());

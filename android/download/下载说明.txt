@@ -1,11 +1,11 @@
-Nai学长工作室 · 安卓独立版 1.5.2（debug）
+Nai学长工作室 · 安卓独立版 1.5.2-phone.2（debug）
 
 安装包：NaiXueZhang-Phone-1.5.2.apk
 包名：com.naixuezhang.studio.mobile
-SHA256：bbccbdeb49558fbfb004ef478a341f87c36e121b1d6b605a9643f6adb3c4fec7
 
 这是 debug 签名包，不是官方 Windows 一键 zip。
 装完只填 NovelAI Token 和 DeepSeek Key，不连电脑，不遥控电脑。
+搜图可走代理，出图默认直连。收藏会把数据和图片存到本机。
 
 手机浏览器直接下载：
 https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/raw/cursor/android-phone-standalone-9162/android/download/NaiXueZhang-Phone-1.5.2.apk

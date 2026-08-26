@@ -141,7 +141,7 @@ final class DeepSeekClient {
         headers.put("Content-Type", "application/json");
         headers.put("Accept", "application/json");
         headers.put("User-Agent", "NaiXueZhang-Phone/1.6");
-        HttpOutbound.Result result = HttpOutbound.postJson(API, headers, body.toString(), 60000, LIMIT);
+        HttpOutbound.Result result = HttpOutbound.postJson(API, headers, body.toString(), 60000, LIMIT, tokens.routeOnline());
         if (result.status == 401) throw new IllegalStateException("DeepSeek Key 无效或已过期");
         if (result.status == 429) throw new IllegalStateException("DeepSeek 请求太频繁，请稍后再试");
         if (result.status < 200 || result.status >= 300) {

@@ -17,6 +17,11 @@ final class AitagGateway {
     private static final Pattern PART = Pattern.compile("^[A-Za-z0-9_-]{1,180}$");
     private static final int JSON_LIMIT = 8 * 1024 * 1024;
     private static final int IMAGE_LIMIT = 8 * 1024 * 1024;
+    private final TokenStore tokens;
+
+    AitagGateway(TokenStore tokens) {
+        this.tokens = tokens;
+    }
 
     JSONObject search(String query, int page, boolean naiOnly) throws Exception {
         String q = query == null ? "" : query.trim();
@@ -67,6 +72,8 @@ final class AitagGateway {
         }
         if (work == null) work = new JSONObject();
         work.put("images", normalized);
+        int count = Math.max(work.optInt("image_count", 0), normalized.length());
+        work.put("image_count", count);
         work.put("work_id", JsonUtil.first(work, "work_id", "id").isEmpty() ? id : JsonUtil.first(work, "work_id", "id"));
         work.put("id", work.optString("work_id"));
         work.put("external_url", "https://aitag.win/i/" + work.optString("work_id"));
@@ -131,6 +138,9 @@ final class AitagGateway {
             normalized.put(cover);
         }
         work.put("images", normalized);
+        int count = imageCount(src, raw);
+        if (count <= 0) count = normalized.length();
+        work.put("image_count", count);
         work.put("external_url", "https://aitag.win/i/" + workId);
         return work;
     }
@@ -214,7 +224,7 @@ final class AitagGateway {
         Map<String, String> headers = new HashMap<>();
         headers.put("Accept", "application/json");
         headers.put("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
-        HttpOutbound.Result result = HttpOutbound.get(url, headers, 30000, JSON_LIMIT);
+        HttpOutbound.Result result = HttpOutbound.get(url, headers, 30000, JSON_LIMIT, tokens.routeOnline());
         if (result.status < 200 || result.status >= 300) {
             throw new IllegalStateException("AITag returned HTTP " + result.status);
         }
@@ -226,9 +236,23 @@ final class AitagGateway {
         Map<String, String> headers = new HashMap<>();
         headers.put("Accept", "image/webp,image/*");
         headers.put("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
-        HttpOutbound.Result result = HttpOutbound.get(url, headers, 30000, IMAGE_LIMIT);
+        HttpOutbound.Result result = HttpOutbound.get(url, headers, 30000, IMAGE_LIMIT, tokens.routeOnline());
         if (result.status != 200) throw new IllegalStateException("AITag image was unavailable");
         return result;
+    }
+
+    private static int imageCount(JSONObject src, JSONObject raw) {
+        for (JSONObject obj : new JSONObject[]{src, raw}) {
+            if (obj == null) continue;
+            for (String key : new String[]{"image_count", "imageCount", "page_count", "pageCount"}) {
+                int n = obj.optInt(key, -1);
+                if (n > 0) return n;
+            }
+            JSONArray originals = obj.optJSONArray("original_urls");
+            if (originals == null) originals = obj.optJSONArray("originalUrls");
+            if (originals != null && originals.length() > 0) return originals.length();
+        }
+        return 0;
     }
 
     private static JSONArray firstArray(JSONObject obj, String... keys) {
