@@ -103,6 +103,7 @@ ARK = _load_json("ark_char_library.json")
 PRESETS = _load_json("char_presets.json")
 STYLES = _load_json("phone_style_index.json")
 SERIES = _load_json("phone_series_aliases.json")
+ARK_ALIASES = _load_json("ark_cn_aliases.json")
 CHAR_INDEX = (DATA / "phone_char_index.txt").read_text(encoding="utf-8").splitlines() if (DATA / "phone_char_index.txt").is_file() else []
 FAV_IDS: list[str] = [DEMO_ID]
 OUTPUTS: list[dict] = []
@@ -137,16 +138,42 @@ def _search_chars(gender: str, q: str, limit: int) -> list[dict]:
             continue
         items.append({"reference_id": f"preset:{bucket}:{row.get('id')}", "label": row.get("label") or row.get("id"), "source": "常用角色", "record": row})
     for row in ARK.get(bucket, []) or []:
-        blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "name", "tag")).lower()
+        tag = str(row.get("tag") or "")
+        extra = " ".join(str(x) for x in (ARK_ALIASES.get(tag) or []))
+        blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "name", "tag")) + " " + extra
+        blob = blob.lower()
         if needle and needle not in blob:
             continue
         items.append({"reference_id": f"ark:{bucket}:{row.get('id')}", "label": row.get("label") or row.get("id"), "source": "明日方舟库", "record": row})
         if len(items) >= limit:
             break
     if needle and len(items) < limit:
+        hits: list[str] = []
         for tag in CHAR_INDEX:
-            if compact not in tag and (not series or series not in tag):
-                continue
+            name = tag.rsplit("_(", 1)[0]
+            name_hit = compact and (tag.startswith(compact) or name.startswith(compact) or compact in name)
+            series_hit = bool(series) and series in tag
+            if name_hit or series_hit:
+                hits.append(tag)
+
+        def rank(tag: str) -> tuple[int, int]:
+            name = tag.rsplit("_(", 1)[0]
+            junk = 8 if any(part in name for part in (
+                "abyss", "slime", "hilichurl", "samachurl", "mitachurl", "spectator", "npc", "monster", "enemy"
+            )) else 0
+            if compact and (name == compact or tag == compact or tag.startswith(compact + "_(")):
+                return (junk, len(name))
+            if compact and name.startswith(compact):
+                return (1 + junk, len(name))
+            tokens = name.count("_")
+            if series and tag.endswith("_(" + series + ")"):
+                return (2 + junk + min(tokens, 3), len(name))
+            if series and series in tag:
+                return (6 + junk, len(name))
+            return (7 + junk, len(name))
+
+        hits.sort(key=rank)
+        for tag in hits:
             record = {
                 "id": tag,
                 "label": _human_tag(tag),
@@ -249,14 +276,46 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(_demo_work())
         if path == "/api/nai/aitag/search":
             work = _demo_work()["work"]
+            locked = {
+                "work_id": "online-locked-1",
+                "id": "online-locked-1",
+                "title": "在线待收藏 · 甘雨",
+                "creator": "preview",
+                "image_count": 1,
+                "tags": ["原神", "甘雨"],
+                "images": [{"url": "/api/mobile/demo/image/0", "thumbnail_url": "/api/mobile/demo/image/0"}],
+                "local": False,
+            }
             return self._json({
                 "ok": True,
-                "items": [work],
-                "works": [work],
+                "items": [work, locked],
+                "works": [work, locked],
                 "page": int(query.get("page") or 1),
                 "has_more": False,
                 "offline_demo": False,
                 "source": "phone-demo",
+            })
+        if path.startswith("/api/nai/aitag/work/online-locked-1"):
+            page = {
+                "image_id": "online-locked-1_p0",
+                "url": "/api/mobile/demo/image/0",
+                "thumbnail_url": "/api/mobile/demo/image/0",
+                "prompt_text": "1girl, ganyu_(genshin_impact), snow",
+                "ai_json": {"Comment": {"prompt": "1girl, ganyu_(genshin_impact), snow"}},
+            }
+            return self._json({
+                "ok": True,
+                "work": {
+                    "work_id": "online-locked-1",
+                    "id": "online-locked-1",
+                    "title": "在线待收藏 · 甘雨",
+                    "creator": "preview",
+                    "image_count": 1,
+                    "tags": ["原神", "甘雨"],
+                    "images": [page],
+                },
+                "images": [page],
+                "generation_calls": 0,
             })
         if path.startswith("/api/nai/aitag/work/"):
             return self._json(_demo_work())
