@@ -35,6 +35,14 @@ public class MainActivity extends Activity {
         public void retry() {
             runOnUiThread(() -> loadStudio(""));
         }
+
+        @JavascriptInterface
+        public void openAitagVerify() {
+            runOnUiThread(() -> {
+                BrowserSession session = BrowserSession.get();
+                if (session != null) session.showVerify(MainActivity.this);
+            });
+        }
     }
 
     @Override
@@ -104,6 +112,7 @@ public class MainActivity extends Activity {
             ViewGroup.LayoutParams.MATCH_PARENT
         ));
         setContentView(root);
+        BrowserSession.attach(this, root);
         if (getApplication() instanceof StudioApp) {
             port = ((StudioApp) getApplication()).getPort();
         }

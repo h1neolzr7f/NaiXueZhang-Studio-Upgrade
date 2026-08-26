@@ -5,7 +5,12 @@ import android.content.SharedPreferences;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 final class TokenStore {
     private static final String PREFS = "nai_phone_secrets";
@@ -85,8 +90,8 @@ final class TokenStore {
     }
 
     synchronized HttpOutbound.Route routeOnline() {
-        if (!onlineUseProxy()) return HttpOutbound.Route.direct();
-        return customOrSystem();
+        List<HttpOutbound.Route> routes = onlineCandidates();
+        return routes.isEmpty() ? HttpOutbound.Route.direct() : routes.get(0);
     }
 
     synchronized HttpOutbound.Route routeNai() {
@@ -94,12 +99,38 @@ final class TokenStore {
         return customOrSystem();
     }
 
+    synchronized List<HttpOutbound.Route> onlineCandidates() {
+        List<HttpOutbound.Route> out = new ArrayList<HttpOutbound.Route>();
+        Set<String> seen = new LinkedHashSet<String>();
+        Proxy custom = parseProxy(getProxy());
+        Proxy detected = detectLocalProxy();
+        if (onlineUseProxy()) {
+            addRoute(out, seen, custom != null ? HttpOutbound.Route.custom(custom) : null);
+            addRoute(out, seen, detected != null ? HttpOutbound.Route.custom(detected) : null);
+            addRoute(out, seen, HttpOutbound.Route.system());
+            addRoute(out, seen, HttpOutbound.Route.direct());
+        } else {
+            addRoute(out, seen, HttpOutbound.Route.direct());
+            addRoute(out, seen, custom != null ? HttpOutbound.Route.custom(custom) : null);
+            addRoute(out, seen, detected != null ? HttpOutbound.Route.custom(detected) : null);
+        }
+        return out;
+    }
+
     synchronized org.json.JSONObject networkStatus() {
         org.json.JSONObject out = new org.json.JSONObject();
         try {
+            Proxy detected = detectLocalProxy();
+            String detectedText = "";
+            if (detected != null && detected.address() instanceof InetSocketAddress) {
+                InetSocketAddress address = (InetSocketAddress) detected.address();
+                detectedText = (detected.type() == Proxy.Type.SOCKS ? "socks5://" : "http://")
+                    + address.getHostString() + ":" + address.getPort();
+            }
             out.put("ok", true);
             out.put("proxy", getProxy());
             out.put("has_proxy", !getProxy().isEmpty());
+            out.put("detected_proxy", detectedText);
             out.put("online_use_proxy", onlineUseProxy());
             out.put("nai_use_proxy", naiUseProxy());
             out.put("message", "搜图走代理，出图默认直连");
@@ -110,12 +141,58 @@ final class TokenStore {
     private HttpOutbound.Route customOrSystem() {
         Proxy proxy = parseProxy(getProxy());
         if (proxy != null) return HttpOutbound.Route.custom(proxy);
+        Proxy detected = detectLocalProxy();
+        if (detected != null) return HttpOutbound.Route.custom(detected);
         return HttpOutbound.Route.system();
+    }
+
+    private static void addRoute(List<HttpOutbound.Route> out, Set<String> seen, HttpOutbound.Route route) {
+        if (route == null) return;
+        String key = route.label();
+        if (seen.add(key)) out.add(route);
+    }
+
+    private static volatile Proxy detectedProxy;
+    private static volatile long detectedAt;
+
+    static Proxy detectLocalProxy() {
+        long now = System.currentTimeMillis();
+        if (now - detectedAt < 15000) return detectedProxy;
+        int[] httpPorts = {7890, 7897, 10809, 6152, 9191, 2080, 20171, 12334, 10808, 8118, 8888};
+        for (int port : httpPorts) {
+            if (canConnect("127.0.0.1", port, 220)) {
+                detectedProxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("127.0.0.1", port));
+                detectedAt = now;
+                return detectedProxy;
+            }
+        }
+        int[] socksPorts = {7891, 1080};
+        for (int port : socksPorts) {
+            if (canConnect("127.0.0.1", port, 220)) {
+                detectedProxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress("127.0.0.1", port));
+                detectedAt = now;
+                return detectedProxy;
+            }
+        }
+        detectedProxy = null;
+        detectedAt = now;
+        return null;
+    }
+
+    static boolean canConnect(String host, int port, int timeoutMs) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(host, port), Math.max(80, timeoutMs));
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     static Proxy parseProxy(String raw) {
         String value = String.valueOf(raw == null ? "" : raw).trim();
         if (value.isEmpty()) return null;
+        value = value.replace('：', ':').replace(" ", "");
+        if (value.matches("^[0-9]{2,5}$")) value = "127.0.0.1:" + value;
         value = value.replaceFirst("(?i)^socks5h://", "socks5://");
         boolean socks = value.toLowerCase(Locale.ROOT).startsWith("socks5://") || value.toLowerCase(Locale.ROOT).startsWith("socks://");
         value = value.replaceFirst("(?i)^(https?|socks5|socks)://", "");

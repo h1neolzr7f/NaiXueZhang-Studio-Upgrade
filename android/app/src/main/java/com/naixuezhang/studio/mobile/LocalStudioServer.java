@@ -158,6 +158,9 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         if ("GET".equals(request.method) && "/api/mobile/outputs".equals(path)) {
             return json(200, outputs.list(images).toString());
         }
+        if ("GET".equals(request.method) && "/api/nai/aitag/probe".equals(path)) {
+            return json(200, aitag.probe().toString());
+        }
         if ("GET".equals(request.method) && "/api/nai/aitag/search".equals(path)) {
             return json(200, aitag.search(request.query("q"), parseInt(request.query("page"), 1), true).toString());
         }

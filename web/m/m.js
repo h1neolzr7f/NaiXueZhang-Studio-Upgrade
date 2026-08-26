@@ -87,8 +87,11 @@
 
   function friendlyError(error) {
     const raw = String((error && (error.message || error.detail)) || error || "");
-    if (/<!DOCTYPE|Just a moment|cloudflare|HTTP 403|HTTP 502|Bad Gateway/i.test(raw)) {
-      return "在线库暂时打不开。连一下手机网络，再点搜索试一次。";
+    if (/proxy|Connection refused|Failed to connect|ECONNREFUSED|CONNECT|7890|7897/i.test(raw)) {
+      return "代理没通。Clash 开 HTTP，填 http://127.0.0.1:7890，不要只开全局 VPN。";
+    }
+    if (/<!DOCTYPE|Just a moment|cloudflare|HTTP 403|HTTP 502|Bad Gateway|浏览器通道/i.test(raw)) {
+      return "在线库暂时打不开。网站拦了访问：到设置填 Clash HTTP，或点「打开在线库过验证」。";
     }
     if (/not found|404/i.test(raw)) {
       return "这一页还没有数据。先去发现选一张图。";
@@ -1365,8 +1368,8 @@
           <button type="button" id="mClearDeepseek" class="m-danger">清除 DeepSeek</button>
         </div>
         <p style="margin-top:16px">网络分流</p>
-        <p class="m-hint">开了全局代理常常搜得到图、出不了图。只让搜图走代理，出图默认直连。不要开全局 VPN，把 Clash HTTP 填下面，例如 http://127.0.0.1:7890。</p>
-        <input id="mProxy" placeholder="代理，可空：搜图用系统代理" autocomplete="off" />
+        <p class="m-hint">不要只开全局 VPN/TUN。把 Clash HTTP 填下面，例如 http://127.0.0.1:7890，也可只填 7890。应用会自动探测本机代理。还被网站拦就点「打开在线库过验证」。</p>
+        <input id="mProxy" placeholder="代理，例如 http://127.0.0.1:7890" autocomplete="off" />
         <label class="m-hint" style="display:flex;gap:8px;align-items:center;margin-top:10px">
           <input id="mOnlineProxy" type="checkbox" style="width:auto;min-height:22px" /> 搜图 / 写角色走代理
         </label>
@@ -1375,6 +1378,10 @@
         </label>
         <div class="m-row" style="margin-top:10px">
           <button type="button" id="mSaveNet" class="m-primary">保存网络设置</button>
+          <button type="button" id="mProbeNet" class="m-ghost">测试在线库</button>
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mVerifyNet" class="m-ghost">打开在线库过验证</button>
         </div>
         <p id="mSetStatus" class="m-status"></p>
       </section>`;
@@ -1450,6 +1457,33 @@
         document.getElementById("mSetStatus").className = "m-status m-err";
       }
     };
+    const probeBtn = document.getElementById("mProbeNet");
+    if (probeBtn) {
+      probeBtn.onclick = async () => {
+        document.getElementById("mSetStatus").textContent = "正在测在线库…";
+        document.getElementById("mSetStatus").className = "m-status";
+        try {
+          const result = await api().get("/api/nai/aitag/probe");
+          const extra = result.detected_proxy ? "  已发现 " + result.detected_proxy : "";
+          document.getElementById("mSetStatus").textContent = (result.message || (result.ok ? "在线库已接通" : "在线库暂时打不开")) + extra;
+          document.getElementById("mSetStatus").className = result.ok ? "m-status m-ok" : "m-status m-err";
+        } catch (error) {
+          document.getElementById("mSetStatus").textContent = friendlyError(error);
+          document.getElementById("mSetStatus").className = "m-status m-err";
+        }
+      };
+    }
+    const verifyBtn = document.getElementById("mVerifyNet");
+    if (verifyBtn) {
+      verifyBtn.onclick = () => {
+        if (window.PhoneApp && typeof window.PhoneApp.openAitagVerify === "function") {
+          window.PhoneApp.openAitagVerify();
+        } else {
+          document.getElementById("mSetStatus").textContent = "装到手机后才能打开在线库验证页。";
+          document.getElementById("mSetStatus").className = "m-status";
+        }
+      };
+    }
     if (window.PhoneApp && typeof window.PhoneApp.openSettings === "function") {
       const nativeBtn = document.createElement("button");
       nativeBtn.type = "button";

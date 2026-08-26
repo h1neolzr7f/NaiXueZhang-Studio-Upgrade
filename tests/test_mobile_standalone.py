@@ -22,6 +22,7 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("/m", main)
         self.assertIn("18797", main)
         self.assertIn("PhoneApp", main)
+        self.assertIn("openAitagVerify", main)
         self.assertIn("SettingsActivity", main)
         self.assertIn("waitForLocalServer", (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/SplashActivity.java").read_text(encoding="utf-8"))
         self.assertIn("onReceivedError", main)
@@ -79,17 +80,27 @@ class MobileStandaloneTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("Proxy.NO_PROXY", outbound)
+        self.assertIn("resolveSafeRedirect", outbound)
         tokens = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/TokenStore.java").read_text(
             encoding="utf-8"
         )
         self.assertIn("online_use_proxy", tokens)
         self.assertIn("nai_use_proxy", tokens)
         self.assertIn("127.0.0.1", tokens)
+        self.assertIn("detectLocalProxy", tokens)
+        self.assertIn("onlineCandidates", tokens)
         gateway = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/AitagGateway.java").read_text(
             encoding="utf-8"
         )
         self.assertIn("image_count", gateway)
-        self.assertIn("routeOnline", gateway)
+        self.assertIn("onlineCandidates", gateway)
+        self.assertIn("BrowserSession", gateway)
+        browser = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/BrowserSession.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("aitag.win", browser)
+        self.assertIn("showVerify", browser)
+        self.assertIn("NaiPipe", browser)
 
     def test_web_shell_has_standalone_mode(self) -> None:
         js = (WEB / "m" / "m.js").read_text(encoding="utf-8")
@@ -122,6 +133,10 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("standalone=1", js)
         self.assertIn("friendlyError", js)
         self.assertIn("在线库暂时打不开", js)
+        self.assertIn("测试在线库", js)
+        self.assertIn("打开在线库过验证", js)
+        self.assertIn("/api/nai/aitag/probe", js)
+        self.assertIn("openAitagVerify", js)
         self.assertGreaterEqual(js.count("先在设置里填 NovelAI Token"), 2)
         css = (WEB / "m" / "m.css").read_text(encoding="utf-8")
         self.assertIn("min-height: 44px", css)
@@ -143,6 +158,7 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("/api/mobile/library", server)
         self.assertIn("/api/plugin/char-swap/search", server)
         self.assertIn("/api/nai/network", server)
+        self.assertIn("/api/nai/aitag/probe", server)
         pipeline = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/PipelineStore.java").read_text(
             encoding="utf-8"
         )

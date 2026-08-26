@@ -222,6 +222,24 @@
             android:textColor="@color/night_deep"
             android:textStyle="bold" />
 
+        <Button
+            android:id="@+id/probeOnlineBtn"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/btn_ghost"
+            android:text="@string/probe_online"
+            android:textColor="@color/lavender" />
+
+        <Button
+            android:id="@+id/verifyOnlineBtn"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/btn_ghost"
+            android:text="@string/verify_online"
+            android:textColor="@color/lavender" />
+
         <TextView
             android:id="@+id/setStatus"
             android:layout_width="match_parent"

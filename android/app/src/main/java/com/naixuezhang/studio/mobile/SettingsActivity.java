@@ -37,6 +37,16 @@ public class SettingsActivity extends Activity {
         findViewById(R.id.saveDeepseekBtn).setOnClickListener(v -> confirmSaveDeepseek());
         findViewById(R.id.clearDeepseekBtn).setOnClickListener(v -> confirmClearDeepseek());
         findViewById(R.id.saveNetworkBtn).setOnClickListener(v -> saveNetwork());
+        findViewById(R.id.probeOnlineBtn).setOnClickListener(v -> probeOnline());
+        findViewById(R.id.verifyOnlineBtn).setOnClickListener(v -> {
+            BrowserSession session = BrowserSession.get();
+            if (session == null) {
+                BrowserSession.attach(this, (android.view.ViewGroup) findViewById(android.R.id.content));
+                session = BrowserSession.get();
+            }
+            if (session != null) session.showVerify(this);
+            else setStatus.setText("页面还没准备好，先回到发现再试一次。");
+        });
         refreshState();
     }
 
@@ -60,9 +70,40 @@ public class SettingsActivity extends Activity {
                 naiProxyBox.isChecked()
             );
             setStatus.setText("网络设置已保存。搜图走代理，出图默认直连。");
+            BrowserSession session = BrowserSession.get();
+            if (session != null) session.syncProxy(this);
         } catch (Exception error) {
             setStatus.setText(error.getMessage() == null ? "代理格式不对" : error.getMessage());
         }
+    }
+
+    private void probeOnline() {
+        setStatus.setText("正在测在线库…");
+        final int port = getApplication() instanceof StudioApp ? ((StudioApp) getApplication()).getPort() : 18797;
+        new Thread(() -> {
+            String message = "在线库暂时打不开";
+            try {
+                java.net.URL url = new java.net.URL("http://127.0.0.1:" + port + "/api/nai/aitag/probe");
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection(java.net.Proxy.NO_PROXY);
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(50000);
+                conn.setRequestMethod("GET");
+                java.io.InputStream in = conn.getResponseCode() >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[2048];
+                int n;
+                while (in != null && (n = in.read(buf)) >= 0) out.write(buf, 0, n);
+                conn.disconnect();
+                org.json.JSONObject json = JsonUtil.obj(new String(out.toByteArray(), java.nio.charset.StandardCharsets.UTF_8));
+                message = json.optString("message", message);
+                String detected = json.optString("detected_proxy", "");
+                if (!detected.isEmpty()) message += "  已发现 " + detected;
+            } catch (Exception error) {
+                message = error.getMessage() == null ? "测不通" : error.getMessage();
+            }
+            final String text = message;
+            runOnUiThread(() -> setStatus.setText(text));
+        }).start();
     }
 
     private void confirmSaveNai() {
