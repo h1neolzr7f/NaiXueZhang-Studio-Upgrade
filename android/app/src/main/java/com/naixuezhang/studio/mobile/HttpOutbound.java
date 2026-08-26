@@ -7,6 +7,7 @@ import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.Map;
 
 final class HttpOutbound {
@@ -49,6 +50,13 @@ final class HttpOutbound {
         static Route custom(Proxy proxy) {
             return new Route(CUSTOM, proxy == null ? Proxy.NO_PROXY : proxy);
         }
+
+        String label() {
+            if (kind == DIRECT) return "direct";
+            if (kind == SYSTEM) return "system";
+            if (proxy == null || proxy == Proxy.NO_PROXY) return "custom";
+            return "custom:" + proxy.address();
+        }
     }
 
     private HttpOutbound() {}
@@ -78,31 +86,86 @@ final class HttpOutbound {
         int maxBytes,
         Route route
     ) throws Exception {
-        HttpURLConnection conn = open(url, route);
-        conn.setInstanceFollowRedirects(false);
-        conn.setConnectTimeout(Math.max(3000, timeoutMs));
-        conn.setReadTimeout(Math.max(3000, timeoutMs));
-        conn.setRequestMethod(method);
-        if (headers != null) {
-            for (Map.Entry<String, String> entry : headers.entrySet()) {
-                conn.setRequestProperty(entry.getKey(), entry.getValue());
+        String current = url;
+        byte[] payload = body;
+        String verb = method;
+        for (int hop = 0; hop < 6; hop++) {
+            HttpURLConnection conn = open(current, route);
+            conn.setInstanceFollowRedirects(false);
+            conn.setConnectTimeout(Math.min(8000, Math.max(2500, timeoutMs)));
+            conn.setReadTimeout(Math.max(3000, timeoutMs));
+            conn.setRequestMethod(verb);
+            if (headers != null) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    if (entry.getKey() != null && entry.getValue() != null) {
+                        conn.setRequestProperty(entry.getKey(), entry.getValue());
+                    }
+                }
             }
-        }
-        if (body != null) {
-            conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", conn.getRequestProperty("Content-Type") == null
-                ? "application/json"
-                : conn.getRequestProperty("Content-Type"));
-            try (OutputStream out = conn.getOutputStream()) {
-                out.write(body);
+            attachCookies(conn, current, headers);
+            if (payload != null && ("POST".equals(verb) || "PUT".equals(verb))) {
+                conn.setDoOutput(true);
+                if (conn.getRequestProperty("Content-Type") == null) {
+                    conn.setRequestProperty("Content-Type", "application/json");
+                }
+                try (OutputStream out = conn.getOutputStream()) {
+                    out.write(payload);
+                }
             }
+            int status = conn.getResponseCode();
+            if (status >= 300 && status < 400) {
+                String location = conn.getHeaderField("Location");
+                conn.disconnect();
+                String next = resolveSafeRedirect(current, location);
+                if (next == null) {
+                    return new Result(status, new byte[0], "text/plain");
+                }
+                current = next;
+                if (status == 303 || ((status == 301 || status == 302) && "POST".equals(verb))) {
+                    verb = "GET";
+                    payload = null;
+                }
+                continue;
+            }
+            InputStream stream = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            byte[] data = readBounded(stream, maxBytes);
+            String type = conn.getContentType();
+            conn.disconnect();
+            return new Result(status, data, type);
         }
-        int status = conn.getResponseCode();
-        InputStream stream = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
-        byte[] data = readBounded(stream, maxBytes);
-        String type = conn.getContentType();
-        conn.disconnect();
-        return new Result(status, data, type);
+        throw new IllegalStateException("too many redirects");
+    }
+
+    private static void attachCookies(HttpURLConnection conn, String url, Map<String, String> headers) {
+        if (headers != null && headers.containsKey("Cookie")) return;
+        try {
+            String cookie = android.webkit.CookieManager.getInstance().getCookie(url);
+            if (cookie != null && !cookie.trim().isEmpty()) {
+                conn.setRequestProperty("Cookie", cookie);
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    static String resolveSafeRedirect(String current, String location) {
+        if (location == null || location.trim().isEmpty()) return null;
+        try {
+            URL next = new URL(new URL(current), location.trim());
+            String host = next.getHost() == null ? "" : next.getHost().toLowerCase(Locale.ROOT);
+            if ("www.aitag.win".equals(host)) host = "aitag.win";
+            boolean allowed = "aitag.win".equals(host) || "ai-img.10118899.xyz".equals(host);
+            if (!allowed) return null;
+            String protocol = next.getProtocol() == null ? "" : next.getProtocol().toLowerCase(Locale.ROOT);
+            if ("http".equals(protocol)) {
+                return new URL("https", host, next.getPort(), next.getFile()).toString();
+            }
+            if (!"https".equals(protocol)) return null;
+            if ("www.aitag.win".equalsIgnoreCase(next.getHost())) {
+                return new URL("https", "aitag.win", next.getPort(), next.getFile()).toString();
+            }
+            return next.toString();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static HttpURLConnection open(String url, Route route) throws Exception {

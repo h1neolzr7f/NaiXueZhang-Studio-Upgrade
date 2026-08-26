@@ -17,7 +17,10 @@ final class AitagGateway {
     private static final Pattern PART = Pattern.compile("^[A-Za-z0-9_-]{1,180}$");
     private static final int JSON_LIMIT = 8 * 1024 * 1024;
     private static final int IMAGE_LIMIT = 8 * 1024 * 1024;
+    static final String CHROME_UA = BrowserSession.UA;
+    static final String DESKTOP_UA = "Pixiv-NAI-Gallery/aitag";
     private final TokenStore tokens;
+    private volatile String lastVia = "";
 
     AitagGateway(TokenStore tokens) {
         this.tokens = tokens;
@@ -32,14 +35,15 @@ final class AitagGateway {
         if (root == null) root = raw;
         JSONArray source = firstArray(root, "works", "items", "results");
         if (source.length() == 0) source = firstArray(raw, "works", "items", "results");
-        JSONArray items = new JSONArray();
+        JSONArray naiItems = new JSONArray();
+        JSONArray safeItems = new JSONArray();
         for (int i = 0; i < source.length(); i++) {
             JSONObject work = normalizeWork(source.optJSONObject(i));
-            if (work == null) continue;
-            if (naiOnly && !looksNai(work)) continue;
-            if (!looksSafe(work)) continue;
-            items.put(work);
+            if (work == null || !looksSafe(work)) continue;
+            safeItems.put(work);
+            if (looksNai(work)) naiItems.put(work);
         }
+        JSONArray items = naiOnly && naiItems.length() > 0 ? naiItems : safeItems;
         JSONObject out = new JSONObject();
         out.put("ok", true);
         out.put("source", "aitag-online");
@@ -48,7 +52,38 @@ final class AitagGateway {
         out.put("page_size", 60);
         out.put("items", items);
         out.put("works", items);
+        out.put("relaxed", naiOnly && naiItems.length() == 0 && safeItems.length() > 0);
+        out.put("via", lastVia);
         out.put("generation_calls", 0);
+        return out;
+    }
+
+    JSONObject probe() {
+        JSONObject out = new JSONObject();
+        try {
+            JSONObject result = search("arknights", 1, false);
+            JSONArray items = result.optJSONArray("items");
+            int count = items == null ? 0 : items.length();
+            out.put("ok", count > 0 || result.optBoolean("ok", false));
+            out.put("via", lastVia);
+            out.put("item_count", count);
+            out.put("message", count > 0
+                ? ("在线库已接通（" + (lastVia.isEmpty() ? "java" : lastVia) + "），搜到 " + count + " 条")
+                : "在线库通了，但这页没有结果");
+        } catch (Exception error) {
+            try {
+                out.put("ok", false);
+                out.put("via", lastVia);
+                out.put("item_count", 0);
+                out.put("detail", error.getMessage());
+                out.put("message", error.getMessage() == null ? "在线库暂时打不开" : error.getMessage());
+            } catch (Exception ignored) {}
+        }
+        try {
+            JSONObject net = tokens.networkStatus();
+            out.put("proxy", net.optString("proxy"));
+            out.put("detected_proxy", net.optString("detected_proxy"));
+        } catch (Exception ignored) {}
         return out;
     }
 
@@ -221,24 +256,103 @@ final class AitagGateway {
     }
 
     private JSONObject fetchJson(String url) throws Exception {
-        Map<String, String> headers = new HashMap<>();
-        headers.put("Accept", "application/json");
-        headers.put("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
-        HttpOutbound.Result result = HttpOutbound.get(url, headers, 30000, JSON_LIMIT, tokens.routeOnline());
-        if (result.status < 200 || result.status >= 300) {
-            throw new IllegalStateException("AITag returned HTTP " + result.status);
+        Exception last = null;
+        BrowserSession browser = BrowserSession.get();
+        if (browser != null) {
+            try {
+                JSONObject parsed = browser.fetchJson(url, 45000);
+                lastVia = "webview";
+                return parsed;
+            } catch (Exception error) {
+                last = error;
+            }
         }
-        return JsonUtil.obj(result.text());
+        for (String ua : new String[]{CHROME_UA, DESKTOP_UA}) {
+            Map<String, String> headers = jsonHeaders(ua);
+            for (HttpOutbound.Route route : tokens.onlineCandidates()) {
+                try {
+                    HttpOutbound.Result result = HttpOutbound.get(url, headers, 12000, JSON_LIMIT, route);
+                    if (BrowserSession.looksBlocked(result.status, result.text()) || result.status < 200 || result.status >= 300) {
+                        last = new IllegalStateException("AITag returned HTTP " + result.status);
+                        continue;
+                    }
+                    if (looksHtml(result.text())) {
+                        last = new IllegalStateException("AITag returned HTTP 403");
+                        continue;
+                    }
+                    JSONObject parsed = JsonUtil.obj(result.text());
+                    if (parsed.length() == 0 && result.text().trim().isEmpty()) {
+                        last = new IllegalStateException("AITag empty");
+                        continue;
+                    }
+                    lastVia = route.label();
+                    return parsed;
+                } catch (Exception error) {
+                    last = error;
+                }
+            }
+        }
+        throw last != null ? last : new IllegalStateException("在线库暂时打不开");
     }
 
     private HttpOutbound.Result fetchImage(String url) throws Exception {
         if (!url.startsWith(CDN + "/")) throw new IllegalStateException("AITag image response escaped the fixed CDN origin");
-        Map<String, String> headers = new HashMap<>();
-        headers.put("Accept", "image/webp,image/*");
-        headers.put("User-Agent", "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
-        HttpOutbound.Result result = HttpOutbound.get(url, headers, 30000, IMAGE_LIMIT, tokens.routeOnline());
-        if (result.status != 200) throw new IllegalStateException("AITag image was unavailable");
-        return result;
+        Exception last = null;
+        Map<String, String> headers = imageHeaders();
+        for (HttpOutbound.Route route : tokens.onlineCandidates()) {
+            try {
+                HttpOutbound.Result result = HttpOutbound.get(url, headers, 30000, IMAGE_LIMIT, route);
+                if (result.status == 200 && result.body.length > 32 && !looksHtml(result.text())) {
+                    lastVia = route.label();
+                    return result;
+                }
+                last = new IllegalStateException("AITag image was unavailable");
+            } catch (Exception error) {
+                last = error;
+            }
+        }
+        BrowserSession browser = BrowserSession.get();
+        if (browser != null) {
+            try {
+                HttpOutbound.Result result = browser.fetchBytes(url, 45000, IMAGE_LIMIT);
+                lastVia = "webview";
+                return result;
+            } catch (Exception error) {
+                last = error;
+            }
+        }
+        throw last != null ? last : new IllegalStateException("AITag image was unavailable");
+    }
+
+    private Map<String, String> jsonHeaders(String ua) {
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("Accept", "application/json");
+        headers.put("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+        headers.put("User-Agent", ua);
+        headers.put("Referer", SITE + "/");
+        headers.put("Origin", SITE);
+        headers.put("Sec-Fetch-Dest", "empty");
+        headers.put("Sec-Fetch-Mode", "cors");
+        headers.put("Sec-Fetch-Site", "same-origin");
+        String cookie = BrowserSession.cookiesFor(SITE + "/");
+        if (!cookie.isEmpty()) headers.put("Cookie", cookie);
+        return headers;
+    }
+
+    private Map<String, String> imageHeaders() {
+        Map<String, String> headers = new HashMap<String, String>();
+        headers.put("Accept", "image/webp,image/*,*/*;q=0.8");
+        headers.put("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
+        headers.put("User-Agent", CHROME_UA);
+        headers.put("Referer", SITE + "/");
+        String cookie = BrowserSession.cookiesFor(SITE + "/");
+        if (!cookie.isEmpty()) headers.put("Cookie", cookie);
+        return headers;
+    }
+
+    private static boolean looksHtml(String text) {
+        String value = String.valueOf(text == null ? "" : text).trim();
+        return value.startsWith("<!DOCTYPE") || value.startsWith("<html") || value.contains("Just a moment");
     }
 
     private static int imageCount(JSONObject src, JSONObject raw) {

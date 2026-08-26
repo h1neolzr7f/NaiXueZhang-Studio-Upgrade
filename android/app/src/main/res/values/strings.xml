@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Nai学长工作室</string>
-    <string name="app_tagline">1.5.2 · 手机独立换角出图</string>
+    <string name="app_tagline">1.5.2-phone.4 · 手机独立换角出图</string>
     <string name="settings_title">本机设置</string>
     <string name="settings_hint">这是独立安卓应用，不遥控电脑。密钥只写进这台手机。出图走 NovelAI，写角色/优化咒语用 DeepSeek。搜图可走代理，出图默认直连。</string>
     <string name="token_hint">粘贴 NovelAI Token（pst- 或 Bearer 后面那段）</string>
@@ -14,9 +14,11 @@
     <string name="nai_section">NovelAI</string>
     <string name="deepseek_section">DeepSeek</string>
     <string name="network_section">网络分流</string>
-    <string name="network_hint">开了全局代理往往搜得到图、出不了图。把 Clash HTTP 填下面，只让搜图/写角色走代理，出图不要勾。</string>
-    <string name="proxy_hint">代理，例如 http://127.0.0.1:7890。可空：搜图就用系统代理</string>
+    <string name="network_hint">不要只开全局 VPN/TUN。把 Clash 的 HTTP 端口填下面，例如 http://127.0.0.1:7890，只让搜图/写角色走代理，出图不要勾。应用会自动探测 7890/7897。还被网站拦就点「打开在线库过验证」。</string>
+    <string name="proxy_hint">代理，例如 http://127.0.0.1:7890，也可只填 7890</string>
     <string name="online_proxy">搜图 / 写角色走代理</string>
     <string name="nai_proxy">出图走代理（默认关）</string>
     <string name="save_network">保存网络设置</string>
+    <string name="probe_online">测试在线库</string>
+    <string name="verify_online">打开在线库过验证</string>
 </resources>
