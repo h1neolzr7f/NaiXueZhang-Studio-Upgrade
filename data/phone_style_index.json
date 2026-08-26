@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "source": "phone_bundled_styles",
+  "styles": [
+    {
+      "id": "official_art",
+      "label": "官方画风",
+      "tag": "official art",
+      "kind": "style"
+    },
+    {
+      "id": "anime_style",
+      "label": "动画风",
+      "tag": "anime style",
+      "kind": "style"
+    },
+    {
+      "id": "manga_style",
+      "label": "漫画风",
+      "tag": "manga style",
+      "kind": "style"
+    },
+    {
+      "id": "game_cg",
+      "label": "游戏 CG",
+      "tag": "game cg",
+      "kind": "style"
+    },
+    {
+      "id": "visual_novel",
+      "label": "视觉小说 CG",
+      "tag": "visual novel cg",
+      "kind": "style"
+    },
+    {
+      "id": "watercolor",
+      "label": "水彩",
+      "tag": "watercolor",
+      "kind": "style"
+    },
+    {
+      "id": "oil_painting",
+      "label": "油画",
+      "tag": "oil painting",
+      "kind": "style"
+    },
+    {
+      "id": "sketch",
+      "label": "线稿素描",
+      "tag": "sketch",
+      "kind": "style"
+    },
+    {
+      "id": "lineart",
+      "label": "干净线稿",
+      "tag": "lineart",
+      "kind": "style"
+    },
+    {
+      "id": "cel_shading",
+      "label": "赛璐璐",
+      "tag": "cel shading",
+      "kind": "style"
+    },
+    {
+      "id": "flat_color",
+      "label": "平涂",
+      "tag": "flat color",
+      "kind": "style"
+    },
+    {
+      "id": "pixel_art",
+      "label": "像素",
+      "tag": "pixel art",
+      "kind": "style"
+    },
+    {
+      "id": "chibi",
+      "label": "Q 版",
+      "tag": "chibi",
+      "kind": "style"
+    },
+    {
+      "id": "retro",
+      "label": "复古画风",
+      "tag": "retro artstyle",
+      "kind": "style"
+    },
+    {
+      "id": "90s_anime",
+      "label": "90 年代动画",
+      "tag": "1990s (style)",
+      "kind": "style"
+    },
+    {
+      "id": "2000s_anime",
+      "label": "2000 年代动画",
+      "tag": "2000s (style)",
+      "kind": "style"
+    },
+    {
+      "id": "light_novel",
+      "label": "轻小说插画",
+      "tag": "light novel",
+      "kind": "style"
+    },
+    {
+      "id": "webtoon",
+      "label": "条漫",
+      "tag": "manhwa",
+      "kind": "style"
+    },
+    {
+      "id": "cinematic",
+      "label": "电影光影",
+      "tag": "cinematic lighting",
+      "kind": "style"
+    },
+    {
+      "id": "painterly",
+      "label": "厚涂",
+      "tag": "painterly",
+      "kind": "style"
+    },
+    {
+      "id": "realistic",
+      "label": "偏写实",
+      "tag": "realistic",
+      "kind": "style"
+    },
+    {
+      "id": "monochrome",
+      "label": "单色",
+      "tag": "monochrome",
+      "kind": "style"
+    },
+    {
+      "id": "pastel",
+      "label": "粉彩",
+      "tag": "pastel colors",
+      "kind": "style"
+    },
+    {
+      "id": "neon",
+      "label": "霓虹",
+      "tag": "neon lights",
+      "kind": "style"
+    },
+    {
+      "id": "impasto",
+      "label": "厚颜料",
+      "tag": "impasto",
+      "kind": "style"
+    },
+    {
+      "id": "gouache",
+      "label": "水粉",
+      "tag": "gouache (medium)",
+      "kind": "style"
+    }
+  ]
+}

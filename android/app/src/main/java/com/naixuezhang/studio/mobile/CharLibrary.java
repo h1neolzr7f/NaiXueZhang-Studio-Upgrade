@@ -5,10 +5,13 @@ import android.content.Context;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
@@ -16,13 +19,18 @@ final class CharLibrary {
     private final JSONObject presets;
     private final JSONObject ark;
     private final JSONObject aliases;
+    private final JSONObject seriesAliases;
     private final CustomCharStore custom;
+    private final Context context;
+    private List<String> danbooru;
 
     CharLibrary(Context context, CustomCharStore custom) {
-        presets = readAssetObject(context, "data/char_presets.json");
-        ark = readAssetObject(context, "data/ark_char_library.json");
-        aliases = readAssetObject(context, "data/ark_cn_aliases.json");
+        this.context = context.getApplicationContext();
         this.custom = custom;
+        presets = readAssetObject(this.context, "data/char_presets.json");
+        ark = readAssetObject(this.context, "data/ark_char_library.json");
+        aliases = readAssetObject(this.context, "data/ark_cn_aliases.json");
+        seriesAliases = readAssetObject(this.context, "data/phone_series_aliases.json");
     }
 
     JSONObject listPresets(String gender) {
@@ -65,7 +73,13 @@ final class CharLibrary {
                 for (int i = 0; i < arkItems.length() && items.length() < cap; i++) {
                     JSONObject item = arkItems.optJSONObject(i);
                     if (item == null) continue;
-                    items.put(wrap(item, "ark:" + bucket + ":" + item.optString("id"), "内置 D 站角色库"));
+                    items.put(wrap(item, "ark:" + bucket + ":" + item.optString("id"), "明日方舟库"));
+                }
+            }
+            if (items.length() < cap && needle.length() >= 1) {
+                JSONArray dan = searchDanbooru(bucket, needle, cap - items.length());
+                for (int i = 0; i < dan.length() && items.length() < cap; i++) {
+                    items.put(dan.opt(i));
                 }
             }
         } catch (Exception ignored) {}
@@ -119,10 +133,13 @@ final class CharLibrary {
         String gender = normalizeGender(parts[1], "");
         String id = parts[2];
         if (gender.isEmpty() || id.isEmpty()) return null;
-        JSONArray pool;
         if ("custom".equals(kind) && custom != null) {
             return custom.get(gender, id);
         }
+        if ("danbooru".equals(kind)) {
+            return danbooruRecord(gender, id);
+        }
+        JSONArray pool;
         if ("preset".equals(kind)) {
             pool = presets.optJSONArray(gender);
         } else if ("ark".equals(kind)) {
@@ -136,6 +153,97 @@ final class CharLibrary {
             if (item != null && id.equals(JsonUtil.str(item, "id"))) return item;
         }
         return null;
+    }
+
+    private JSONArray searchDanbooru(String gender, String needle, int limit) {
+        JSONArray items = new JSONArray();
+        String compact = needle.replace(' ', '_');
+        String series = seriesAlias(needle);
+        ensureDanbooru();
+        if (danbooru == null || danbooru.isEmpty()) return items;
+        try {
+            List<JSONObject> prefix = new ArrayList<>();
+            List<JSONObject> rest = new ArrayList<>();
+            for (String tag : danbooru) {
+                if (prefix.size() + rest.size() >= Math.max(limit * 4, 80)) break;
+                boolean hit = tag.startsWith(compact) || tag.contains(compact)
+                    || (!series.isEmpty() && tag.contains(series));
+                if (!hit) continue;
+                JSONObject record = danbooruRecord(gender, tag);
+                JSONObject wrapped = wrap(record, "danbooru:" + gender + ":" + tag, "D 站角色库");
+                if (tag.startsWith(compact) || tag.contains("_" + compact)) prefix.add(wrapped);
+                else rest.add(wrapped);
+            }
+            for (JSONObject item : prefix) {
+                if (items.length() >= limit) break;
+                items.put(item);
+            }
+            for (JSONObject item : rest) {
+                if (items.length() >= limit) break;
+                items.put(item);
+            }
+        } catch (Exception ignored) {}
+        return items;
+    }
+
+    private JSONObject danbooruRecord(String gender, String tag) {
+        JSONObject item = new JSONObject();
+        try {
+            String bucket = normalizeGender(gender, "female");
+            String[] parts = splitTag(tag);
+            item.put("id", tag);
+            item.put("label", parts[0] + (parts[1].isEmpty() ? "" : " · " + parts[1]));
+            item.put("gender", bucket);
+            item.put("tag", tag);
+            item.put("kind", "danbooru");
+            item.put("source", "danbooru");
+            JSONArray identity = new JSONArray();
+            identity.put("male".equals(bucket) ? "1boy" : "1girl");
+            identity.put(tag);
+            item.put("identity", identity);
+            item.put("appearance", new JSONArray());
+            item.put("body", new JSONArray());
+        } catch (Exception ignored) {}
+        return item;
+    }
+
+    private static String[] splitTag(String tag) {
+        String raw = String.valueOf(tag == null ? "" : tag);
+        int open = raw.lastIndexOf("_(");
+        if (open > 0 && raw.endsWith(")")) {
+            String name = raw.substring(0, open).replace('_', ' ');
+            String series = raw.substring(open + 2, raw.length() - 1).replace('_', ' ');
+            return new String[]{name, series};
+        }
+        return new String[]{raw.replace('_', ' '), ""};
+    }
+
+    private String seriesAlias(String needle) {
+        if (seriesAliases == null || seriesAliases.length() == 0) return "";
+        String direct = seriesAliases.optString(needle);
+        if (!direct.isEmpty()) return direct.toLowerCase(Locale.ROOT);
+        Iterator<String> keys = seriesAliases.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            if (needle.contains(key.toLowerCase(Locale.ROOT))) {
+                return seriesAliases.optString(key).toLowerCase(Locale.ROOT);
+            }
+        }
+        return "";
+    }
+
+    private synchronized void ensureDanbooru() {
+        if (danbooru != null) return;
+        List<String> tags = new ArrayList<>();
+        try (InputStream in = context.getAssets().open("data/phone_char_index.txt");
+             BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String tag = line.trim().toLowerCase(Locale.ROOT);
+                if (!tag.isEmpty()) tags.add(tag);
+            }
+        } catch (Exception ignored) {}
+        danbooru = tags;
     }
 
     private String hay(JSONObject item) {

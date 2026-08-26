@@ -150,60 +150,122 @@ final class FavoriteStore {
     }
 
     synchronized JSONObject importGenerated(String imageId, JSONObject comment, byte[] png) throws Exception {
-        String rawId = String.valueOf(imageId == null ? "" : imageId).trim();
+        return importGeneratedPage(imageId, 0, comment, png, 1);
+    }
+
+    synchronized JSONObject importGeneratedPage(String albumId, int pageIndex, JSONObject comment, byte[] png, int total) throws Exception {
+        String rawId = String.valueOf(albumId == null ? "" : albumId).trim();
         String id = normalizeId("g" + rawId);
         if (id.length() < 2) throw new IllegalArgumentException("缺少生成图 id");
-        JSONObject work = new JSONObject();
-        work.put("work_id", id);
-        work.put("id", id);
-        work.put("title", comment == null ? id : JsonUtil.first(comment, "title", "source_title"));
-        if (work.optString("title").isEmpty()) work.put("title", "本机生成");
-        work.put("creator", "phone-local");
-        work.put("gallery_id", "phone-local");
-        JSONObject image = new JSONObject();
-        image.put("image_id", id + "_p0");
-        image.put("id", id + "_p0");
-        image.put("page_index", 0);
+        int index = Math.max(0, pageIndex);
+        File dir = new File(root, id);
+        if (!dir.exists()) dir.mkdirs();
+        JSONObject payload = workPayload(id);
+        if (payload == null) {
+            payload = new JSONObject();
+            payload.put("ok", true);
+            payload.put("source", "phone-local");
+            payload.put("generation_calls", 0);
+            JSONObject work = new JSONObject();
+            work.put("work_id", id);
+            work.put("id", id);
+            work.put("title", comment == null ? id : JsonUtil.first(comment, "title", "source_title"));
+            if (work.optString("title").isEmpty()) work.put("title", "本机生成");
+            work.put("creator", "phone-local");
+            work.put("gallery_id", "phone-local");
+            work.put("images", new JSONArray());
+            work.put("image_count", 0);
+            payload.put("work", work);
+            payload.put("images", work.optJSONArray("images"));
+        }
+        JSONObject work = payload.optJSONObject("work");
+        if (work == null) work = new JSONObject();
+        JSONArray images = payload.optJSONArray("images");
+        if (images == null) images = work.optJSONArray("images");
+        if (images == null) images = new JSONArray();
+        while (images.length() <= index) images.put(new JSONObject());
+        JSONObject image = images.optJSONObject(index);
+        if (image == null) image = new JSONObject();
+        image.put("image_id", id + "_p" + index);
+        image.put("id", id + "_p" + index);
+        image.put("page_index", index);
         image.put("ai_json", comment == null ? new JSONObject() : comment);
-        image.put("url", localUrl(id, 0));
-        image.put("thumbnail_url", localUrl(id, 0));
-        JSONArray images = new JSONArray().put(image);
+        image.put("url", localUrl(id, index));
+        image.put("thumbnail_url", localUrl(id, index));
+        images.put(index, image);
         work.put("images", images);
-        work.put("image_count", 1);
-        JSONObject payload = new JSONObject();
-        payload.put("ok", true);
+        work.put("image_count", Math.max(total, images.length()));
+        work.put("gallery_id", "phone-local");
+        if (comment != null && work.optString("title").isEmpty()) {
+            work.put("title", JsonUtil.first(comment, "title", "source_title"));
+        }
         payload.put("work", work);
         payload.put("images", images);
         payload.put("source", "phone-local");
         payload.put("generation_calls", 0);
-        File dir = new File(root, id);
-        if (!dir.exists()) dir.mkdirs();
         writeText(new File(dir, "work.json"), payload.toString());
-        if (png != null && png.length > 0) writeBytes(new File(dir, "p0.orig"), png);
-        JSONArray index = readIndex();
-        int found = find(index, id);
-        JSONObject row = found >= 0 ? index.optJSONObject(found) : new JSONObject();
+        if (png != null && png.length > 0) writeBytes(new File(dir, "p" + index + ".orig"), png);
+        JSONArray indexRows = readIndex();
+        int found = find(indexRows, id);
+        JSONObject row = found >= 0 ? indexRows.optJSONObject(found) : new JSONObject();
         if (row == null) row = new JSONObject();
         row.put("work_id", id);
         row.put("title", work.optString("title"));
         row.put("creator", "phone-local");
-        row.put("image_count", 1);
+        row.put("image_count", work.optInt("image_count", images.length()));
         row.put("kind", "generated");
         row.put("save_state", "ready");
         row.put("added_at", System.currentTimeMillis());
-        if (found >= 0) index.put(found, row);
+        if (found >= 0) indexRows.put(found, row);
         else {
             JSONArray next = new JSONArray();
             next.put(row);
-            for (int i = 0; i < index.length(); i++) next.put(index.opt(i));
-            index = next;
+            for (int i = 0; i < indexRows.length(); i++) next.put(indexRows.opt(i));
+            indexRows = next;
         }
-        writeIndex(index);
+        writeIndex(indexRows);
         JSONObject out = new JSONObject();
         out.put("ok", true);
         out.put("work_id", id);
         out.put("message", "生成图已入本地库，可继续换角");
         return out;
+    }
+
+    synchronized boolean canRemix(String workId) {
+        String id = normalizeId(workId);
+        if (id.isEmpty()) return false;
+        if (DemoWorks.isDemo(id)) return true;
+        if (id.startsWith("g")) return has(id);
+        return has(id);
+    }
+
+    synchronized void ensureDemo() {
+        if (has(DemoWorks.WORK_ID)) return;
+        try {
+            JSONObject payload = DemoWorks.payload();
+            JSONObject work = payload.optJSONObject("work");
+            File dir = new File(root, DemoWorks.WORK_ID);
+            if (!dir.exists()) dir.mkdirs();
+            writeText(new File(dir, "work.json"), payload.toString());
+            JSONArray images = payload.optJSONArray("images");
+            int count = images == null ? 0 : images.length();
+            for (int i = 0; i < count; i++) {
+                writeBytes(new File(dir, "p" + i + ".orig"), DemoWorks.png(i));
+            }
+            JSONObject row = new JSONObject();
+            row.put("work_id", DemoWorks.WORK_ID);
+            row.put("title", work == null ? "内置样例" : work.optString("title"));
+            row.put("creator", "phone-demo");
+            row.put("image_count", count);
+            row.put("kind", "demo");
+            row.put("save_state", "ready");
+            row.put("added_at", System.currentTimeMillis());
+            JSONArray next = new JSONArray();
+            next.put(row);
+            JSONArray index = readIndex();
+            for (int i = 0; i < index.length(); i++) next.put(index.opt(i));
+            writeIndex(next);
+        } catch (Exception ignored) {}
     }
 
     synchronized JSONObject workPayload(String workId) {

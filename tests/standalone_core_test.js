@@ -260,4 +260,15 @@ assert.ok(String(demoSnap.char_captions[0].caption).includes("skadi_(arknights)"
 assert.ok(String(demoSnap.char_captions[1].caption).includes("kaltsit_(arknights)"));
 assert.ok(String(demoSnap.base_caption || demoSnap.prompt).includes("rhodes island"));
 
+const styled = core.compileDraft(demoLike, {
+  image_index: 0,
+  candidate_id: demoLike.character_candidates[0].candidate_id,
+  target_record: target,
+  target_reference_id: "preset:female:skadi_f",
+  style_record: { id: "watercolor", label: "水彩", tag: "watercolor" },
+});
+assert.ok(String(styled.draft.comment.prompt).includes("watercolor"));
+assert.ok(!String(styled.draft.comment.prompt).includes("official art"));
+assert.ok(core.applyStyleToComment);
+
 console.log("standalone-core ok");

@@ -22,6 +22,8 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
     private final ImageStore images;
     private final PipelineStore pipeline;
     private final OutputCatalog outputs;
+    private final GalleryStore gallery;
+    private final StyleStore styles;
     private final LocalHttpServer http;
     private int port;
 
@@ -30,13 +32,16 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         this.tokens = new TokenStore(this.context);
         this.customChars = new CustomCharStore(this.context);
         this.library = new CharLibrary(this.context, this.customChars);
+        this.styles = new StyleStore(this.context);
         this.aitag = new AitagGateway(this.tokens);
         this.favorites = new FavoriteStore(this.context, this.aitag);
+        this.favorites.ensureDemo();
         this.deepseek = new DeepSeekClient(this.tokens);
         this.images = new ImageStore(this.context);
         this.pipeline = new PipelineStore(this.context, this.images);
         this.outputs = new OutputCatalog(this.context);
-        this.jobs = new JobStore(new NaiGenerator(this.tokens), this.images, this.pipeline, this.outputs, this.favorites);
+        this.gallery = new GalleryStore(this.context);
+        this.jobs = new JobStore(new NaiGenerator(this.tokens), this.images, this.pipeline, this.outputs, this.favorites, this.gallery);
         this.http = new LocalHttpServer(this);
     }
 
@@ -156,7 +161,19 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             }
         }
         if ("GET".equals(request.method) && "/api/mobile/outputs".equals(path)) {
-            return json(200, outputs.list(images).toString());
+            return json(200, gallery.list().toString());
+        }
+        if ("GET".equals(request.method) && "/api/mobile/gallery".equals(path)) {
+            return json(200, gallery.list().toString());
+        }
+        if ("GET".equals(request.method) && path.startsWith("/api/mobile/gallery/")) {
+            String albumId = LocalHttpServer.decode(path.substring("/api/mobile/gallery/".length()));
+            JSONObject album = gallery.get(albumId);
+            if (album == null) return json(404, "{\"ok\":false,\"detail\":\"图库里没有这个任务\"}");
+            return json(200, album.toString());
+        }
+        if ("GET".equals(request.method) && "/api/mobile/queue".equals(path)) {
+            return json(200, jobs.list().toString());
         }
         if ("GET".equals(request.method) && "/api/nai/aitag/probe".equals(path)) {
             return json(200, aitag.probe().toString());
@@ -255,13 +272,35 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         if ("POST".equals(request.method) && "/api/plugin/char-swap/custom/delete".equals(path)) {
             return json(200, customChars.remove(JsonUtil.str(JsonUtil.obj(request.text()), "id")).toString());
         }
+        if ("GET".equals(request.method) && "/api/plugin/char-swap/styles".equals(path)) {
+            return json(200, styles.search(request.query("q"), parseInt(request.query("limit"), 40)).toString());
+        }
+        if ("POST".equals(request.method) && "/api/plugin/char-swap/styles".equals(path)) {
+            return json(200, styles.add(JsonUtil.obj(request.text())).toString());
+        }
+        if ("POST".equals(request.method) && "/api/plugin/char-swap/styles/delete".equals(path)) {
+            return json(200, styles.remove(JsonUtil.str(JsonUtil.obj(request.text()), "id")).toString());
+        }
         if ("POST".equals(request.method) && "/api/nai/generate".equals(path)) {
             JSONObject payload = JsonUtil.obj(request.text());
             JSONObject comment = payload.optJSONObject("patched_comment");
             if (comment == null) return json(400, "{\"ok\":false,\"detail\":\"patched_comment is required\"}");
             if (!tokens.hasToken()) return json(400, "{\"ok\":false,\"detail\":\"NovelAI token is not configured\"}");
+            String workId = JsonUtil.first(payload, "work_id_str", "remote_work_id");
+            if (workId.isEmpty() && payload.opt("work_id") != null) workId = String.valueOf(payload.opt("work_id"));
+            if (!favorites.canRemix(workId)) {
+                return json(400, "{\"ok\":false,\"detail\":\"先收藏入本地库，才能换角和生成\"}");
+            }
             boolean forceFree = !payload.has("force_free") || payload.optBoolean("force_free", true);
-            return json(200, jobs.start(comment, forceFree).toString());
+            int copies = parseInt(String.valueOf(payload.opt("copies")), 1);
+            JSONObject meta = new JSONObject();
+            meta.put("work_id", workId);
+            meta.put("title", JsonUtil.first(payload, "source_title", "title"));
+            JSONObject source = comment.optJSONObject("_aitag_source");
+            if (source != null && meta.optString("title").isEmpty()) {
+                meta.put("title", JsonUtil.first(source, "title", "source_title"));
+            }
+            return json(200, jobs.start(comment, forceFree, copies, meta).toString());
         }
         if ("GET".equals(request.method) && "/api/nai/jobs".equals(path)) {
             JSONObject job = jobs.get(request.query("task_id"));
