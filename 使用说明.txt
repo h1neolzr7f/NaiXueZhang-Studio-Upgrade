@@ -55,6 +55,7 @@
 
 手机版
   安卓独立应用在 android/。装到手机后不需要先开电脑工作室，也不遥控电脑。
+  小白三步：设置里填 NovelAI 和 DeepSeek → 发现里点一张图 → 选人、写草稿、确认出图。
   只填 NovelAI Token 和 DeepSeek，就能搜 AITag、在线换角、本机出图。
   电脑双击“启动手机版.bat”只用来在电脑浏览器里预览 /m 布局。
   本 Windows 一键包不含 APK。

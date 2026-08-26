@@ -1,4 +1,5 @@
 :root {
+  --kb: 0px;
   --bg0: #120c22;
   --bg1: #1a1230;
   --bg2: #2a1848;
@@ -21,10 +22,12 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; background: var(--bg0); color: var(--text); }
 body {
-  font: 15px/1.55 "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
-  padding-top: calc(72px + var(--safe-top));
-  padding-bottom: calc(78px + var(--safe-bottom));
+  font: 16px/1.55 "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  padding-top: calc(76px + var(--safe-top));
+  padding-bottom: calc(88px + var(--safe-bottom) + var(--kb, 0px));
   overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
 .m-sky {
@@ -208,6 +211,32 @@ body {
   border-radius: 0 10px 10px 0;
 }
 .m-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.m-guide {
+  margin: 0 0 10px;
+  padding-left: 1.2em;
+  color: var(--text);
+  font-size: 14px;
+}
+.m-guide li { margin: 4px 0; }
+.m-keys p { margin: 6px 0; }
+.m-adv {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+.m-adv summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--lavender);
+  font-weight: 700;
+}
+a.m-primary, a.m-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
 .m-card {
   position: relative;
   margin-bottom: 14px;
@@ -259,16 +288,19 @@ body {
 input, textarea, select, button { font: inherit; }
 input, textarea, select {
   width: 100%;
+  min-height: 44px;
   padding: 11px 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: rgba(18, 12, 34, 0.82);
   color: var(--text);
+  font-size: 16px;
 }
 textarea { min-height: 72px; resize: vertical; }
 button, .m-primary, .m-ghost, .m-danger {
+  min-height: 44px;
   border-radius: 999px;
-  padding: 10px 14px;
+  padding: 10px 16px;
   border: 1px solid var(--line);
   background: #2a1848;
   color: var(--text);
@@ -289,7 +321,9 @@ button:disabled { opacity: 0.45; }
 
 .m-chip {
   display: inline-flex;
-  padding: 6px 10px;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: rgba(26, 18, 48, 0.8);
@@ -332,9 +366,10 @@ button:disabled { opacity: 0.45; }
   text-align: center;
   text-decoration: none;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  padding: 7px 4px 6px;
+  min-height: 48px;
+  padding: 8px 4px 6px;
   border-radius: 14px;
 }
 .m-tab-ico {

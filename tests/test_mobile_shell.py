@@ -27,6 +27,7 @@ class MobileShellTests(unittest.TestCase):
         self.assertIn('data-mobile="1"', html)
         self.assertIn("/assets/m/m.css?v=", html)
         self.assertIn("/assets/m/m.js?v=", html)
+        self.assertIn("/assets/m/standalone-core.js?v=", html)
         self.assertIn("/assets/shared/api-client.js?v=", html)
         self.assertNotIn("site-nav.js", html)
         self.assertNotIn("companion-dock", html)
