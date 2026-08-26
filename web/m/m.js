@@ -20,7 +20,12 @@
   };
 
   function isStandalone() {
-    return !!(window.__NAI_STANDALONE__ || (document.body && document.body.getAttribute("data-standalone") === "1"));
+    const search = String(location.search || "");
+    return !!(
+      window.__NAI_STANDALONE__
+      || (document.body && document.body.getAttribute("data-standalone") === "1")
+      || /(?:\?|&)standalone=1(?:&|$)/.test(search)
+    );
   }
 
   function api() {
@@ -123,9 +128,8 @@
   function markTabs(name) {
     document.querySelectorAll(".m-tabbar a").forEach((link) => {
       const tab = link.dataset.tab;
-      const onSettings = name === "pair" || name === "settings";
       const onGallery = name === "gallery" && (tab === "gallery" || tab === "pipeline");
-      link.classList.toggle("active", tab === name || onGallery || (onSettings && tab === "browse"));
+      link.classList.toggle("active", tab === name || onGallery);
     });
   }
 
@@ -164,11 +168,17 @@
   }
 
   function openSettings() {
-    if (isStandalone() && window.PhoneApp && typeof window.PhoneApp.openSettings === "function") {
-      window.PhoneApp.openSettings();
+    if (isStandalone()) {
+      location.hash = "#/settings";
       return;
     }
-    location.hash = "#/settings";
+    location.hash = "#/pair";
+  }
+
+  function openNativeSettings() {
+    if (window.PhoneApp && typeof window.PhoneApp.openSettings === "function") {
+      window.PhoneApp.openSettings();
+    }
   }
 
   function requireWrite() {
@@ -199,26 +209,50 @@
 
   async function renderBrowse(root) {
     const standalone = isStandalone();
+    let nai = { has_token: false };
+    let ai = { has_api_key: false };
+    if (standalone) {
+      try { nai = await api().get("/api/nai/status"); } catch (_) { /* ignore */ }
+      try { ai = await api().get("/api/ai/status"); } catch (_) { /* ignore */ }
+    }
+    const hasNai = !!nai.has_token;
+    const hasAi = !!(ai.has_api_key || ai.has_deepseek);
     root.innerHTML = `
       <section class="m-hero">
         <p class="m-eyebrow">Nai学长工作室 · ${standalone ? "1.5.2 手机独立版" : "手机预览"}</p>
-        <h2>在线发现 · 换角出图</h2>
+        <h2>三步就会用</h2>
+        <ol class="m-guide">
+          <li>点右上角「设置」，填 NovelAI 和 DeepSeek</li>
+          <li>下面搜一张图，点进去</li>
+          <li>选人 → 写草稿 → 确认出图</li>
+        </ol>
         <p class="m-hint">${standalone
           ? "不遥控电脑。搜 AITag 在线库，点进作品换角，确认后走 NovelAI。写角色和优化咒语用 DeepSeek。"
           : "搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。"}</p>
         <div class="m-quote">凑企鹅：先选图，再点准角色槽。没填 Token 我不会替你出图。</div>
       </section>
+      ${standalone ? `
+      <section class="m-card m-keys">
+        <h2>先填两把钥匙</h2>
+        <p>出图：<strong class="${hasNai ? "m-ok" : "m-err"}">${hasNai ? "NovelAI 已填" : "还没填 NovelAI"}</strong></p>
+        <p>写角色：<strong class="${hasAi ? "m-ok" : "m-err"}">${hasAi ? "DeepSeek 已填" : "还没填 DeepSeek"}</strong></p>
+        <div class="m-row" style="margin-top:10px">
+          <button type="button" id="mGoSettings" class="m-primary">${hasNai && hasAi ? "查看设置" : "去填钥匙"}</button>
+        </div>
+      </section>` : ""}
       <section class="m-card">
         <h2>在线发现</h2>
         <p class="m-hint">搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。</p>
         <div class="m-row">
-          <input id="mSearch" placeholder="角色 / 作品 / 标签" />
+          <input id="mSearch" placeholder="角色 / 作品 / 标签" enterkeyhint="search" />
           <button type="button" id="mSearchBtn" class="m-primary">搜索</button>
         </div>
         <div class="m-chips" id="mQuickChips"></div>
       </section>
       <div id="mBrowseGrid" class="m-grid"></div>
-      <p id="mBrowseStatus" class="m-status">输入关键词后搜索。</p>`;
+      <p id="mBrowseStatus" class="m-status">正在给你找图…</p>`;
+    const goSet = document.getElementById("mGoSettings");
+    if (goSet) goSet.onclick = openSettings;
     [["明日方舟", "明日方舟"], ["高松灯", "高松灯"], ["丰川祥子", "丰川祥子"], ["能天使", "能天使"]].forEach(([label, q]) => {
       const chip = document.createElement("button");
       chip.type = "button";
@@ -257,11 +291,21 @@
     document.getElementById("mSearch").addEventListener("keydown", (event) => {
       if (event.key === "Enter") run();
     });
+    if (!document.getElementById("mSearch").value.trim()) {
+      document.getElementById("mSearch").value = "明日方舟";
+    }
+    run();
   }
 
   async function renderWork(root, workId) {
     if (!workId) {
-      root.innerHTML = `<section class="m-card"><h2>换角</h2><p class="m-hint">先在「发现」里点开一张在线作品。</p></section>`;
+      root.innerHTML = `<section class="m-card">
+        <h2>换角</h2>
+        <p class="m-hint">先在「发现」里点开一张在线作品。</p>
+        <div class="m-row" style="margin-top:10px">
+          <a class="m-primary" href="#/browse">去发现选图</a>
+        </div>
+      </section>`;
       return;
     }
     state.lastWorkId = workId;
@@ -291,46 +335,54 @@
     const cover = img.thumbnail_url || img.url || ("/api/nai/aitag/cover/" + encodeURIComponent(work.work_id || ""));
     root.innerHTML = `
       <section class="m-card">
+        <p class="m-eyebrow">第 1 步 · 看图</p>
         <h2>${escapeHtml(work.title || work.work_id || "作品")}</h2>
         <img class="m-preview" src="${escapeHtml(cover)}" alt="">
-        <p class="m-hint">${images.length} 页 · 先点准角色槽，再从明日方舟库或自定义里选人。</p>
+        <p class="m-hint">${images.length} 页 · 先点准要换的人，再选换成谁。</p>
         <div class="m-row" id="mPages"></div>
       </section>
       <section class="m-card">
+        <p class="m-eyebrow">第 2 步 · 选要换的人</p>
         <h3>角色槽</h3>
         <div class="m-row" id="mSlots"></div>
         <p class="m-hint" id="mSlotHint">还没选槽</p>
       </section>
       <section class="m-card">
+        <p class="m-eyebrow">第 3 步 · 换成谁</p>
         <h3>换成谁</h3>
         <div class="m-row" id="mGenderRow"></div>
         <div class="m-row">
-          <input id="mTargetQ" placeholder="阿米娅 / 能天使 / 自定义名" value="${escapeHtml(state.targetQuery || "")}" />
+          <input id="mTargetQ" placeholder="阿米娅 / 能天使 / 自定义名" value="${escapeHtml(state.targetQuery || "")}" enterkeyhint="search" />
           <button type="button" id="mTargetBtn" class="m-ghost">搜明日方舟</button>
         </div>
         <div id="mTargets" class="m-list" style="margin-top:8px"></div>
-        <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "默认明日方舟库，也可以保存自定义"}</p>
-        <div class="m-row" style="margin-top:10px">
-          <input id="mCustomName" placeholder="自定义名字" />
-        </div>
-        <div class="m-row" style="margin-top:8px">
-          <input id="mCustomIdentity" placeholder="身份标签，如 my_oc_(oc)" />
-        </div>
-        <div class="m-row" style="margin-top:8px">
-          <input id="mCustomAppear" placeholder="外观，如 white_hair, red_eyes" />
-        </div>
-        <textarea id="mCustomCaption" placeholder="完整槽位咒语（可选，会保留原槽动作）" style="margin-top:8px"></textarea>
-        <div class="m-row" style="margin-top:8px">
-          <button type="button" id="mCustomUse" class="m-ghost">用这次不保存</button>
-          <button type="button" id="mCustomSave" class="m-primary">保存自定义</button>
-        </div>
+        <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "默认明日方舟库，点一个名字即可"}</p>
         <div class="m-quote" style="margin-top:12px">小祥：也可以用中文描述角色，DeepSeek 帮你写成槽位 tag。这步不扣 Anlas。</div>
         <textarea id="mDescribe" placeholder="例如：粉头发红眼睛的阿米娅风 OC，短外套" style="margin-top:8px"></textarea>
         <div class="m-row" style="margin-top:8px">
           <button type="button" id="mDescribeBtn" class="m-ghost">DeepSeek 写角色</button>
         </div>
+        <details class="m-adv">
+          <summary>高级：自己填标签 / 保存自定义</summary>
+          <div class="m-row" style="margin-top:10px">
+            <input id="mCustomName" placeholder="自定义名字" />
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <input id="mCustomIdentity" placeholder="身份标签，如 my_oc_(oc)" />
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <input id="mCustomAppear" placeholder="外观，如 white_hair, red_eyes" />
+          </div>
+          <textarea id="mCustomCaption" placeholder="完整槽位咒语（可选，会保留原槽动作）" style="margin-top:8px"></textarea>
+          <div class="m-row" style="margin-top:8px">
+            <button type="button" id="mCustomUse" class="m-ghost">用这次不保存</button>
+            <button type="button" id="mCustomSave" class="m-primary">保存自定义</button>
+          </div>
+        </details>
       </section>
       <section class="m-card">
+        <p class="m-eyebrow">第 4 步 · 写草稿再出图</p>
+        <p class="m-hint">先点「本页换角」做零费用草稿，确认后再出图。默认免费档。</p>
         <div class="m-row">
           <button type="button" id="mApplyOne" class="m-primary">本页换角</button>
           <button type="button" id="mApplyAll" class="m-ghost">全部页换同性别</button>
@@ -391,6 +443,12 @@
       genderRow.appendChild(chip);
     });
     document.getElementById("mTargetBtn").onclick = searchTargets;
+    const targetBox = document.getElementById("mTargetQ");
+    if (targetBox) {
+      targetBox.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") searchTargets();
+      });
+    }
     document.getElementById("mCustomUse").onclick = () => useCustomRecord(false);
     document.getElementById("mCustomSave").onclick = () => useCustomRecord(true);
     document.getElementById("mDescribeBtn").onclick = describeWithDeepSeek;
@@ -1125,7 +1183,7 @@
     root.innerHTML = `
       <section class="m-card">
         <h2>手机本地设置</h2>
-        <p class="m-hint">独立软件，不遥控电脑。NovelAI 负责出图，DeepSeek 负责写角色和优化咒语。密钥只存在这台手机。</p>
+        <p class="m-hint">独立软件，不遥控电脑。先填下面两把钥匙就能用。NovelAI 负责出图，DeepSeek 负责写角色和优化咒语。密钥只存在这台手机。</p>
         <p>NovelAI：<strong class="${nai.has_token ? "m-ok" : "m-err"}">${nai.has_token ? "已配置 Token" : "还没填 Token"}</strong></p>
         <textarea id="mToken" placeholder="粘贴 NovelAI Token（pst- 或 Bearer 后面那段）" autocomplete="off"></textarea>
         <div class="m-row" style="margin-top:10px">
@@ -1190,6 +1248,14 @@
         toast(error.message || String(error), "err");
       }
     };
+    if (window.PhoneApp && typeof window.PhoneApp.openSettings === "function") {
+      const nativeBtn = document.createElement("button");
+      nativeBtn.type = "button";
+      nativeBtn.className = "m-ghost";
+      nativeBtn.textContent = "打开系统设置页";
+      nativeBtn.onclick = openNativeSettings;
+      document.getElementById("mSetStatus").insertAdjacentElement("beforebegin", nativeBtn);
+    }
   }
 
   const pairBtn = document.getElementById("mPairBtn");
@@ -1211,6 +1277,16 @@
   }
   window.__NAI_REFRESH__ = () => refreshWriteAccess().finally(render);
   window.addEventListener("hashchange", () => { render(); });
+  if (window.visualViewport) {
+    const applyKb = () => {
+      const vv = window.visualViewport;
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty("--kb", inset + "px");
+    };
+    window.visualViewport.addEventListener("resize", applyKb);
+    window.visualViewport.addEventListener("scroll", applyKb);
+    applyKb();
+  }
   restoreToken();
   try { state.lastWorkId = localStorage.getItem(LAST_WORK_KEY) || ""; } catch (_) { /* ignore */ }
   refreshWriteAccess().finally(render);
