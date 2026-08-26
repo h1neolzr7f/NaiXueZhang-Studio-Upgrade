@@ -2,6 +2,7 @@ Nai学长工作室 · 安卓独立版 1.5.2-phone.2（debug）
 
 安装包：NaiXueZhang-Phone-1.5.2.apk
 包名：com.naixuezhang.studio.mobile
+SHA256：f6b3c935bc86c2d157341fcd51cc27dfbc88978de6566c9ac4fe1a8702604560
 
 这是 debug 签名包，不是官方 Windows 一键 zip。
 装完只填 NovelAI Token 和 DeepSeek Key，不连电脑，不遥控电脑。
