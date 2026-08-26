@@ -120,8 +120,10 @@
   function parseRoute() {
     const hash = String(location.hash || "#/browse").replace(/^#/, "") || "/browse";
     const parts = hash.split("/").filter(Boolean);
-    if (parts[0] === "work" && parts[1]) return { name: "work", id: String(parts[1]) };
-    if (parts[0] === "work") return { name: "work", id: state.lastWorkId || "" };
+    if (parts[0] === "library" && parts[1]) return { name: "work", id: String(parts[1]), local: true };
+    if (parts[0] === "library") return { name: "browse", mode: "library" };
+    if (parts[0] === "work" && parts[1]) return { name: "work", id: String(parts[1]), local: state.browseMode === "library" };
+    if (parts[0] === "work") return { name: "work", id: state.lastWorkId || "", local: state.browseMode === "library" };
     if (parts[0] === "batch") return { name: "batch" };
     if (parts[0] === "gallery" || parts[0] === "outputs") return { name: "gallery" };
     if (parts[0] === "pipeline") return { name: isStandalone() ? "gallery" : "pipeline" };
@@ -209,6 +211,7 @@
 
   async function render() {
     state.route = parseRoute();
+    if (state.route.mode === "library") state.browseMode = "library";
     markTabs(state.route.name);
     const root = document.getElementById("mApp");
     if (state.route.name === "settings") return renderSettings(root);
@@ -267,7 +270,7 @@
       <p id="mBrowseStatus" class="m-status">正在给你找图…</p>`;
     const goSet = document.getElementById("mGoSettings");
     if (goSet) goSet.onclick = openSettings;
-    (isStandalone() ? [["online", "在线库"], ["favorites", "收藏"]] : [["online", "在线库"]]).forEach(([value, label]) => {
+    (isStandalone() ? [["online", "在线库"], ["library", "本地库"]] : [["online", "在线库"]]).forEach(([value, label]) => {
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "m-chip" + (state.browseMode === value ? " active" : "");
@@ -292,21 +295,21 @@
     const run = async () => {
       const q = document.getElementById("mSearch").value.trim();
       const status = document.getElementById("mBrowseStatus");
-      status.textContent = state.browseMode === "favorites" ? "读取本机收藏…" : "搜索中…";
+      status.textContent = state.browseMode === "library" ? "读取本地库…" : "搜索中…";
       try {
         await refreshFavIds();
-        const data = state.browseMode === "favorites"
-          ? await api().get("/api/nai/aitag/favorites/works")
+        const data = state.browseMode === "library"
+          ? await api().get("/api/mobile/library/works?q=" + encodeURIComponent(q))
           : await api().get("/api/nai/aitag/search?q=" + encodeURIComponent(q) + "&page=1&page_size=24&nai_only=true");
         const items = data.items || data.works || [];
         const grid = document.getElementById("mBrowseGrid");
         grid.innerHTML = items.map((item) => workCardHtml(item)).join("") || "";
         bindFavButtons(grid);
         status.textContent = items.length
-          ? (state.browseMode === "favorites"
-            ? `本机收藏 ${items.length} 个，数据和首图已留下`
+          ? (state.browseMode === "library"
+            ? `本地库 ${items.length} 个，点进去就能离线换角`
             : `找到 ${items.length} 个作品，角标是图片张数`)
-          : (state.browseMode === "favorites" ? "还没有收藏。点卡片左上角☆就会存到本机。" : "没有结果，换个词再搜");
+          : (state.browseMode === "library" ? "本地库是空的。在线库点☆收藏就会入库。" : "没有结果，换个词再搜");
       } catch (error) {
         status.textContent = friendlyError(error);
         status.className = "m-status m-err";
@@ -337,7 +340,10 @@
     try { localStorage.setItem(LAST_WORK_KEY, workId); } catch (_) { /* ignore */ }
     root.innerHTML = `<p class="m-status">加载作品…</p>`;
     try {
-      const data = await api().get("/api/nai/aitag/work/" + encodeURIComponent(workId));
+      const local = !!(state.route && state.route.local);
+      const data = local
+        ? await api().get("/api/mobile/library/work/" + encodeURIComponent(workId))
+        : await api().get("/api/nai/aitag/work/" + encodeURIComponent(workId));
       await refreshFavIds();
       state.work = (isStandalone() && window.StandaloneCore) ? window.StandaloneCore.decorateWork(data) : data;
       state.pageIndex = 0;
@@ -369,8 +375,11 @@
     const fav = isStandalone()
       ? `<button type="button" class="m-fav${on ? " on" : ""}" data-fav="${escapeHtml(id)}" aria-label="收藏">${on ? "★" : "☆"}</button>`
       : "";
+    const href = (isStandalone() && (state.browseMode === "library" || item.local))
+      ? `#/library/${encodeURIComponent(id)}`
+      : `#/work/${encodeURIComponent(id)}`;
     return `<div class="m-work-card">
-      <a class="m-work" href="#/work/${encodeURIComponent(id)}">
+      <a class="m-work" href="${href}">
         <img src="${escapeHtml(cover)}" alt="">
         <em class="m-page-badge">${count}张</em>
         <span>${escapeHtml(item.title || id)}</span>
@@ -1155,7 +1164,7 @@
       const job = status.job || {};
       const backlog = status.backlog || {};
       const phoneHint = isStandalone()
-        ? "生成成功后，手机把图存进系统相册「Nai学长工作室」。手机不做超分/打码。"
+        ? "生成成功后跑本机流水线：2x 超分、清元数据、入本地库、存相册。打码需要电脑 ANR，不打进手机包。"
         : "生成成功后，电脑端会按配置做超分 / 打码 / 清元数据。手机只负责查看和补跑。";
       root.innerHTML = `
         <section class="m-card">
@@ -1269,24 +1278,34 @@
         api().get("/api/pipeline/config").catch(() => ({ config: {} })),
       ]);
       const items = data.items || [];
-      const auto = !!(cfg.config && cfg.config.auto_after_generate);
+      const cfgObj = cfg.config || {};
+      const auto = !!cfgObj.auto_after_generate;
+      const upscale = cfgObj.upscale !== false;
+      const metadata = cfgObj.metadata !== false;
       root.innerHTML = `
         <section class="m-hero">
           <p class="m-eyebrow">生成库</p>
           <h2>本机成果</h2>
-          <p class="m-hint">只存在这台手机。生成成功后可进系统相册「Nai学长工作室」。手机不做超分 / 打码。</p>
+          <p class="m-hint">生成图会入本地库，可继续换角。流水线做本机 2x 超分和清元数据，再存相册。打码需要电脑 ANR 模型，不打进这个包。</p>
         </section>
         <section class="m-card">
-          <h2>流水线</h2>
-          <p>生成后自动存相册：<strong class="${auto ? "m-ok" : "m-err"}">${auto ? "已开" : "未开"}</strong></p>
-          <div class="m-row">
-            <button type="button" id="mPipeRun" class="m-primary">补存到相册</button>
+          <h2>后处理流水线</h2>
+          <p>自动后处理：<strong class="${auto ? "m-ok" : "m-err"}">${auto ? "已开" : "未开"}</strong></p>
+          <p>超分 2x：<strong class="${upscale ? "m-ok" : "m-err"}">${upscale ? "已开" : "未开"}</strong></p>
+          <p>清元数据：<strong class="${metadata ? "m-ok" : "m-err"}">${metadata ? "已开" : "未开"}</strong></p>
+          <p class="m-hint">打码：未打包（电脑版靠外部 ANR + YOLO，上百 MB）。</p>
+          <div class="m-row" style="margin-top:10px">
+            <button type="button" id="mPipeRun" class="m-primary">补跑流水线</button>
             <button type="button" id="mPipeAuto" class="m-ghost">${auto ? "关闭自动" : "打开自动"}</button>
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <button type="button" id="mPipeUp" class="m-ghost">${upscale ? "关闭超分" : "打开超分"}</button>
+            <button type="button" id="mPipeMeta" class="m-ghost">${metadata ? "关闭清元数据" : "打开清元数据"}</button>
           </div>
           <p id="mPipeStatus" class="m-status"></p>
         </section>
         <div class="m-grid" id="mOutGrid"></div>
-        <p class="m-status">${items.length ? ("共 " + items.length + " 张") : "还没有生成图。先在发现里换角出图。"}</p>`;
+        <p class="m-status">${items.length ? ("共 " + items.length + " 张，点图可看大图；要换角请去发现→本地库") : "还没有生成图。先在发现里换角出图。"}</p>`;
       const grid = document.getElementById("mOutGrid");
       grid.innerHTML = items.map((item) => `
         <a class="m-work" href="${escapeHtml(item.image_url || "")}" target="_blank" rel="noopener">
@@ -1294,7 +1313,7 @@
           <span>${escapeHtml(item.title || item.work_id || item.id || "生成图")}</span>
         </a>`).join("");
       document.getElementById("mPipeRun").onclick = async () => {
-        if (!await confirmAction("补存到相册", "只把本机已生成图补进相册，不会重新出图。")) return;
+        if (!await confirmAction("补跑流水线", "会对还没处理的生成图做超分和清元数据，并补存相册。不会重新出图，也不会打码。")) return;
         const box = document.getElementById("mPipeStatus");
         try {
           const result = await api().post("/api/pipeline/run", { only_missing: true });
@@ -1306,8 +1325,16 @@
         }
       };
       document.getElementById("mPipeAuto").onclick = async () => {
-        if (!await confirmAction(auto ? "关闭自动存相册" : "打开自动存相册", "只改这台手机的开关，不会立刻出图。")) return;
+        if (!await confirmAction(auto ? "关闭自动流水线" : "打开自动流水线", "只改这台手机的开关，不会立刻出图。")) return;
         await api().post("/api/pipeline/config", { auto_after_generate: !auto });
+        renderGallery(root);
+      };
+      document.getElementById("mPipeUp").onclick = async () => {
+        await api().post("/api/pipeline/config", { upscale: !upscale });
+        renderGallery(root);
+      };
+      document.getElementById("mPipeMeta").onclick = async () => {
+        await api().post("/api/pipeline/config", { metadata: !metadata });
         renderGallery(root);
       };
     } catch (error) {

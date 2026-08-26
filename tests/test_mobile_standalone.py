@@ -106,8 +106,10 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("保存自定义", js)
         self.assertIn("点开搜索", js)
         self.assertIn("收藏", js)
+        self.assertIn("本地库", js)
         self.assertIn("image_count", js)
         self.assertIn("/api/nai/aitag/favorites", js)
+        self.assertIn("/api/mobile/library/work/", js)
         self.assertIn("/api/plugin/char-swap/search", js)
         self.assertIn("张", js)
         self.assertIn("candidate_id", js)
@@ -138,8 +140,20 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("CustomCharStore", server)
         self.assertIn("FavoriteStore", server)
         self.assertIn("/api/nai/aitag/favorites", server)
+        self.assertIn("/api/mobile/library", server)
         self.assertIn("/api/plugin/char-swap/search", server)
         self.assertIn("/api/nai/network", server)
+        pipeline = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/PipelineStore.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("PhonePipeline.process", pipeline)
+        self.assertIn("upscale", pipeline)
+        self.assertIn("metadata", pipeline)
+        phonePipe = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/PhonePipeline.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("FILTER_BITMAP_FLAG", phonePipe)
+        self.assertIn("PNG", phonePipe)
 
     def test_user_guide_describes_phone_local_app(self) -> None:
         guide = (ROOT / "使用说明.txt").read_text(encoding="utf-8")
