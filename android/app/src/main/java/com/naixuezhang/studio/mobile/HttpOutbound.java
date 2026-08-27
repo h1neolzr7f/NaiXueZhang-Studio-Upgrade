@@ -86,54 +86,110 @@ final class HttpOutbound {
         int maxBytes,
         Route route
     ) throws Exception {
+        Exception last = null;
+        int attempts = "GET".equalsIgnoreCase(method) ? 2 : 1;
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            try {
+                return executeOnce(method, url, headers, body, timeoutMs, maxBytes, route);
+            } catch (Exception error) {
+                last = error;
+                if (attempt + 1 < attempts && isTransport(error)) {
+                    try {
+                        Thread.sleep(350);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        throw wrapTransport(error);
+                    }
+                    continue;
+                }
+                throw wrapTransport(error);
+            }
+        }
+        throw wrapTransport(last);
+    }
+
+    private static Result executeOnce(
+        String method,
+        String url,
+        Map<String, String> headers,
+        byte[] body,
+        int timeoutMs,
+        int maxBytes,
+        Route route
+    ) throws Exception {
         String current = url;
         byte[] payload = body;
         String verb = method;
         for (int hop = 0; hop < 6; hop++) {
             HttpURLConnection conn = open(current, route);
-            conn.setInstanceFollowRedirects(false);
-            conn.setConnectTimeout(Math.min(8000, Math.max(2500, timeoutMs)));
-            conn.setReadTimeout(Math.max(3000, timeoutMs));
-            conn.setRequestMethod(verb);
-            if (headers != null) {
-                for (Map.Entry<String, String> entry : headers.entrySet()) {
-                    if (entry.getKey() != null && entry.getValue() != null) {
-                        conn.setRequestProperty(entry.getKey(), entry.getValue());
+            try {
+                conn.setInstanceFollowRedirects(false);
+                conn.setConnectTimeout(Math.min(15000, Math.max(4000, timeoutMs)));
+                conn.setReadTimeout(Math.max(8000, timeoutMs));
+                conn.setRequestMethod(verb);
+                conn.setRequestProperty("Connection", "close");
+                if (headers != null) {
+                    for (Map.Entry<String, String> entry : headers.entrySet()) {
+                        if (entry.getKey() != null && entry.getValue() != null) {
+                            conn.setRequestProperty(entry.getKey(), entry.getValue());
+                        }
                     }
                 }
+                attachCookies(conn, current, headers);
+                if (payload != null && ("POST".equals(verb) || "PUT".equals(verb))) {
+                    conn.setDoOutput(true);
+                    if (conn.getRequestProperty("Content-Type") == null) {
+                        conn.setRequestProperty("Content-Type", "application/json");
+                    }
+                    try (OutputStream out = conn.getOutputStream()) {
+                        out.write(payload);
+                    }
+                }
+                int status = conn.getResponseCode();
+                if (status >= 300 && status < 400) {
+                    String location = conn.getHeaderField("Location");
+                    String next = resolveSafeRedirect(current, location);
+                    if (next == null) {
+                        return new Result(status, new byte[0], "text/plain");
+                    }
+                    current = next;
+                    if (status == 303 || ((status == 301 || status == 302) && "POST".equals(verb))) {
+                        verb = "GET";
+                        payload = null;
+                    }
+                    continue;
+                }
+                InputStream stream = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                byte[] data = readBounded(stream, maxBytes);
+                String type = conn.getContentType();
+                return new Result(status, data, type);
+            } finally {
+                try {
+                    conn.disconnect();
+                } catch (Exception ignored) {}
             }
-            attachCookies(conn, current, headers);
-            if (payload != null && ("POST".equals(verb) || "PUT".equals(verb))) {
-                conn.setDoOutput(true);
-                if (conn.getRequestProperty("Content-Type") == null) {
-                    conn.setRequestProperty("Content-Type", "application/json");
-                }
-                try (OutputStream out = conn.getOutputStream()) {
-                    out.write(payload);
-                }
-            }
-            int status = conn.getResponseCode();
-            if (status >= 300 && status < 400) {
-                String location = conn.getHeaderField("Location");
-                conn.disconnect();
-                String next = resolveSafeRedirect(current, location);
-                if (next == null) {
-                    return new Result(status, new byte[0], "text/plain");
-                }
-                current = next;
-                if (status == 303 || ((status == 301 || status == 302) && "POST".equals(verb))) {
-                    verb = "GET";
-                    payload = null;
-                }
-                continue;
-            }
-            InputStream stream = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
-            byte[] data = readBounded(stream, maxBytes);
-            String type = conn.getContentType();
-            conn.disconnect();
-            return new Result(status, data, type);
         }
         throw new IllegalStateException("too many redirects");
+    }
+
+    static boolean isTransport(Throwable error) {
+        if (error instanceof java.net.SocketException || error instanceof java.net.SocketTimeoutException) {
+            return true;
+        }
+        String raw = error == null ? "" : String.valueOf(error.getMessage()).toLowerCase(Locale.ROOT);
+        return raw.contains("connection closed")
+            || raw.contains("connection reset")
+            || raw.contains("broken pipe")
+            || raw.contains("unexpected end")
+            || raw.contains("failed to connect")
+            || raw.contains("timeout")
+            || raw.contains("timed out");
+    }
+
+    static Exception wrapTransport(Exception error) {
+        if (error == null) return new IllegalStateException("网络中断");
+        if (!isTransport(error)) return error;
+        return new IllegalStateException("网络中断，再试一次", error);
     }
 
     private static void attachCookies(HttpURLConnection conn, String url, Map<String, String> headers) {

@@ -210,6 +210,14 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
                 return json(400, errorJson(error.getMessage()));
             }
         }
+        if ("POST".equals(request.method) && path.startsWith("/api/mobile/queue/") && path.endsWith("/delete")) {
+            String taskId = LocalHttpServer.decode(path.substring("/api/mobile/queue/".length(), path.length() - "/delete".length()));
+            try {
+                return json(200, jobs.delete(taskId).toString());
+            } catch (Exception error) {
+                return json(400, errorJson(error.getMessage()));
+            }
+        }
         if ("GET".equals(request.method) && "/api/nai/aitag/probe".equals(path)) {
             return json(200, aitag.probe().toString());
         }
@@ -333,7 +341,7 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             if (workId.isEmpty() && payload.opt("work_id") != null) workId = String.valueOf(payload.opt("work_id"));
             if (!favorites.canRemix(workId)) {
                 String detail = favorites.has(workId)
-                    ? "入库还没完成，等本地库显示「可换角生成」再换"
+                    ? "咒语还没齐。不用等原图，稍后再打开本地库"
                     : "先收藏入本地库，才能换角和生成";
                 return json(400, errorJson(detail));
             }

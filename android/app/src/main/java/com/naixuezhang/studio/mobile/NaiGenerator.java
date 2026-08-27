@@ -48,11 +48,20 @@ final class NaiGenerator {
         headers.put("Content-Type", "application/json");
         headers.put("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36");
         headers.put("Referer", "https://novelai.net/");
-        HttpOutbound.Result result = HttpOutbound.postJson(IMAGE_API, headers, body.toString(), 180000, MAX_PNG, tokens.routeNai());
-        if (result.status == 401) throw new NaiError("Token invalid or expired", false, "provider_unavailable");
-        if (result.status == 429) throw new NaiError("Request too frequent; please retry later", true, "rate_limited");
-        if (result.status >= 500) throw new NaiError("NAI API error " + result.status, true, "http_5xx");
-        if (result.status >= 400) throw new NaiError("NAI API error " + result.status, false, "generate_failed");
+        HttpOutbound.Result result;
+        try {
+            result = HttpOutbound.postJson(IMAGE_API, headers, body.toString(), 180000, MAX_PNG, tokens.routeNai());
+        } catch (Exception error) {
+            throw new NaiError(
+                JobStore.friendlyGenerateError(error.getMessage()),
+                HttpOutbound.isTransport(error),
+                HttpOutbound.isTransport(error) ? "connection_closed" : "generate_failed"
+            );
+        }
+        if (result.status == 401) throw new NaiError("NovelAI Token 无效或过期，去设置里重填", false, "provider_unavailable");
+        if (result.status == 429) throw new NaiError("NovelAI 限流了，稍后再手动重试", true, "rate_limited");
+        if (result.status >= 500) throw new NaiError("NovelAI 服务出错 " + result.status + "，不要自动重试", true, "http_5xx");
+        if (result.status >= 400) throw new NaiError("NovelAI 拒绝了这次出图 " + result.status, false, "generate_failed");
         return extractPng(result.body);
     }
 

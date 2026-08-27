@@ -224,6 +224,23 @@ final class JobStore {
         return started;
     }
 
+    JSONObject delete(String taskId) throws Exception {
+        String id = String.valueOf(taskId == null ? "" : taskId).trim();
+        JSONObject job = jobs.get(id);
+        if (job == null) throw new IllegalArgumentException("队列里没有这个任务");
+        cancelled.add(id);
+        jobs.remove(id);
+        payloads.remove(id);
+        synchronized (order) {
+            order.remove(id);
+        }
+        JSONObject out = new JSONObject();
+        out.put("ok", true);
+        out.put("task_id", id);
+        out.put("message", "已从队列删除");
+        return out;
+    }
+
     private void run(String id, List<JSONObject> units, boolean forceFree, JSONObject source) {
         JSONObject job = jobs.get(id);
         if (job == null) return;
@@ -342,8 +359,7 @@ final class JobStore {
             }
             Exception error = lastError.get();
             if (error != null && finished.get() < total) {
-                boolean missing = "missing_token".equals(error.getMessage());
-                fail(job, missing ? "NovelAI token is not configured" : (error.getMessage() == null ? "生图失败" : error.getMessage()), false, collected);
+                fail(job, friendlyGenerateError(error.getMessage()), false, collected);
                 return;
             }
             synchronized (job) {
@@ -359,8 +375,22 @@ final class JobStore {
             Thread.currentThread().interrupt();
             fail(job, "生成被中断", false, collected);
         } catch (Exception error) {
-            fail(job, error.getMessage() == null ? "生图失败" : error.getMessage(), false, collected);
+            fail(job, friendlyGenerateError(error.getMessage()), false, collected);
         }
+    }
+
+    static String friendlyGenerateError(String raw) {
+        String message = raw == null ? "" : raw.trim();
+        String lower = message.toLowerCase(java.util.Locale.ROOT);
+        if (lower.contains("connection closed") || lower.contains("connection reset")
+            || lower.contains("broken pipe") || lower.contains("unexpected end")
+            || lower.contains("failed to connect") || lower.contains("生成连接被掐断")) {
+            return "生成连接被掐断。没看到成功回执，先看 NovelAI 记录有没有扣费，再手动重试";
+        }
+        if ("missing_token".equals(message) || lower.contains("not configured")) {
+            return "先在设置里填 NovelAI Token";
+        }
+        return message.isEmpty() ? "生图失败" : message;
     }
 
     private void fail(JSONObject job, String message, boolean unknown, JSONArray collected) {
