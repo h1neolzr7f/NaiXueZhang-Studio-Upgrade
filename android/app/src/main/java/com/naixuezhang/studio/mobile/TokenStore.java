@@ -20,29 +20,110 @@ final class TokenStore {
     private static final String ONLINE_PROXY = "online_use_proxy";
     private static final String NAI_PROXY = "nai_use_proxy";
     private final SharedPreferences prefs;
+    private final Set<String> busy = new LinkedHashSet<String>();
 
     TokenStore(Context context) {
         prefs = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
     synchronized String get() {
-        return String.valueOf(prefs.getString(KEY, "")).trim();
+        List<String> tokens = list();
+        return tokens.isEmpty() ? "" : tokens.get(0);
+    }
+
+    synchronized List<String> list() {
+        return parseTokens(prefs.getString(KEY, ""));
+    }
+
+    synchronized int count() {
+        return list().size();
+    }
+
+    synchronized int concurrency() {
+        return Math.max(0, count());
     }
 
     synchronized boolean hasToken() {
-        return !get().isEmpty();
+        return count() > 0;
     }
 
     synchronized void set(String raw) {
-        String token = String.valueOf(raw == null ? "" : raw).trim();
-        if (token.regionMatches(true, 0, "Bearer ", 0, 7)) {
-            token = token.substring(7).trim();
-        }
-        prefs.edit().putString(KEY, token).apply();
+        List<String> tokens = parseTokens(raw);
+        prefs.edit().putString(KEY, String.join("\n", tokens)).apply();
     }
 
     synchronized void clear() {
         prefs.edit().remove(KEY).apply();
+        synchronized (busy) {
+            busy.clear();
+            busy.notifyAll();
+        }
+    }
+
+    String lease(long timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(1000, timeoutMs);
+        while (System.currentTimeMillis() < deadline) {
+            List<String> tokens = list();
+            if (tokens.isEmpty()) return "";
+            synchronized (busy) {
+                for (String token : tokens) {
+                    if (busy.add(token)) return token;
+                }
+                try {
+                    busy.wait(200);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                    String fallback = tokens.get(0);
+                    busy.add(fallback);
+                    return fallback;
+                }
+            }
+        }
+        List<String> tokens = list();
+        if (tokens.isEmpty()) return "";
+        synchronized (busy) {
+            String fallback = tokens.get(0);
+            busy.add(fallback);
+            return fallback;
+        }
+    }
+
+    void release(String token) {
+        if (token == null || token.isEmpty()) return;
+        synchronized (busy) {
+            busy.remove(token);
+            busy.notifyAll();
+        }
+    }
+
+    synchronized org.json.JSONObject tokenStatus() {
+        org.json.JSONObject out = new org.json.JSONObject();
+        try {
+            int n = count();
+            out.put("ok", n > 0);
+            out.put("has_token", n > 0);
+            out.put("token_count", n);
+            out.put("enabled_count", n);
+            out.put("concurrency", n);
+            out.put("slots", n);
+            out.put("message", n <= 0
+                ? "NAI token is not configured"
+                : ("已配置 " + n + " 个 Token，可 " + n + " 路并发"));
+        } catch (Exception ignored) {}
+        return out;
+    }
+
+    static List<String> parseTokens(String raw) {
+        String text = String.valueOf(raw == null ? "" : raw).replace('\r', '\n').replace(',', '\n');
+        List<String> out = new ArrayList<String>();
+        Set<String> seen = new LinkedHashSet<String>();
+        for (String line : text.split("\n")) {
+            String token = line.trim();
+            if (token.regionMatches(true, 0, "Bearer ", 0, 7)) token = token.substring(7).trim();
+            if (token.isEmpty() || token.startsWith("#")) continue;
+            if (seen.add(token)) out.add(token);
+        }
+        return out;
     }
 
     synchronized String getDeepSeek() {

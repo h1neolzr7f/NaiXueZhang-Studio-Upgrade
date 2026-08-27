@@ -21,9 +21,22 @@ final class NaiGenerator {
         this.tokens = tokens;
     }
 
+    int concurrency() {
+        return Math.max(1, tokens.concurrency());
+    }
+
     byte[] generatePng(JSONObject comment, boolean forceFree) throws Exception {
-        String token = tokens.get();
+        String token = tokens.lease(180000);
         if (token.isEmpty()) throw new IllegalStateException("missing_token");
+        try {
+            return generatePngWith(token, comment, forceFree);
+        } finally {
+            tokens.release(token);
+        }
+    }
+
+    byte[] generatePngWith(String token, JSONObject comment, boolean forceFree) throws Exception {
+        if (token == null || token.trim().isEmpty()) throw new IllegalStateException("missing_token");
         JSONObject payload = buildPayload(comment, forceFree);
         JSONObject body = new JSONObject();
         body.put("input", payload.optString("input"));

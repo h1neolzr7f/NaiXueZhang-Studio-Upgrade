@@ -29,6 +29,19 @@
     searchQ: "明日方舟",
     lastSearchMeta: {},
   };
+  let browseSearchSeq = 0;
+  let charSearchSeq = 0;
+  let styleSearchSeq = 0;
+
+  function debounce(fn, ms) {
+    let timer = 0;
+    return function () {
+      const args = arguments;
+      const ctx = this;
+      clearTimeout(timer);
+      timer = setTimeout(() => fn.apply(ctx, args), ms);
+    };
+  }
 
   function isStandalone() {
     const search = String(location.search || "");
@@ -289,14 +302,14 @@
           <li>${standalone ? "本地库换角 / 画风，再排队生成" : "选人 → 写草稿 → 确认出图"}</li>
         </ol>
         <p class="m-hint">${standalone
-          ? "不遥控电脑。在线库只负责搜图收藏。必须先入库，才能换角色、换画风和生成。同一任务的图会收进图库一组。"
+          ? "不遥控电脑。在线库只负责搜图收藏。必须先入库，才能换角色、换画风和生成。同一任务的图会收进图库一组。多个 Token 可并发出图。"
           : "搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。"}</p>
         <div class="m-quote">凑企鹅：先选图，再点准角色槽。没填 Token 我不会替你出图。</div>
       </section>
       ${standalone ? `
       <section class="m-card m-keys">
         <h2>先填两把钥匙</h2>
-        <p>出图：<strong class="${hasNai ? "m-ok" : "m-err"}">${hasNai ? "NovelAI 已填" : "还没填 NovelAI"}</strong></p>
+        <p>出图：<strong class="${hasNai ? "m-ok" : "m-err"}">${hasNai ? ("NovelAI 已填" + (nai.token_count > 1 ? (" · " + nai.token_count + " 路并发") : "")) : "还没填 NovelAI"}</strong></p>
         <p>写角色：<strong class="${hasAi ? "m-ok" : "m-err"}">${hasAi ? "DeepSeek 已填" : "还没填 DeepSeek"}</strong></p>
         <div class="m-row" style="margin-top:10px">
           <button type="button" id="mGoSettings" class="m-primary">${hasNai && hasAi ? "查看设置" : "去填钥匙"}</button>
@@ -316,6 +329,7 @@
         <div class="m-chips" id="mQuickChips"></div>
       </section>
       <div id="mBrowseGrid" class="m-grid"></div>
+      <div id="mBrowsePager"></div>
       <p id="mBrowseStatus" class="m-status">正在给你找图…</p>`;
     const goSet = document.getElementById("mGoSettings");
     if (goSet) goSet.onclick = openSettings;
@@ -345,7 +359,7 @@
         document.getElementById("mSortChips").appendChild(chip);
       });
     }
-    [["内置样例", "内置样例"], ["明日方舟", "明日方舟"], ["高松灯", "高松灯"], ["丰川祥子", "丰川祥子"], ["能天使", "能天使"]].forEach(([label, q]) => {
+    [["内置样例", "内置样例"], ["明日方舟", "明日方舟"], ["甘雨", "甘雨"], ["初音", "初音"], ["高松灯", "高松灯"], ["丰川祥子", "丰川祥子"], ["能天使", "能天使"]].forEach(([label, q]) => {
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "m-chip";
@@ -364,15 +378,17 @@
         return;
       }
       if (page) state.searchPage = page;
+      const seq = ++browseSearchSeq;
       const status = document.getElementById("mBrowseStatus");
       status.className = "m-status";
-      status.textContent = state.browseMode === "library" ? "读取本地库…" : "搜索中…";
+      status.textContent = state.browseMode === "library" ? "读取本地库…" : "正在搜…";
       try {
         await refreshFavIds();
         const data = state.browseMode === "library"
           ? await api().get("/api/mobile/library/works?q=" + encodeURIComponent(q))
           : await api().get("/api/nai/aitag/search?q=" + encodeURIComponent(q)
             + "&page=" + state.searchPage + "&page_size=60&nai_only=true&sort=" + encodeURIComponent(state.searchSort || "new"));
+        if (seq !== browseSearchSeq) return;
         state.lastSearchMeta = data;
         const items = data.items || data.works || [];
         const grid = document.getElementById("mBrowseGrid");
@@ -386,33 +402,48 @@
               ? "在线库暂时打不开，先用内置样例把换角跑通。连上后再搜。"
               : `第 ${state.searchPage} 页 · ${items.length} 个作品，先☆收藏入库`))
           : (state.browseMode === "library" ? "本地库是空的。在线库点☆收藏就会入库。" : "没有结果，换个词再搜");
-        if (state.browseMode !== "library") {
-          const pager = document.createElement("div");
-          pager.className = "m-row";
-          pager.style.marginTop = "10px";
-          pager.innerHTML = `
-            <button type="button" class="m-ghost" id="mPrevPage" ${state.searchPage <= 1 ? "disabled" : ""}>上一页</button>
-            <button type="button" class="m-ghost" id="mNextPage" ${data.has_more ? "" : "disabled"}>下一页</button>`;
-          status.insertAdjacentElement("beforebegin", pager);
-          const prev = document.getElementById("mPrevPage");
-          const next = document.getElementById("mNextPage");
-          if (prev) prev.onclick = () => run(Math.max(1, state.searchPage - 1));
-          if (next) next.onclick = () => run(state.searchPage + 1);
+        if (state.browseMode === "library" && items.some((item) => {
+          const save = String(item.save_state || "");
+          return save === "pending" || save === "saving";
+        })) {
+          setTimeout(() => {
+            if (state.route && state.route.name === "browse" && state.browseMode === "library") run(state.searchPage);
+          }, 2000);
+        }
+        const pager = document.getElementById("mBrowsePager");
+        if (pager) {
+          if (state.browseMode !== "library") {
+            pager.className = "m-row";
+            pager.style.marginTop = "10px";
+            pager.innerHTML = `
+              <button type="button" class="m-ghost" id="mPrevPage" ${state.searchPage <= 1 ? "disabled" : ""}>上一页</button>
+              <button type="button" class="m-ghost" id="mNextPage" ${data.has_more ? "" : "disabled"}>下一页</button>`;
+            const prev = document.getElementById("mPrevPage");
+            const next = document.getElementById("mNextPage");
+            if (prev) prev.onclick = () => run(Math.max(1, state.searchPage - 1));
+            if (next) next.onclick = () => run(state.searchPage + 1);
+          } else {
+            pager.innerHTML = "";
+          }
         }
       } catch (error) {
+        if (seq !== browseSearchSeq) return;
         status.textContent = friendlyError(error);
         status.className = "m-status m-err";
-        const fallback = document.createElement("div");
-        fallback.className = "m-row";
-        fallback.style.marginTop = "10px";
-        fallback.innerHTML = `<a class="m-primary" href="#/work/${encodeURIComponent("demo-ark-amiya")}">打开内置样例</a>`;
-        status.insertAdjacentElement("afterend", fallback);
+        const pager = document.getElementById("mBrowsePager");
+        if (pager && !document.getElementById("mDemoFallback")) {
+          pager.innerHTML = `<a class="m-primary" id="mDemoFallback" href="#/work/${encodeURIComponent("demo-ark-amiya")}">打开内置样例</a>`;
+        }
       }
     };
     document.getElementById("mSearchBtn").onclick = () => { state.searchPage = 1; run(1); };
     document.getElementById("mSearch").addEventListener("keydown", (event) => {
       if (event.key === "Enter") { state.searchPage = 1; run(1); }
     });
+    document.getElementById("mSearch").addEventListener("input", debounce(() => {
+      state.searchPage = 1;
+      run(1);
+    }, 360));
     if (!document.getElementById("mSearch").value.trim()) {
       document.getElementById("mSearch").value = state.searchQ || "明日方舟";
     }
@@ -560,7 +591,7 @@
     const body = document.getElementById("mPickerBody");
     if (!picker || !body) return;
     body.innerHTML = `
-      <p class="m-hint">点开搜索后，在本机 D 站角色库里找全站角色，或保存 OC / 自定义。明日方舟只是其中一部分。</p>
+      <p class="m-hint">输入即搜。中文会自动对到英文 tag，热门角色排前面。也可以保存 OC / 自定义。明日方舟只是其中一部分。</p>
       <div class="m-row" id="mGenderRow"></div>
       <div class="m-row">
         <input id="mTargetQ" placeholder="初音 / 阿米娅 / 原神 / OC 名" value="${escapeHtml(state.targetQuery || "")}" enterkeyhint="search" />
@@ -619,6 +650,7 @@
       targetBox.addEventListener("keydown", (event) => {
         if (event.key === "Enter") searchTargets();
       });
+      targetBox.addEventListener("input", debounce(searchTargets, 280));
     }
     document.getElementById("mCustomUse").onclick = () => useCustomRecord(false);
     document.getElementById("mCustomSave").onclick = () => useCustomRecord(true);
@@ -896,9 +928,11 @@
       const host = document.getElementById("mStyles");
       const q = document.getElementById("mStyleQ") ? document.getElementById("mStyleQ").value.trim() : "";
       if (!host) return;
-      host.textContent = "搜索中…";
+      const seq = ++styleSearchSeq;
+      host.textContent = "正在搜…";
       try {
         const data = await api().get("/api/plugin/char-swap/styles?q=" + encodeURIComponent(q) + "&limit=40");
+        if (seq !== styleSearchSeq) return;
         const items = data.items || [];
         host.innerHTML = "";
         items.forEach((item) => {
@@ -920,10 +954,18 @@
         });
         if (!items.length) host.innerHTML = '<p class="m-hint">没有匹配画风，可在下方保存自定义</p>';
       } catch (error) {
+        if (seq !== styleSearchSeq) return;
         host.innerHTML = '<p class="m-err">' + escapeHtml(error.message || error) + "</p>";
       }
     };
     document.getElementById("mStyleBtn").onclick = search;
+    const styleBox = document.getElementById("mStyleQ");
+    if (styleBox) {
+      styleBox.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") search();
+      });
+      styleBox.addEventListener("input", debounce(search, 280));
+    }
     document.getElementById("mStyleSave").onclick = async () => {
       try {
         const label = document.getElementById("mStyleName").value.trim();
@@ -1111,11 +1153,12 @@
     const q = qEl ? qEl.value.trim() : "";
     state.targetQuery = q;
     const gender = state.targetGender === "male" ? "male" : "female";
-    host.textContent = "搜索中…";
+    const seq = ++charSearchSeq;
+    host.textContent = "正在搜…";
     try {
       let items = [];
       try {
-        const found = await api().get("/api/plugin/char-swap/search?gender=" + gender + "&q=" + encodeURIComponent(q) + "&limit=24");
+        const found = await api().get("/api/plugin/char-swap/search?gender=" + gender + "&q=" + encodeURIComponent(q) + "&limit=32");
         (found.items || []).forEach((item) => {
           items.push({
             reference_id: item.reference_id,
@@ -1143,6 +1186,7 @@
           });
         });
       }
+      if (seq !== charSearchSeq) return;
       if (q) {
         items.unshift({
           reference_id: "custom:" + gender + ":typed",
@@ -1164,6 +1208,7 @@
       });
       if (!items.length) host.innerHTML = '<p class="m-hint">没有匹配角色，可在下方保存自定义</p>';
     } catch (error) {
+      if (seq !== charSearchSeq) return;
       host.innerHTML = '<p class="m-err">' + escapeHtml(error.message || error) + "</p>";
     }
   }
@@ -1276,7 +1321,7 @@
     const copiesBox = document.getElementById("mCopies");
     const copies = Math.max(1, Math.min(8, Number(copiesBox && copiesBox.value) || state.copies || 1));
     state.copies = copies;
-    if (!await confirmAction("加入队列", "默认免费档。同一任务会生成 " + copies + " 张，收进图库一组。点确认后才会调用 NovelAI。")) return;
+    if (!await confirmAction("加入队列", "默认免费档。同一任务会生成 " + copies + " 张，收进图库一组。多个 Token 会并发。点确认后才会调用 NovelAI。")) return;
     if (isStandalone()) {
       const status = document.getElementById("mWorkStatus");
       try {
@@ -1437,13 +1482,13 @@
       ${isStandalone() ? `
       <section class="m-card">
         <h2>生成队列</h2>
-        <p class="m-hint">本机单线程排队。同一任务的多张图会收进图库一组，点进去才看大图。失败可手动重试，不会自动重试。</p>
+        <p class="m-hint">几个 Token 就几路并发。同一任务的多张图会收进图库一组，点进去才看大图。失败可手动重试，不会自动重试。</p>
         <div class="m-list">${jobs.map((job) => `
           <div class="m-item">
             <div></div>
             <div>
               <strong>${escapeHtml(job.title || job.task_id || "任务")}</strong>
-              <div class="m-hint">${escapeHtml(job.status || "")} · ${job.done || 0}/${job.total || 1}张${job.message ? " · " + escapeHtml(String(job.message).slice(0, 40)) : ""}</div>
+              <div class="m-hint">${escapeHtml(job.status || "")} · ${job.done || 0}/${job.total || 1}张${job.concurrency > 1 ? " · " + job.concurrency + "路并发" : ""}${job.message ? " · " + escapeHtml(String(job.message).slice(0, 40)) : ""}</div>
             </div>
             <div class="m-row">
               ${job.cancellable ? `<button type="button" class="m-ghost" data-cancel="${escapeHtml(job.task_id || "")}">取消</button>` : ""}
@@ -1526,6 +1571,11 @@
     });
     document.getElementById("mClearOnline").onclick = () => { saveQueue([]); renderBatch(root); };
     document.getElementById("mRunOnline").onclick = runOnlineBatch;
+    if (isStandalone() && jobs.some((job) => job && !job.terminal && job.status !== "done" && job.status !== "error" && job.status !== "cancelled" && job.status !== "unknown")) {
+      setTimeout(() => {
+        if (state.route && state.route.name === "batch") renderBatch(root);
+      }, 1800);
+    }
     let localTargets = [];
     document.getElementById("mLoadLocal").onclick = async () => {
       const gid = document.getElementById("mLocalGallery").value;
@@ -1885,9 +1935,9 @@
     root.innerHTML = `
       <section class="m-card">
         <h2>手机本地设置</h2>
-        <p class="m-hint">独立软件，不遥控电脑。先填下面两把钥匙就能用。NovelAI 负责出图，DeepSeek 负责写角色和优化咒语。密钥只存在这台手机。</p>
-        <p>NovelAI：<strong class="${nai.has_token ? "m-ok" : "m-err"}">${nai.has_token ? "已配置 Token" : "还没填 Token"}</strong></p>
-        <textarea id="mToken" placeholder="粘贴 NovelAI Token（pst- 或 Bearer 后面那段）" autocomplete="off"></textarea>
+        <p class="m-hint">独立软件，不遥控电脑。先填下面两把钥匙就能用。NovelAI 负责出图，DeepSeek 负责写角色和优化咒语。密钥只存在这台手机。Token 每行一个，几个就能并发几路。</p>
+        <p>NovelAI：<strong class="${nai.has_token ? "m-ok" : "m-err"}">${nai.has_token ? ("已配置 " + (nai.token_count || 1) + " 个 Token，可 " + (nai.concurrency || nai.token_count || 1) + " 路并发") : "还没填 Token"}</strong></p>
+        <textarea id="mToken" rows="5" placeholder="每行一个 NovelAI Token。几个就能并发几路。" autocomplete="off"></textarea>
         <div class="m-row" style="margin-top:10px">
           <button type="button" id="mSaveToken" class="m-primary">保存</button>
           <button type="button" id="mClearToken" class="m-danger">清除</button>
@@ -1919,7 +1969,7 @@
     document.getElementById("mSaveToken").onclick = async () => {
       const token = document.getElementById("mToken").value.trim();
       if (!token) { toast("先粘贴 Token", "err"); return; }
-      if (!await confirmAction("保存 Token", "只写进本机应用存储，不会上传到电脑。")) return;
+      if (!await confirmAction("保存 Token", "每行一个 Token。几个就能并发几路。只写进本机，不会上传到电脑。")) return;
       try {
         const saved = await api().post("/api/nai/token", { token: token });
         document.getElementById("mToken").value = "";

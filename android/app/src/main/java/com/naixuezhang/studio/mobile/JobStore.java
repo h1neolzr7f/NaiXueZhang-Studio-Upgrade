@@ -9,15 +9,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 final class JobStore {
     private final Map<String, JSONObject> jobs = new ConcurrentHashMap<>();
     private final Map<String, JSONObject> payloads = new ConcurrentHashMap<>();
     private final Set<String> cancelled = ConcurrentHashMap.newKeySet();
     private final List<String> order = new ArrayList<>();
-    private final ExecutorService pool = Executors.newSingleThreadExecutor();
+    private final ExecutorService jobsPool = Executors.newCachedThreadPool();
+    private final ExecutorService workers = Executors.newFixedThreadPool(8);
     private final NaiGenerator generator;
     private final ImageStore images;
     private final PipelineStore pipeline;
@@ -79,14 +83,17 @@ final class JobStore {
                 cancelled.remove(old);
             }
         }
-        pool.execute(() -> run(id, comment, forceFree, total, source));
+        jobsPool.execute(() -> run(id, comment, forceFree, total, source));
         JSONObject started = new JSONObject();
         started.put("ok", true);
         started.put("task_id", id);
         started.put("album_id", id);
         started.put("queued", true);
         started.put("total", total);
-        started.put("message", "已加入生成队列");
+        started.put("concurrency", generator.concurrency());
+        started.put("message", total > 1 && generator.concurrency() > 1
+            ? ("已加入生成队列，" + generator.concurrency() + " 路并发")
+            : "已加入生成队列");
         return started;
     }
 
@@ -115,6 +122,7 @@ final class JobStore {
             out.put("ok", true);
             out.put("items", items);
             out.put("total", items.length());
+            out.put("concurrency", generator.concurrency());
         } catch (Exception ignored) {}
         return out;
     }
@@ -178,82 +186,131 @@ final class JobStore {
         JSONObject job = jobs.get(id);
         if (job == null) return;
         JSONArray collected = new JSONArray();
+        AtomicInteger finished = new AtomicInteger(0);
+        AtomicReference<NaiGenerator.NaiError> unknown = new AtomicReference<NaiGenerator.NaiError>();
+        AtomicReference<Exception> lastError = new AtomicReference<Exception>();
         try {
             put(job, "status", "running");
+            synchronized (job) {
+                job.put("concurrency", generator.concurrency());
+                job.put("message", "生成中 0/" + total + (generator.concurrency() > 1 ? (" · " + generator.concurrency() + " 路并发") : ""));
+            }
+            CountDownLatch latch = new CountDownLatch(total);
             for (int i = 0; i < total; i++) {
-                if (cancelled.contains(id)) {
-                    synchronized (job) {
-                        job.put("status", "cancelled");
-                        job.put("terminal", true);
-                        job.put("cancellable", false);
-                        job.put("retryable", true);
-                        job.put("done", i);
-                        job.put("message", "已取消，完成 " + i + "/" + total + " 张");
+                final int index = i;
+                workers.execute(() -> {
+                    try {
+                        if (cancelled.contains(id) || unknown.get() != null) return;
+                        JSONObject page = comment == null ? new JSONObject() : new JSONObject(comment.toString());
+                        if (page.has("seed") && !"".equals(String.valueOf(page.opt("seed")))) {
+                            try {
+                                int seed = Integer.parseInt(String.valueOf(page.opt("seed")));
+                                if (seed >= 0) page.put("seed", seed + index);
+                            } catch (Exception ignored) {}
+                        }
+                        byte[] png = generator.generatePng(page, forceFree);
+                        String imageId = images.save(id + "p" + index, png, false);
+                        byte[] processed = pipeline.process(png);
+                        images.saveFinal(imageId, processed);
+                        if (pipeline.autoAfterGenerate()) {
+                            images.exportOne(imageId + "-final", processed);
+                        }
+                        String imageUrl = "/api/mobile/output/" + imageId + ".png";
+                        if (catalog != null) catalog.add(imageId, source);
+                        if (gallery != null) gallery.addImage(id, imageId, imageUrl, source);
+                        if (library != null) {
+                            JSONObject record = new JSONObject(page.toString());
+                            record.put("title", JsonUtil.first(source, "title", "source_title"));
+                            if (record.optString("title").isEmpty()) record.put("title", "本机生成");
+                            library.importGeneratedPage(id, index, record, processed, total);
+                        }
+                        JSONObject item = new JSONObject();
+                        item.put("ok", true);
+                        item.put("image_url", imageUrl);
+                        item.put("gallery_url", imageUrl);
+                        item.put("album_id", id);
+                        item.put("library_id", "g" + id);
+                        item.put("page_index", index);
+                        item.put("message", pipeline.autoAfterGenerate()
+                            ? "完成：已入图库、跑完 2x 拉伸/清元数据、存进相册"
+                            : "完成：已入图库并跑完流水线");
+                        int done = finished.incrementAndGet();
+                        synchronized (job) {
+                            collected.put(item);
+                            job.put("items", new JSONArray(collected.toString()));
+                            job.put("done", done);
+                            job.put("status", done >= total ? "done" : "running");
+                            job.put("message", "生成中 " + done + "/" + total
+                                + (generator.concurrency() > 1 ? (" · " + generator.concurrency() + " 路并发") : ""));
+                        }
+                    } catch (NaiGenerator.NaiError error) {
+                        lastError.set(error);
+                        if (error.billingUncertain) {
+                            unknown.set(error);
+                            cancelled.add(id);
+                        }
+                        synchronized (job) {
+                            JSONObject item = new JSONObject();
+                            try {
+                                item.put("ok", false);
+                                item.put("page_index", index);
+                                item.put("message", error.getMessage());
+                                collected.put(item);
+                                job.put("items", new JSONArray(collected.toString()));
+                            } catch (Exception ignored) {}
+                        }
+                    } catch (Exception error) {
+                        lastError.set(error);
+                        synchronized (job) {
+                            JSONObject item = new JSONObject();
+                            try {
+                                item.put("ok", false);
+                                item.put("page_index", index);
+                                item.put("message", error.getMessage() == null ? "生图失败" : error.getMessage());
+                                collected.put(item);
+                                job.put("items", new JSONArray(collected.toString()));
+                            } catch (Exception ignored) {}
+                        }
+                    } finally {
+                        latch.countDown();
                     }
-                    return;
-                }
-                byte[] png = generator.generatePng(comment, forceFree);
-                if (cancelled.contains(id)) {
-                    String imageId = images.save(id + "p" + i, png, false);
-                    byte[] processed = pipeline.process(png);
-                    images.saveFinal(imageId, processed);
-                    if (gallery != null) gallery.addImage(id, imageId, "/api/mobile/output/" + imageId + ".png", source);
-                    synchronized (job) {
-                        job.put("status", "cancelled");
-                        job.put("terminal", true);
-                        job.put("cancellable", false);
-                        job.put("retryable", true);
-                        job.put("done", i + 1);
-                        job.put("message", "已取消，完成 " + (i + 1) + "/" + total + " 张");
-                    }
-                    return;
-                }
-                String imageId = images.save(id + "p" + i, png, false);
-                byte[] processed = pipeline.process(png);
-                images.saveFinal(imageId, processed);
-                if (pipeline.autoAfterGenerate()) {
-                    images.exportOne(imageId + "-final", processed);
-                }
-                String imageUrl = "/api/mobile/output/" + imageId + ".png";
-                if (catalog != null) catalog.add(imageId, source);
-                if (gallery != null) gallery.addImage(id, imageId, imageUrl, source);
-                if (library != null) {
-                    JSONObject record = comment == null ? new JSONObject() : new JSONObject(comment.toString());
-                    record.put("title", JsonUtil.first(source, "title", "source_title"));
-                    if (record.optString("title").isEmpty()) record.put("title", "本机生成");
-                    library.importGeneratedPage(id, i, record, processed, total);
-                }
-                JSONObject item = new JSONObject();
-                item.put("ok", true);
-                item.put("image_url", imageUrl);
-                item.put("gallery_url", imageUrl);
-                item.put("album_id", id);
-                item.put("library_id", "g" + id);
-                item.put("page_index", i);
-                item.put("message", pipeline.autoAfterGenerate()
-                    ? "完成：已入图库、跑完 2x 拉伸/清元数据、存进相册"
-                    : "完成：已入图库并跑完流水线");
-                collected.put(item);
+                });
+            }
+            latch.await();
+            NaiGenerator.NaiError uncertain = unknown.get();
+            if (uncertain != null) {
+                fail(job, uncertain.getMessage(), true, collected);
+                return;
+            }
+            if (cancelled.contains(id)) {
                 synchronized (job) {
-                    job.put("items", new JSONArray(collected.toString()));
-                    job.put("done", i + 1);
-                    job.put("status", i + 1 >= total ? "done" : "running");
-                    job.put("message", "生成中 " + (i + 1) + "/" + total);
+                    job.put("status", "cancelled");
+                    job.put("terminal", true);
+                    job.put("cancellable", false);
+                    job.put("retryable", true);
+                    job.put("done", finished.get());
+                    job.put("message", "已取消，完成 " + finished.get() + "/" + total + " 张");
                 }
+                return;
+            }
+            Exception error = lastError.get();
+            if (error != null && finished.get() < total) {
+                boolean missing = "missing_token".equals(error.getMessage());
+                fail(job, missing ? "NovelAI token is not configured" : (error.getMessage() == null ? "生图失败" : error.getMessage()), false, collected);
+                return;
             }
             synchronized (job) {
                 job.put("status", "done");
                 job.put("terminal", true);
                 job.put("cancellable", false);
                 job.put("retryable", false);
-                job.put("done", total);
-                job.put("message", "完成 " + total + " 张，已按同一任务收入图库");
+                job.put("done", finished.get());
+                job.put("message", "完成 " + finished.get() + " 张，已按同一任务收入图库"
+                    + (generator.concurrency() > 1 ? (" · " + generator.concurrency() + " 路并发") : ""));
             }
-        } catch (NaiGenerator.NaiError error) {
-            fail(job, error.getMessage(), error.billingUncertain, collected);
-        } catch (IllegalStateException error) {
-            boolean missing = "missing_token".equals(error.getMessage());
-            fail(job, missing ? "NovelAI token is not configured" : error.getMessage(), false, collected);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            fail(job, "生成被中断", false, collected);
         } catch (Exception error) {
             fail(job, error.getMessage() == null ? "生图失败" : error.getMessage(), false, collected);
         }

@@ -32,6 +32,7 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         this.tokens = new TokenStore(this.context);
         this.customChars = new CustomCharStore(this.context);
         this.library = new CharLibrary(this.context, this.customChars);
+        new Thread(this.library::warmup, "phone-char-index").start();
         this.styles = new StyleStore(this.context);
         this.aitag = new AitagGateway(this.tokens);
         this.favorites = new FavoriteStore(this.context, this.aitag);
@@ -79,21 +80,19 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             out.put("has_token", tokens.hasToken());
             out.put("has_deepseek", tokens.hasDeepSeek());
             out.put("has_ai_key", tokens.hasDeepSeek());
+            out.put("token_count", tokens.count());
+            out.put("concurrency", tokens.concurrency());
             out.put("online_use_proxy", tokens.onlineUseProxy());
             out.put("nai_use_proxy", tokens.naiUseProxy());
             out.put("has_proxy", !tokens.getProxy().isEmpty());
             return json(200, out.toString());
         }
         if ("GET".equals(request.method) && "/api/nai/status".equals(path)) {
-            JSONObject out = new JSONObject();
-            boolean has = tokens.hasToken();
-            out.put("ok", has);
-            out.put("has_token", has);
+            JSONObject out = tokens.tokenStatus();
             out.put("has_deepseek", tokens.hasDeepSeek());
             out.put("online_use_proxy", tokens.onlineUseProxy());
             out.put("nai_use_proxy", tokens.naiUseProxy());
             out.put("has_proxy", !tokens.getProxy().isEmpty());
-            out.put("message", has ? "token configured" : "NAI token is not configured");
             return json(200, out.toString());
         }
         if ("GET".equals(request.method) && "/api/nai/network".equals(path)) {
@@ -117,10 +116,11 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             String token = JsonUtil.str(payload, "token");
             if (token.isEmpty()) tokens.clear();
             else tokens.set(token);
-            JSONObject out = new JSONObject();
+            JSONObject out = tokens.tokenStatus();
             out.put("ok", true);
-            out.put("has_token", tokens.hasToken());
-            out.put("message", tokens.hasToken() ? "已保存到本机" : "已清除");
+            out.put("message", tokens.hasToken()
+                ? ("已保存 " + tokens.count() + " 个 Token，可 " + tokens.concurrency() + " 路并发")
+                : "已清除");
             return json(200, out.toString());
         }
         if ("GET".equals(request.method) && "/api/ai/status".equals(path)) {
@@ -292,7 +292,7 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             return json(200, library.listPresets(request.query("gender")).toString());
         }
         if ("GET".equals(request.method) && "/api/plugin/char-swap/search".equals(path)) {
-            return json(200, library.searchAll(request.query("gender"), request.query("q"), parseInt(request.query("limit"), 24)).toString());
+            return json(200, library.searchAll(request.query("gender"), request.query("q"), parseInt(request.query("limit"), 32)).toString());
         }
         if ("GET".equals(request.method) && "/api/plugin/char-swap/ark-library".equals(path)) {
             return json(200, library.searchArk(request.query("gender"), request.query("q"), parseInt(request.query("limit"), 20)).toString());

@@ -113,6 +113,128 @@ ALBUMS: list[dict] = []
 JOBS: dict[str, dict] = {}
 CUSTOM: list[dict] = []
 CUSTOM_STYLES: list[dict] = []
+PREVIEW_TOKENS: list[str] = []
+_CHAR_PREFIX: dict[str, list[str]] | None = None
+_CHAR_SERIES: dict[str, list[str]] | None = None
+_SEARCH_CACHE: dict[str, list[str]] = {}
+_HOT_SERIES = (
+    "vocaloid", "genshin_impact", "arknights", "honkai:_star_rail", "honkai",
+    "azur_lane", "blue_archive", "fate", "pokemon", "umamusume",
+)
+
+
+def _parse_tokens(raw: str) -> list[str]:
+    text = str(raw or "").replace("\r", "\n").replace(",", "\n")
+    out: list[str] = []
+    seen: set[str] = set()
+    for line in text.splitlines():
+        token = line.strip()
+        if token.lower().startswith("bearer "):
+            token = token[7:].strip()
+        if not token or token.startswith("#"):
+            continue
+        if token not in seen:
+            seen.add(token)
+            out.append(token)
+    return out
+
+
+def _token_payload(message: str = "") -> dict:
+    n = len(PREVIEW_TOKENS)
+    shown = n if n else 1
+    return {
+        "ok": True,
+        "has_token": True,
+        "has_deepseek": True,
+        "has_api_key": True,
+        "token_count": shown,
+        "enabled_count": shown,
+        "concurrency": shown,
+        "slots": shown,
+        "message": message or ("已配置 " + str(shown) + " 个 Token，可 " + str(shown) + " 路并发"),
+    }
+
+
+def _name_of(tag: str) -> str:
+    raw = str(tag or "")
+    if "_(" in raw and raw.endswith(")"):
+        return raw.rsplit("_(", 1)[0]
+    return raw
+
+
+def _series_of(tag: str) -> str:
+    raw = str(tag or "")
+    if "_(" in raw and raw.endswith(")"):
+        return raw.rsplit("_(", 1)[1][:-1]
+    return ""
+
+
+def _ensure_char_indexes() -> None:
+    global _CHAR_PREFIX, _CHAR_SERIES
+    if _CHAR_PREFIX is not None:
+        return
+    prefixes: dict[str, list[str]] = {}
+    series: dict[str, list[str]] = {}
+    for tag in CHAR_INDEX:
+        name = _name_of(tag)
+        if name:
+            bucket = prefixes.setdefault(name[0], [])
+            if len(bucket) < 400:
+                bucket.append(tag)
+        if len(name) >= 2:
+            prefixes.setdefault(name[:2], []).append(tag)
+        ser = _series_of(tag)
+        if ser:
+            series.setdefault(ser, []).append(tag)
+    _CHAR_PREFIX, _CHAR_SERIES = prefixes, series
+
+
+def _looks_chinese(text: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in text)
+
+
+def _resolve_alias(needle: str) -> str:
+    if not needle:
+        return ""
+    direct = str(SERIES.get(needle) or SERIES.get(needle.lower()) or "").lower()
+    if direct:
+        return direct
+    chinese = _looks_chinese(needle)
+    best_key = ""
+    best_val = ""
+    for key, value in SERIES.items():
+        lk = str(key).lower()
+        if not lk:
+            continue
+        hit = lk in needle or ((chinese or len(needle) >= 2) and lk.startswith(needle)) or (chinese and needle in lk)
+        if hit and len(lk) >= len(best_key):
+            best_key = lk
+            best_val = str(value).lower()
+    return best_val
+
+
+def _rank_tag(tag: str, compact: str, series: str) -> tuple:
+    name = _name_of(tag)
+    ser = _series_of(tag)
+    junk = 10 if any(part in name for part in (
+        "abyss", "slime", "hilichurl", "samachurl", "mitachurl", "spectator",
+        "npc", "monster", "enemy", "cosplay",
+    )) or "meme" in ser else 0
+    hot = 0 if ser in _HOT_SERIES or any(ser.startswith(item) for item in _HOT_SERIES) else 1
+    if compact and tag == compact:
+        return (junk, 0, hot, len(name), tag)
+    if compact and name == compact and hot == 0:
+        return (1 + junk, 0, hot, len(name), tag)
+    if compact and (name == compact or tag.startswith(compact + "_(")):
+        return (2 + junk, 0, hot, len(name), tag)
+    if compact and name.startswith(compact):
+        return (3 + junk, 0, hot, len(name), tag)
+    tokens = name.count("_")
+    if series and tag.endswith("_(" + series + ")"):
+        return (4 + junk + min(tokens, 3), 1, hot, len(name), tag)
+    if series and series in tag:
+        return (7 + junk, 1, hot, len(name), tag)
+    return (8 + junk, 1, hot, len(name), tag)
 
 
 def _human_tag(tag: str) -> str:
@@ -127,17 +249,7 @@ def _search_chars(gender: str, q: str, limit: int) -> list[dict]:
     needle = (q or "").strip().lower()
     compact = needle.replace(" ", "_")
     bucket = "male" if gender == "male" else "female"
-    alias = str(SERIES.get(needle) or "").lower()
-    if not alias:
-        for key, value in SERIES.items():
-            if needle and str(key).lower() in needle:
-                alias = str(value).lower()
-                break
-    if not alias:
-        for key, value in TAG_DICT.items():
-            if needle and (str(value).lower() == needle or str(key).lower() == needle):
-                alias = str(key).lower().replace(" ", "_")
-                break
+    alias = _resolve_alias(needle)
     series = alias if alias in COPYRIGHTS else ""
     if alias and not series:
         compact = alias
@@ -158,32 +270,49 @@ def _search_chars(gender: str, q: str, limit: int) -> list[dict]:
         if len(items) >= limit:
             break
     if needle and len(items) < limit:
-        hits: list[str] = []
-        for tag in CHAR_INDEX:
-            name = tag.rsplit("_(", 1)[0]
-            name_hit = compact and (tag.startswith(compact) or name.startswith(compact) or compact in name)
-            series_hit = bool(series) and series in tag
-            if name_hit or series_hit:
-                hits.append(tag)
+        cache_key = f"{bucket}|{compact}|{series}|{limit}"
+        cached = _SEARCH_CACHE.get(cache_key)
+        if cached is None:
+            _ensure_char_indexes()
+            pool: list[str] = []
+            seen: set[str] = set()
 
-        def rank(tag: str) -> tuple[int, int]:
-            name = tag.rsplit("_(", 1)[0]
-            junk = 8 if any(part in name for part in (
-                "abyss", "slime", "hilichurl", "samachurl", "mitachurl", "spectator", "npc", "monster", "enemy"
-            )) else 0
-            if compact and (name == compact or tag == compact or tag.startswith(compact + "_(")):
-                return (junk, len(name))
-            if compact and name.startswith(compact):
-                return (1 + junk, len(name))
-            tokens = name.count("_")
-            if series and tag.endswith("_(" + series + ")"):
-                return (2 + junk + min(tokens, 3), len(name))
-            if series and series in tag:
-                return (6 + junk, len(name))
-            return (7 + junk, len(name))
+            def add_all(rows: list[str] | None) -> None:
+                for tag in rows or []:
+                    if tag and tag not in seen:
+                        seen.add(tag)
+                        pool.append(tag)
 
-        hits.sort(key=rank)
-        for tag in hits:
+            if series:
+                add_all((_CHAR_SERIES or {}).get(series))
+            if len(compact) >= 2:
+                add_all((_CHAR_PREFIX or {}).get(compact[:2]))
+            elif compact:
+                add_all((_CHAR_PREFIX or {}).get(compact[:1]))
+            if not pool and len(compact) >= 4:
+                pool = list(CHAR_INDEX)
+            cap = max(80, limit * 8)
+            hits: list[str] = []
+            for tag in pool:
+                name = _name_of(tag)
+                name_hit = bool(compact) and (
+                    tag == compact
+                    or tag.startswith(compact + "_(")
+                    or name == compact
+                    or name.startswith(compact)
+                    or (len(compact) >= 3 and compact in name)
+                )
+                series_hit = bool(series) and (tag.endswith("_(" + series + ")") or series in tag)
+                if name_hit or series_hit:
+                    hits.append(tag)
+                if len(hits) >= cap:
+                    break
+            hits.sort(key=lambda tag: _rank_tag(tag, compact, series))
+            cached = hits[: max(0, limit - len(items))]
+            _SEARCH_CACHE[cache_key] = list(cached)
+            if len(_SEARCH_CACHE) > 64:
+                _SEARCH_CACHE.pop(next(iter(_SEARCH_CACHE)))
+        for tag in cached:
             record = {
                 "id": tag,
                 "label": _human_tag(tag),
@@ -268,9 +397,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, file.read_bytes(), mime)
             return
         if path == "/api/mobile/status":
-            return self._json({"ok": True, "standalone": True, "loopback": True, "has_token": True, "has_deepseek": True, "has_ai_key": True})
+            payload = _token_payload()
+            payload.update({"standalone": True, "loopback": True, "has_ai_key": True})
+            return self._json(payload)
         if path == "/api/nai/status":
-            return self._json({"ok": True, "has_token": True, "has_deepseek": True})
+            return self._json(_token_payload())
         if path == "/api/ai/status":
             return self._json({"ok": True, "has_api_key": True, "has_deepseek": True})
         if path == "/api/nai/network":
@@ -454,6 +585,7 @@ class Handler(BaseHTTPRequestHandler):
             if work_id and work_id not in FAV_IDS and work_id != DEMO_ID and not str(work_id).startswith("g"):
                 return self._json({"ok": False, "detail": "先收藏入本地库，才能换角和生成"}, 400)
             copies = max(1, min(8, int(payload.get("copies") or 1)))
+            slots = max(1, len(PREVIEW_TOKENS) or 1)
             task_id = "previewjob01"
             images = []
             for index in range(copies):
@@ -481,9 +613,10 @@ class Handler(BaseHTTPRequestHandler):
                 "retryable": False,
                 "done": copies,
                 "total": copies,
+                "concurrency": slots,
                 "title": payload.get("source_title") or "预览生成",
                 "items": [item],
-                "message": f"完成 {copies} 张，已按同一任务收入图库",
+                "message": f"完成 {copies} 张，已按同一任务收入图库" + (f" · {slots} 路并发" if slots > 1 else ""),
             }
             ALBUMS[:] = [{
                 "album_id": task_id,
@@ -495,12 +628,26 @@ class Handler(BaseHTTPRequestHandler):
                 "source_work_id": work_id,
             }] + [row for row in ALBUMS if row.get("album_id") != task_id]
             OUTPUTS.append({"image_url": item["image_url"], "title": "预览生成", "id": "preview"})
-            return self._json({"ok": True, "task_id": task_id, "album_id": task_id, "queued": True, "total": copies, "message": "已加入生成队列"})
+            return self._json({
+                "ok": True,
+                "task_id": task_id,
+                "album_id": task_id,
+                "queued": True,
+                "total": copies,
+                "concurrency": slots,
+                "message": "已加入生成队列" + (f"，{slots} 路并发" if slots > 1 and copies > 1 else ""),
+            })
         if path == "/api/pipeline/config":
             return self._json({"ok": True, "config": payload})
         if path == "/api/pipeline/run":
             return self._json({"ok": True, "message": "已开始"})
-        if path in {"/api/nai/token", "/api/ai/key", "/api/nai/network"}:
+        if path == "/api/nai/token":
+            PREVIEW_TOKENS[:] = _parse_tokens(str(payload.get("token") or ""))
+            n = len(PREVIEW_TOKENS)
+            return self._json(_token_payload(
+                ("已保存 " + str(n) + " 个 Token，可 " + str(n) + " 路并发") if n else "已清除"
+            ))
+        if path in {"/api/ai/key", "/api/nai/network"}:
             return self._json({"ok": True, "has_token": True, "has_deepseek": True, "message": "已保存到本机"})
         self._json({"ok": False, "detail": "not found"}, 404)
 

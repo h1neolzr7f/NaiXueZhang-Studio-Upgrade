@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -21,6 +22,13 @@ final class AitagGateway {
     static final String DESKTOP_UA = "Pixiv-NAI-Gallery/aitag";
     private final TokenStore tokens;
     private volatile String lastVia = "";
+    private final Map<String, JSONObject> searchCache = new LinkedHashMap<String, JSONObject>(24, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, JSONObject> eldest) {
+            return size() > 24;
+        }
+    };
+    private final Map<String, Long> searchCacheAt = new HashMap<String, Long>();
 
     AitagGateway(TokenStore tokens) {
         this.tokens = tokens;
@@ -34,6 +42,9 @@ final class AitagGateway {
         String q = query == null ? "" : query.trim();
         int pageNo = Math.max(1, page);
         String mode = "popular".equalsIgnoreCase(String.valueOf(sort == null ? "" : sort).trim()) ? "popular" : "new";
+        String cacheKey = mode + "|" + pageNo + "|" + q + "|" + naiOnly;
+        JSONObject cached = takeSearchCache(cacheKey);
+        if (cached != null) return cached;
         String url = mode.equals("popular")
             ? SITE + "/api/rank/monthly/real?page=" + pageNo + "&page_size=60"
                 + (q.isEmpty() ? "" : "&q=" + enc(q))
@@ -58,6 +69,7 @@ final class AitagGateway {
             out.put("via", lastVia);
             out.put("detail", error.getMessage());
             out.put("generation_calls", 0);
+            putSearchCache(cacheKey, out, 8000);
             return out;
         }
         JSONObject root = raw.optJSONObject("data");
@@ -92,7 +104,35 @@ final class AitagGateway {
         out.put("sort", mode);
         out.put("has_more", source.length() >= 60);
         out.put("generation_calls", 0);
+        putSearchCache(cacheKey, out, 20000);
         return out;
+    }
+
+    private JSONObject takeSearchCache(String key) {
+        synchronized (searchCache) {
+            Long at = searchCacheAt.get(key);
+            JSONObject hit = searchCache.get(key);
+            if (at == null || hit == null) return null;
+            if (System.currentTimeMillis() - at > 20000) {
+                searchCache.remove(key);
+                searchCacheAt.remove(key);
+                return null;
+            }
+            try {
+                return new JSONObject(hit.toString());
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+    }
+
+    private void putSearchCache(String key, JSONObject body, long ttlMs) {
+        synchronized (searchCache) {
+            try {
+                searchCache.put(key, new JSONObject(body.toString()));
+                searchCacheAt.put(key, System.currentTimeMillis() - 20000 + Math.max(1000, ttlMs));
+            } catch (Exception ignored) {}
+        }
     }
 
     JSONObject probe() {

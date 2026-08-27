@@ -51,9 +51,12 @@ public class SettingsActivity extends Activity {
     }
 
     private void refreshState() {
-        boolean hasNai = tokens.hasToken();
+        int slots = tokens.count();
+        boolean hasNai = slots > 0;
         boolean hasDs = tokens.hasDeepSeek();
-        tokenState.setText(hasNai ? "当前：已配置 NovelAI Token" : "当前：还没填 NovelAI Token");
+        tokenState.setText(hasNai
+            ? ("当前：已配置 " + slots + " 个 Token，可 " + slots + " 路并发")
+            : "当前：还没填 NovelAI Token");
         tokenState.setTextColor(hasNai ? 0xFF3DDC97 : 0xFFFF7A90);
         deepseekState.setText(hasDs ? "当前：已配置 DeepSeek" : "当前：还没填 DeepSeek");
         deepseekState.setTextColor(hasDs ? 0xFF3DDC97 : 0xFFFF7A90);
@@ -114,7 +117,7 @@ public class SettingsActivity extends Activity {
         }
         new AlertDialog.Builder(this)
             .setTitle("保存 NovelAI Token")
-            .setMessage("只写进本机应用存储。不连电脑，出图直接走 NovelAI。")
+            .setMessage("每行一个 Token。几个就能并发几路。只写进本机应用存储，不连电脑。")
             .setNegativeButton("取消", null)
             .setPositiveButton("确认", (d, w) -> {
                 tokens.set(raw);

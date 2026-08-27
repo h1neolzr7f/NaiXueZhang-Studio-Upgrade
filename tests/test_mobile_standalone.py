@@ -94,6 +94,11 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("127.0.0.1", tokens)
         self.assertIn("detectLocalProxy", tokens)
         self.assertIn("onlineCandidates", tokens)
+        self.assertIn("parseTokens", tokens)
+        self.assertIn("lease(", tokens)
+        self.assertIn("release(", tokens)
+        self.assertIn("token_count", tokens)
+        self.assertIn("concurrency", tokens)
         gateway = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/AitagGateway.java").read_text(
             encoding="utf-8"
         )
@@ -156,6 +161,13 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("删除这组", js)
         self.assertIn("/cancel", js)
         self.assertIn("/retry", js)
+        self.assertIn("每行一个", js)
+        self.assertIn("正在搜", js)
+        self.assertIn("debounce", js)
+        self.assertIn("concurrency", js)
+        self.assertIn("路并发", js)
+        self.assertIn("browseSearchSeq", js)
+        self.assertIn("mBrowsePager", js)
         self.assertIn("D 站角色库", js)
         self.assertIn("画风", js)
         self.assertIn("/api/mobile/gallery", js)
@@ -195,6 +207,16 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("GalleryStore", server)
         self.assertIn("先收藏入本地库", server)
         self.assertIn("入库还没完成", server)
+        self.assertIn("token_count", server)
+        self.assertIn("concurrency", server)
+        self.assertIn("phone-char-index", server)
+        self.assertIn("warmup", server)
+        jobs = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/JobStore.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("newFixedThreadPool(8)", jobs)
+        self.assertIn("路并发", jobs)
+        self.assertIn("CountDownLatch", jobs)
         chars = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/CharLibrary.java").read_text(
             encoding="utf-8"
         )
@@ -203,6 +225,9 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("phone_copyright_index.txt", chars)
         self.assertIn("D 站角色库", chars)
         self.assertIn("phone_series_aliases.json", chars)
+        self.assertIn("prefixIndex", chars)
+        self.assertIn("resolveAlias", chars)
+        self.assertIn("searchCache", chars)
         index = ROOT / "data" / "phone_char_index.txt"
         self.assertTrue(index.is_file())
         self.assertGreaterEqual(index.read_text(encoding="utf-8").count("\n"), 300000)
@@ -220,6 +245,29 @@ class MobileStandaloneTests(unittest.TestCase):
         )
         self.assertIn("FILTER_BITMAP_FLAG", phonePipe)
         self.assertIn("PNG", phonePipe)
+
+    def test_phone_preview_search_ranks_popular_names(self) -> None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "phone_preview_server",
+            ROOT / "scripts" / "phone_preview_server.py",
+        )
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(module)
+        self.assertGreaterEqual(len(module.CHAR_INDEX), 300000)
+        ganyu = module._search_chars("female", "甘雨", 8)
+        tags = [str((item.get("record") or {}).get("tag") or "") for item in ganyu]
+        self.assertTrue(any(tag.startswith("ganyu") for tag in tags), tags[:6])
+        miku = module._search_chars("female", "初音", 8)
+        tags = [str((item.get("record") or {}).get("tag") or "") for item in miku]
+        self.assertTrue(any("hatsune" in tag for tag in tags), tags[:6])
+        tokens = module._parse_tokens("aaa\nBearer bbb\n# skip\naaa,ccc")
+        self.assertEqual(tokens, ["aaa", "bbb", "ccc"])
+        preview = (ROOT / "scripts" / "phone_preview_server.py").read_text(encoding="utf-8")
+        self.assertIn("token_count", preview)
+        self.assertIn("concurrency", preview)
+        self.assertIn("_ensure_char_indexes", preview)
 
     def test_user_guide_describes_phone_local_app(self) -> None:
         guide = (ROOT / "使用说明.txt").read_text(encoding="utf-8")
