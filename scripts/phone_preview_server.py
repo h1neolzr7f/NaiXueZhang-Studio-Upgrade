@@ -259,31 +259,60 @@ def _human_tag(tag: str) -> str:
     return raw.replace("_", " ")
 
 
-def _search_chars(gender: str, q: str, limit: int) -> list[dict]:
+def _normalize_source(source: str) -> str:
+    value = str(source or "").strip().lower()
+    if value in {"", "all", "全部"}:
+        return "all"
+    if value in {"oc", "custom", "我的角色"}:
+        return "oc"
+    if value in {"ark", "arknights", "明日方舟", "明日方舟库"}:
+        return "ark"
+    if value in {"danbooru", "d", "d站"}:
+        return "danbooru"
+    return "all"
+
+
+def _search_chars(gender: str, q: str, limit: int, source: str = "") -> list[dict]:
     needle = (q or "").strip().lower()
     compact = needle.replace(" ", "_")
     bucket = "male" if gender == "male" else "female"
+    src = _normalize_source(source)
     alias = _resolve_alias(needle)
     series = alias if alias in COPYRIGHTS else ""
     if alias and not series:
         compact = alias
     items: list[dict] = []
-    for row in PRESETS.get(bucket, []) or []:
-        blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "name", "tag")).lower()
-        if needle and needle not in blob:
-            continue
-        items.append({"reference_id": f"preset:{bucket}:{row.get('id')}", "label": row.get("label") or row.get("id"), "source": "常用角色", "record": row})
-    for row in ARK.get(bucket, []) or []:
-        tag = str(row.get("tag") or "")
-        extra = " ".join(str(x) for x in (ARK_ALIASES.get(tag) or []))
-        blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "name", "tag")) + " " + extra
-        blob = blob.lower()
-        if needle and needle not in blob:
-            continue
-        items.append({"reference_id": f"ark:{bucket}:{row.get('id')}", "label": row.get("label") or row.get("id"), "source": "明日方舟库", "record": row})
-        if len(items) >= limit:
-            break
-    if needle and len(items) < limit:
+    if src in {"all", "oc"}:
+        for row in CUSTOM:
+            if (row.get("gender") or bucket) not in {bucket, "", None}:
+                continue
+            blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "name", "tag", "char_caption")).lower()
+            if needle and needle not in blob:
+                continue
+            items.append({
+                "reference_id": f"custom:{bucket}:{row.get('id')}",
+                "label": row.get("label") or row.get("id"),
+                "source": "OC",
+                "record": dict(row, kind="oc"),
+            })
+    if src == "all":
+        for row in PRESETS.get(bucket, []) or []:
+            blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "name", "tag")).lower()
+            if needle and needle not in blob:
+                continue
+            items.append({"reference_id": f"preset:{bucket}:{row.get('id')}", "label": row.get("label") or row.get("id"), "source": "常用角色", "record": row})
+    if src in {"all", "ark"}:
+        for row in ARK.get(bucket, []) or []:
+            tag = str(row.get("tag") or "")
+            extra = " ".join(str(x) for x in (ARK_ALIASES.get(tag) or []))
+            blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "name", "tag")) + " " + extra
+            blob = blob.lower()
+            if needle and needle not in blob:
+                continue
+            items.append({"reference_id": f"ark:{bucket}:{row.get('id')}", "label": row.get("label") or row.get("id"), "source": "明日方舟库", "record": row})
+            if len(items) >= limit:
+                break
+    if src in {"all", "danbooru"} and needle and len(items) < limit:
         cache_key = f"{bucket}|{compact}|{series}|{limit}"
         cached = _SEARCH_CACHE.get(cache_key)
         if cached is None:
@@ -477,8 +506,13 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/nai/aitag/cover/") or path.startswith("/api/mobile/demo/image/"):
             return self._send(200, _png(0), "image/png")
         if path == "/api/plugin/char-swap/search":
-            items = _search_chars(query.get("gender") or "female", query.get("q") or "", int(query.get("limit") or 24))
-            return self._json({"ok": True, "items": items, "total": len(items)})
+            items = _search_chars(
+                query.get("gender") or "female",
+                query.get("q") or "",
+                int(query.get("limit") or 24),
+                query.get("source") or "",
+            )
+            return self._json({"ok": True, "items": items, "total": len(items), "source": query.get("source") or "all"})
         if path == "/api/plugin/char-swap/styles":
             items = _search_styles(query.get("q") or "", int(query.get("limit") or 40))
             return self._json({"ok": True, "items": items, "total": len(items)})
@@ -535,8 +569,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/plugin/char-swap/custom":
             item = dict(payload)
             item.setdefault("id", "c" + str(len(CUSTOM) + 1))
+            item["kind"] = "oc"
+            item["oc_mode"] = bool(item.get("oc_mode", bool(str(item.get("char_caption") or "").strip())))
             CUSTOM.insert(0, item)
-            return self._json({"ok": True, "item": item, "message": "已保存自定义角色"})
+            return self._json({"ok": True, "item": item, "message": "已保存 OC"})
         if path == "/api/plugin/char-swap/custom/delete":
             want = str(payload.get("id") or "")
             CUSTOM[:] = [item for item in CUSTOM if str(item.get("id")) != want]

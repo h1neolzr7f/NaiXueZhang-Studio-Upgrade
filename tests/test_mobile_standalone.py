@@ -317,10 +317,16 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertTrue(any("hatsune" in tag for tag in tags), tags[:6])
         tokens = module._parse_tokens("aaa\nBearer bbb\n# skip\naaa,ccc")
         self.assertEqual(tokens, ["aaa", "bbb", "ccc"])
+        d_only = module._search_chars("female", "甘雨", 8, "danbooru")
+        self.assertTrue(d_only)
+        self.assertTrue(all(str(item.get("source")) == "D 站角色库" for item in d_only), d_only[:3])
+        self.assertEqual(module._search_chars("female", "", 8, "oc"), [])
         preview = (ROOT / "scripts" / "phone_preview_server.py").read_text(encoding="utf-8")
         self.assertIn("token_count", preview)
         self.assertIn("concurrency", preview)
         self.assertIn("_ensure_char_indexes", preview)
+        self.assertIn("已保存 OC", preview)
+        self.assertIn("_normalize_source", preview)
 
     def test_user_guide_describes_phone_local_app(self) -> None:
         guide = (ROOT / "使用说明.txt").read_text(encoding="utf-8")
