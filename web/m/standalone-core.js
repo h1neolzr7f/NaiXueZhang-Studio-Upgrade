@@ -688,15 +688,32 @@
     const opts = Object.assign({}, options || {});
     delete opts.candidate_id;
     const images = (workPayload && workPayload.images) || [];
-    const pages = images.map((_, index) => compileDraft(workPayload, Object.assign({}, opts, {
-      image_index: index,
-    })));
+    const pages = [];
+    const skipped = [];
+    images.forEach((_, index) => {
+      try {
+        pages.push(compileDraft(workPayload, Object.assign({}, opts, {
+          image_index: index,
+        })));
+      } catch (error) {
+        skipped.push({
+          image_index: index,
+          error: String((error && error.message) || error || "这一页不能换"),
+        });
+      }
+    });
+    if (!pages.length) {
+      throw new Error((skipped[0] && skipped[0].error) || "没有可换的页");
+    }
     return {
       ok: true,
       draft: pages[0] && pages[0].draft,
       pages: pages,
+      skipped: skipped,
       generation_calls: 0,
-      message: "已为 " + pages.length + " 页写好零费用草稿",
+      message: skipped.length
+        ? ("已为 " + pages.length + " 页写好零费用草稿，跳过 " + skipped.length + " 页")
+        : ("已为 " + pages.length + " 页写好零费用草稿"),
     };
   }
 
@@ -720,6 +737,103 @@
   }
 
   const STYLE_HINT_RE = /(style|artstyle|official art|official_art|watercolor|sketch|lineart|cel shading|cel_shading|flat color|flat_color|pixel art|pixel_art|chibi|manga|game cg|visual novel|oil painting|cinematic|painterly|monochrome|pastel|neon|impasto|gouache|1990s|2000s|light novel|manhwa|realistic|anime coloring)/i;
+
+  const STYLE_LABELS = {
+    "official art": "官方画风",
+    "anime style": "动画风",
+    "manga style": "漫画风",
+    manga: "漫画风",
+    "game cg": "游戏 CG",
+    "visual novel": "视觉小说 CG",
+    "visual novel cg": "视觉小说 CG",
+    watercolor: "水彩",
+    "oil painting": "油画",
+    sketch: "线稿素描",
+    lineart: "干净线稿",
+    "cel shading": "赛璐璐",
+    "flat color": "平涂",
+    "pixel art": "像素",
+    chibi: "Q 版",
+    "retro artstyle": "复古画风",
+    "1990s": "90 年代动画",
+    "1990s (style)": "90 年代动画",
+    "2000s": "2000 年代动画",
+    "2000s (style)": "2000 年代动画",
+    "light novel": "轻小说插画",
+    manhwa: "条漫",
+    cinematic: "电影光影",
+    "cinematic lighting": "电影光影",
+    painterly: "厚涂",
+    realistic: "偏写实",
+    monochrome: "单色",
+    pastel: "粉彩",
+    "pastel colors": "粉彩",
+    neon: "霓虹",
+    "neon lights": "霓虹",
+    impasto: "厚颜料",
+    gouache: "水粉",
+    "gouache (medium)": "水粉",
+    "anime coloring": "赛璐璐上色",
+  };
+
+  function styleTokenLabel(token, catalog) {
+    const key = tagKey(token);
+    if (STYLE_LABELS[key]) return STYLE_LABELS[key];
+    if (Array.isArray(catalog)) {
+      const hit = catalog.find((item) => item && tagKey(item.tag || item.replace || item.style || "") === key);
+      if (hit) return String(hit.label || hit.name || token);
+    }
+    return String(token || key);
+  }
+
+  function collectStyleText(source) {
+    if (!source) return "";
+    if (typeof source === "string") return source;
+    if (source.prompt_text || source.ai_json || source.aiJson || source.metadata) {
+      try {
+        return collectStyleText(imageComment(source));
+      } catch (_) {
+        return String(source.prompt_text || "");
+      }
+    }
+    const prompt = String(source.prompt || "");
+    const base = source.v4_prompt && source.v4_prompt.caption
+      ? String(source.v4_prompt.caption.base_caption || "")
+      : "";
+    const tags = Array.isArray(source.tags) ? source.tags.join(", ") : "";
+    return [prompt, base, tags].filter(Boolean).join(", ");
+  }
+
+  function recognizeStyles(source, catalog) {
+    const extra = Array.isArray(catalog) ? catalog : [];
+    const tokens = uniqueTags(splitPromptTags(collectStyleText(source)).filter((token) => {
+      if (STYLE_HINT_RE.test(token) || STYLE_HINT_RE.test(tagKey(token))) return true;
+      return extra.some((item) => item && tagKey(item.tag || item.replace || item.style || "") === tagKey(token));
+    }));
+    const labels = tokens.map((token) => styleTokenLabel(token, extra));
+    return {
+      tokens: tokens,
+      labels: labels,
+      text: tokens.join(" / "),
+      label_text: labels.join(" / "),
+    };
+  }
+
+  function recognizeWorkStyles(workPayload, catalog) {
+    const work = (workPayload && (workPayload.work || workPayload)) || {};
+    const images = (workPayload && workPayload.images) || work.images || [];
+    const pages = images.map((image, index) => Object.assign({ image_index: index }, recognizeStyles(image, catalog)));
+    const fromTags = recognizeStyles({ tags: work.tags || [] }, catalog);
+    const tokens = uniqueTags(pages.reduce((acc, page) => acc.concat(page.tokens || []), fromTags.tokens || []));
+    const labels = tokens.map((token) => styleTokenLabel(token, catalog));
+    return {
+      tokens: tokens,
+      labels: labels,
+      text: tokens.join(" / "),
+      label_text: labels.join(" / "),
+      pages: pages,
+    };
+  }
 
   function applyStyleToComment(comment, styleRecord) {
     if (!comment || !styleRecord) return comment;
@@ -942,6 +1056,8 @@
     applyOptimizeTexts: applyOptimizeTexts,
     applyDraftEdits: applyDraftEdits,
     applyStyleToComment: applyStyleToComment,
+    recognizeStyles: recognizeStyles,
+    recognizeWorkStyles: recognizeWorkStyles,
     fitOpusFreeSize: fitOpusFreeSize,
     promptSnapshot: promptSnapshot,
   };

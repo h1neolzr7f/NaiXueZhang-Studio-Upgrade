@@ -292,6 +292,84 @@ const styled = core.compileDraft(demoLike, {
 assert.ok(String(styled.draft.comment.prompt).includes("watercolor"));
 assert.ok(!String(styled.draft.comment.prompt).includes("official art"));
 assert.ok(core.applyStyleToComment);
+assert.ok(core.recognizeStyles);
+assert.ok(core.recognizeWorkStyles);
+
+const recognized = core.recognizeStyles("2girls, official art, watercolor");
+assert.ok(recognized.tokens.includes("official art"));
+assert.ok(recognized.tokens.includes("watercolor"));
+assert.ok(recognized.labels.includes("官方画风"));
+assert.ok(recognized.labels.includes("水彩"));
+
+const recImage = core.recognizeStyles(demoLike.images[0]);
+assert.ok(recImage.tokens.some((token) => /official art/i.test(token)));
+assert.ok(recImage.labels.includes("官方画风"));
+
+const seriesWork = core.decorateWork({
+  work: { work_id: "series-style", title: "系列画风" },
+  images: [
+    demoLike.images[0],
+    {
+      image_id: "series-style_p1",
+      prompt_text: "1girl, moonlight rooftop, official art",
+      ai_json: {
+        Comment: {
+          prompt: "1girl, moonlight rooftop, official art",
+          v4_prompt: {
+            caption: {
+              base_caption: "1girl, moonlight rooftop, official art",
+              char_captions: [
+                { char_caption: "amiya_(arknights), 1girl, brown_hair, sitting" },
+              ],
+            },
+          },
+        },
+      },
+    },
+  ],
+});
+const workStyles = core.recognizeWorkStyles(seriesWork);
+assert.ok(workStyles.tokens.some((token) => /official art/i.test(token)));
+assert.strictEqual(workStyles.pages.length, 2);
+
+const styleOnly = core.compileDrafts(seriesWork, {
+  style_record: { id: "watercolor", label: "水彩", tag: "watercolor" },
+});
+assert.strictEqual(styleOnly.pages.length, 2);
+styleOnly.pages.forEach((page) => {
+  assert.ok(String(page.draft.comment.prompt).includes("watercolor"));
+  assert.ok(!String(page.draft.comment.prompt).includes("official art"));
+});
+assert.ok(String(styleOnly.pages[0].draft.comment.v4_prompt.caption.char_captions[0].char_caption).includes("amiya"));
+
+const skipWork = core.decorateWork({
+  work: { work_id: "skip-male", title: "跳过男页" },
+  images: [
+    demoLike.images[0],
+    {
+      image_id: "skip-male_p1",
+      prompt_text: "1boy, street",
+      ai_json: {
+        Comment: {
+          prompt: "1boy, street",
+          v4_prompt: {
+            caption: {
+              base_caption: "1boy, street",
+              char_captions: [{ char_caption: "1boy, black_hair, jacket" }],
+            },
+          },
+        },
+      },
+    },
+  ],
+});
+const skipped = core.compileDrafts(skipWork, {
+  gender_scope: "female",
+  target_record: target,
+  target_reference_id: "preset:female:skadi_f",
+});
+assert.ok(skipped.pages.length >= 1);
+assert.ok(Array.isArray(skipped.skipped) && skipped.skipped.length >= 1);
 
 const edited = core.applyDraftEdits(draft.draft.comment, {
   prompt: "1girl, classroom, hand-edited",
