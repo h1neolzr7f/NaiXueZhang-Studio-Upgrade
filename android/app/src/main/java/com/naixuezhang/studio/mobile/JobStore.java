@@ -46,12 +46,44 @@ final class JobStore {
     }
 
     JSONObject start(JSONObject comment, boolean forceFree, int copies, JSONObject meta) throws Exception {
-        int total = Math.max(1, Math.min(copies <= 0 ? 1 : copies, 8));
+        JSONArray pages = new JSONArray();
+        JSONObject page = new JSONObject();
+        page.put("comment", comment == null ? new JSONObject() : comment);
+        page.put("page_index", meta == null ? 0 : meta.optInt("page_index", 0));
+        pages.put(page);
+        return startPages(pages, forceFree, copies, meta);
+    }
+
+    JSONObject startPages(JSONArray pages, boolean forceFree, int copies, JSONObject meta) throws Exception {
+        int copiesEach = Math.max(1, Math.min(copies <= 0 ? 1 : copies, 8));
+        JSONArray storedPages = new JSONArray();
+        List<JSONObject> units = new ArrayList<JSONObject>();
+        JSONArray sourcePages = pages == null ? new JSONArray() : pages;
+        for (int i = 0; i < sourcePages.length(); i++) {
+            JSONObject page = sourcePages.optJSONObject(i);
+            if (page == null) continue;
+            JSONObject comment = page.optJSONObject("comment");
+            if (comment == null) comment = page.optJSONObject("patched_comment");
+            if (comment == null) continue;
+            JSONObject kept = new JSONObject();
+            kept.put("comment", new JSONObject(comment.toString()));
+            kept.put("page_index", page.optInt("page_index", i));
+            storedPages.put(kept);
+            for (int copy = 0; copy < copiesEach; copy++) {
+                JSONObject unit = new JSONObject();
+                unit.put("comment", new JSONObject(comment.toString()));
+                unit.put("page_index", page.optInt("page_index", i));
+                unit.put("copy_index", copy);
+                units.add(unit);
+            }
+        }
+        if (units.isEmpty()) throw new IllegalArgumentException("没有可生成的页");
+        if (units.size() > 40) throw new IllegalArgumentException("一次最多 40 张，先少选几页或少填张数");
         String id = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         JSONObject source = meta == null ? new JSONObject() : meta;
         String title = JsonUtil.first(source, "title", "source_title");
-        if (title.isEmpty() && comment != null) title = comment.optString("title");
         if (title.isEmpty()) title = "本机生成";
+        if (storedPages.length() > 1 && !title.contains("系列")) title = title + " · 全系列";
         if (gallery != null) gallery.create(id, title, source);
         JSONObject job = new JSONObject();
         synchronized (job) {
@@ -60,7 +92,9 @@ final class JobStore {
             job.put("status", "queued");
             job.put("terminal", false);
             job.put("done", 0);
-            job.put("total", total);
+            job.put("total", units.size());
+            job.put("pages", storedPages.length());
+            job.put("copies", copiesEach);
             job.put("title", title);
             job.put("items", new JSONArray());
             job.put("queued_at", System.currentTimeMillis());
@@ -69,9 +103,12 @@ final class JobStore {
         }
         jobs.put(id, job);
         JSONObject stored = new JSONObject();
-        stored.put("comment", comment == null ? new JSONObject() : new JSONObject(comment.toString()));
+        stored.put("comment", storedPages.optJSONObject(0) == null
+            ? new JSONObject()
+            : storedPages.optJSONObject(0).optJSONObject("comment"));
+        stored.put("pages", storedPages);
         stored.put("force_free", forceFree);
-        stored.put("copies", total);
+        stored.put("copies", copiesEach);
         stored.put("source", source == null ? new JSONObject() : new JSONObject(source.toString()));
         payloads.put(id, stored);
         synchronized (order) {
@@ -83,17 +120,19 @@ final class JobStore {
                 cancelled.remove(old);
             }
         }
-        jobsPool.execute(() -> run(id, comment, forceFree, total, source));
+        jobsPool.execute(() -> run(id, units, forceFree, source));
         JSONObject started = new JSONObject();
         started.put("ok", true);
         started.put("task_id", id);
         started.put("album_id", id);
         started.put("queued", true);
-        started.put("total", total);
+        started.put("total", units.size());
+        started.put("pages", storedPages.length());
         started.put("concurrency", generator.concurrency());
-        started.put("message", total > 1 && generator.concurrency() > 1
-            ? ("已加入生成队列，" + generator.concurrency() + " 路并发")
-            : "已加入生成队列");
+        String message = "已加入生成队列";
+        if (storedPages.length() > 1) message = "已加入生成队列，" + storedPages.length() + " 页收进同一组";
+        if (generator.concurrency() > 1 && units.size() > 1) message += "，" + generator.concurrency() + " 路并发";
+        started.put("message", message);
         return started;
     }
 
@@ -174,7 +213,10 @@ final class JobStore {
         JSONObject source = stored.optJSONObject("source");
         boolean forceFree = stored.optBoolean("force_free", true);
         int total = Math.max(1, stored.optInt("copies", 1));
-        JSONObject started = start(comment, forceFree, total, source);
+        JSONArray pages = stored.optJSONArray("pages");
+        JSONObject started = (pages != null && pages.length() > 0)
+            ? startPages(pages, forceFree, total, source)
+            : start(comment, forceFree, total, source);
         started.put("retried_from", id);
         started.put("message", "unknown".equals(status)
             ? "已重新入队。上次结果不明，可能已扣费，请先看 NovelAI 记录再决定要不要留这张"
@@ -182,9 +224,10 @@ final class JobStore {
         return started;
     }
 
-    private void run(String id, JSONObject comment, boolean forceFree, int total, JSONObject source) {
+    private void run(String id, List<JSONObject> units, boolean forceFree, JSONObject source) {
         JSONObject job = jobs.get(id);
         if (job == null) return;
+        final int total = units.size();
         JSONArray collected = new JSONArray();
         AtomicInteger finished = new AtomicInteger(0);
         AtomicReference<NaiGenerator.NaiError> unknown = new AtomicReference<NaiGenerator.NaiError>();
@@ -198,14 +241,18 @@ final class JobStore {
             CountDownLatch latch = new CountDownLatch(total);
             for (int i = 0; i < total; i++) {
                 final int index = i;
+                final JSONObject unit = units.get(i);
                 workers.execute(() -> {
                     try {
                         if (cancelled.contains(id) || unknown.get() != null) return;
+                        JSONObject comment = unit.optJSONObject("comment");
                         JSONObject page = comment == null ? new JSONObject() : new JSONObject(comment.toString());
+                        int copyIndex = unit.optInt("copy_index", index);
+                        int pageIndex = unit.optInt("page_index", index);
                         if (page.has("seed") && !"".equals(String.valueOf(page.opt("seed")))) {
                             try {
                                 int seed = Integer.parseInt(String.valueOf(page.opt("seed")));
-                                if (seed >= 0) page.put("seed", seed + index);
+                                if (seed >= 0) page.put("seed", seed + copyIndex);
                             } catch (Exception ignored) {}
                         }
                         byte[] png = generator.generatePng(page, forceFree);
@@ -230,7 +277,7 @@ final class JobStore {
                         item.put("gallery_url", imageUrl);
                         item.put("album_id", id);
                         item.put("library_id", "g" + id);
-                        item.put("page_index", index);
+                        item.put("page_index", pageIndex);
                         item.put("message", pipeline.autoAfterGenerate()
                             ? "完成：已入图库、跑完 2x 拉伸/清元数据、存进相册"
                             : "完成：已入图库并跑完流水线");
@@ -253,7 +300,7 @@ final class JobStore {
                             JSONObject item = new JSONObject();
                             try {
                                 item.put("ok", false);
-                                item.put("page_index", index);
+                                item.put("page_index", unit.optInt("page_index", index));
                                 item.put("message", error.getMessage());
                                 collected.put(item);
                                 job.put("items", new JSONArray(collected.toString()));
@@ -265,7 +312,7 @@ final class JobStore {
                             JSONObject item = new JSONObject();
                             try {
                                 item.put("ok", false);
-                                item.put("page_index", index);
+                                item.put("page_index", unit.optInt("page_index", index));
                                 item.put("message", error.getMessage() == null ? "生图失败" : error.getMessage());
                                 collected.put(item);
                                 job.put("items", new JSONArray(collected.toString()));

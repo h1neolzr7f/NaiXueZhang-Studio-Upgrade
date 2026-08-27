@@ -317,7 +317,15 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         }
         if ("POST".equals(request.method) && "/api/nai/generate".equals(path)) {
             JSONObject payload = JsonUtil.obj(request.text());
+            JSONArray incomingPages = payload.optJSONArray("pages");
             JSONObject comment = payload.optJSONObject("patched_comment");
+            if (comment == null && incomingPages != null && incomingPages.length() > 0) {
+                JSONObject first = incomingPages.optJSONObject(0);
+                if (first != null) {
+                    comment = first.optJSONObject("patched_comment");
+                    if (comment == null) comment = first.optJSONObject("comment");
+                }
+            }
             if (comment == null) return json(400, "{\"ok\":false,\"detail\":\"patched_comment is required\"}");
             if (!tokens.hasToken()) return json(400, "{\"ok\":false,\"detail\":\"NovelAI token is not configured\"}");
             String workId = JsonUtil.first(payload, "work_id_str", "remote_work_id");
@@ -333,9 +341,14 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             JSONObject meta = new JSONObject();
             meta.put("work_id", workId);
             meta.put("title", JsonUtil.first(payload, "source_title", "title"));
+            meta.put("page_index", payload.optInt("page_index", 0));
             JSONObject source = comment.optJSONObject("_aitag_source");
             if (source != null && meta.optString("title").isEmpty()) {
                 meta.put("title", JsonUtil.first(source, "title", "source_title"));
+            }
+            JSONArray pages = payload.optJSONArray("pages");
+            if (pages != null && pages.length() > 0) {
+                return json(200, jobs.startPages(pages, forceFree, copies, meta).toString());
             }
             return json(200, jobs.start(comment, forceFree, copies, meta).toString());
         }

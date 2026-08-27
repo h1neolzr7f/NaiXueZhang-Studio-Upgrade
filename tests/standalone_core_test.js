@@ -260,6 +260,28 @@ assert.ok(String(demoSnap.char_captions[0].caption).includes("skadi_(arknights)"
 assert.ok(String(demoSnap.char_captions[1].caption).includes("kaltsit_(arknights)"));
 assert.ok(String(demoSnap.base_caption || demoSnap.prompt).includes("rhodes island"));
 
+const ganyu = core.targetRecord({
+  id: "ganyu_f",
+  label: "甘雨",
+  gender: "female",
+  identity: ["ganyu_(genshin_impact)", "1girl"],
+  appearance: ["blue_hair", "horns"],
+}, "danbooru:female:ganyu_(genshin_impact)");
+const multiSwap = core.compileDraft(demoLike, {
+  image_index: 0,
+  slot_targets: [
+    { gender: "female", gender_slot_index: 0, target_record: target, target_reference_id: "preset:female:skadi_f" },
+    { gender: "female", gender_slot_index: 1, target_record: ganyu, target_reference_id: "danbooru:female:ganyu_(genshin_impact)" },
+  ],
+});
+const multiSnap = core.promptSnapshot(multiSwap.draft.comment);
+assert.ok(String(multiSnap.char_captions[0].caption).includes("skadi_(arknights)"));
+assert.ok(String(multiSnap.char_captions[1].caption).includes("ganyu_(genshin_impact)"));
+assert.ok(!String(multiSnap.char_captions[1].caption).includes("kaltsit_(arknights)"));
+assert.ok(String(multiSnap.base_caption || multiSnap.prompt).includes("rhodes island"));
+assert.strictEqual(core.countGenderSlots(demoLike.character_candidates, 0, "female"), 2);
+assert.strictEqual(core.genderSlotIndexOf(demoLike.character_candidates, demoLike.character_candidates[1]), 1);
+
 const styled = core.compileDraft(demoLike, {
   image_index: 0,
   candidate_id: demoLike.character_candidates[0].candidate_id,

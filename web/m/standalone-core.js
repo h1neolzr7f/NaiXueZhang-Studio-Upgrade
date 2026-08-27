@@ -471,6 +471,50 @@
     };
   }
 
+  function countGenderSlots(candidates, imageIndex, gender) {
+    const scope = String(gender || "female").toLowerCase();
+    return (candidates || []).filter((item) => (
+      Number(item.image_index) === Number(imageIndex)
+      && candidateGender(item.caption, item.role) === scope
+    )).length;
+  }
+
+  function genderSlotIndexOf(candidates, slot) {
+    if (!slot) return -1;
+    const scope = candidateGender(slot.caption, slot.role);
+    if (scope !== "female" && scope !== "male") return -1;
+    const page = (candidates || []).filter((item) => (
+      Number(item.image_index) === Number(slot.image_index)
+      && candidateGender(item.caption, item.role) === scope
+    ));
+    return page.findIndex((item) => String(item.candidate_id) === String(slot.candidate_id));
+  }
+
+  function resolveAssignments(candidates, imageIndex, opts) {
+    const raw = opts && Array.isArray(opts.slot_targets) ? opts.slot_targets : [];
+    if (!raw.length) return [];
+    const page = (candidates || []).filter((item) => Number(item.image_index) === Number(imageIndex));
+    const out = [];
+    raw.forEach((item) => {
+      if (!item || !item.target_record) return;
+      let slotIndex = item.slot_index;
+      if (item.gender_slot_index !== undefined && item.gender_slot_index !== null && String(item.gender_slot_index) !== "") {
+        const gender = String(item.gender || item.role || "female").toLowerCase();
+        const gendered = page.filter((row) => candidateGender(row.caption, row.role) === gender);
+        const hit = gendered[Number(item.gender_slot_index)];
+        if (!hit) return;
+        slotIndex = hit.slot_index;
+      }
+      if (slotIndex === undefined || slotIndex === null || String(slotIndex) === "") return;
+      out.push({
+        slot: Math.max(0, Math.min(5, Number(slotIndex))),
+        record: item.target_record,
+        ref: item.target_reference_id || "",
+      });
+    });
+    return out;
+  }
+
   function resolveSlots(candidates, imageIndex, slotIndex, genderScope, candidateId) {
     const page = (candidates || []).filter((item) => Number(item.image_index) === Number(imageIndex));
     const wanted = String(candidateId || "").trim();
@@ -529,39 +573,57 @@
     const candidates = Array.isArray(workPayload.character_candidates)
       ? workPayload.character_candidates
       : discoverCandidates(workPayload);
-    const slots = resolveSlots(
-      candidates,
-      imageIndex,
-      Object.prototype.hasOwnProperty.call(opts, "slot_index") ? opts.slot_index : undefined,
-      opts.gender_scope,
-      opts.candidate_id
-    );
-    const primary = slots[0];
+    const assignments = resolveAssignments(candidates, imageIndex, opts);
+    const slots = assignments.length
+      ? assignments.map((item) => item.slot)
+      : resolveSlots(
+        candidates,
+        imageIndex,
+        Object.prototype.hasOwnProperty.call(opts, "slot_index") ? opts.slot_index : undefined,
+        opts.gender_scope,
+        opts.candidate_id
+      );
+    const primary = slots.length ? slots[0] : 0;
     const source = candidates.find((item) => Number(item.image_index) === imageIndex && Number(item.slot_index) === primary) || null;
     const comment = JSON.parse(JSON.stringify(baseCommentFromImage(image, source)));
     let card = null;
-    const target = opts.target_record || null;
-    if (target) {
+    const applyOne = (record, slot) => {
+      const sourceSlot = candidates.find((item) => Number(item.image_index) === imageIndex && Number(item.slot_index) === slot);
+      const adapted = sourceSlot ? adaptCharacter(targetRecord({
+        identity: sourceSlot.identity_tags,
+        appearance: sourceSlot.appearance_tags,
+        label: sourceSlot.label,
+        gender: sourceSlot.role,
+      })) : {};
+      const applied = applyCharacterToComment(
+        comment,
+        record,
+        slot,
+        opts.model || image.model || "",
+        sourceSlot && sourceSlot.caption
+      );
+      Object.assign(comment, applied.comment);
+      card = applied.card;
+      return String(adapted.base_subject_tag || "");
+    };
+    if (assignments.length) {
+      const preserved = String((comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.base_caption) || comment.prompt || "");
+      const sourceSubjects = [];
+      assignments.forEach((item) => {
+        sourceSubjects.push(applyOne(item.record, item.slot));
+      });
+      let finalBase = preserved;
+      sourceSubjects.forEach((subject) => {
+        finalBase = replaceBaseSubject(finalBase, subject, (card && card.base_subject_tag) || "");
+      });
+      comment.prompt = finalBase;
+      if (comment.v4_prompt && comment.v4_prompt.caption) comment.v4_prompt.caption.base_caption = finalBase;
+    } else if (opts.target_record) {
+      const target = opts.target_record;
       const preserved = String((comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.base_caption) || comment.prompt || "");
       const sourceSubjects = [];
       slots.forEach((slot) => {
-        const sourceSlot = candidates.find((item) => Number(item.image_index) === imageIndex && Number(item.slot_index) === slot);
-        const adapted = sourceSlot ? adaptCharacter(targetRecord({
-          identity: sourceSlot.identity_tags,
-          appearance: sourceSlot.appearance_tags,
-          label: sourceSlot.label,
-          gender: sourceSlot.role,
-        })) : {};
-        sourceSubjects.push(String(adapted.base_subject_tag || ""));
-        const applied = applyCharacterToComment(
-          comment,
-          target,
-          slot,
-          opts.model || image.model || "",
-          sourceSlot && sourceSlot.caption
-        );
-        Object.assign(comment, applied.comment);
-        card = applied.card;
+        sourceSubjects.push(applyOne(target, slot));
       });
       let finalBase = preserved;
       sourceSubjects.forEach((subject) => {
@@ -600,7 +662,12 @@
         thumb: image.thumbnail_url || image.url || "",
       },
     };
-    if (opts.target_reference_id) {
+    if (assignments.length) {
+      draft.reference = {
+        slotIndexes: slots,
+        replacements: assignments.map((item) => ({ slotIndex: item.slot, referenceId: item.ref })),
+      };
+    } else if (opts.target_reference_id) {
       draft.reference = { referenceId: opts.target_reference_id, slotIndex: primary };
       if (slots.length > 1) draft.reference.slotIndexes = slots;
     }
@@ -867,6 +934,9 @@
     targetRecord: targetRecord,
     compileDraft: compileDraft,
     compileDrafts: compileDrafts,
+    countGenderSlots: countGenderSlots,
+    genderSlotIndexOf: genderSlotIndexOf,
+    resolveAssignments: resolveAssignments,
     buildGeneratePayload: buildGeneratePayload,
     naiRequestBody: naiRequestBody,
     applyOptimizeTexts: applyOptimizeTexts,
