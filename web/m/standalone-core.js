@@ -325,6 +325,49 @@
     return next;
   }
 
+  function isOcCaption(record) {
+    const caption = String((record && record.char_caption) || "").trim();
+    if (!caption) return false;
+    if (record.oc_mode === true || record.oc_mode === 1 || record.oc_mode === "1") return true;
+    return String(record.kind || "").toLowerCase() === "oc";
+  }
+
+  function applyLayersToCaption(caption, layers) {
+    const pack = layers || {};
+    const remove = uniqueTags(splitPromptTags(pack.remove || pack.remove_tags || ""));
+    let text = String(caption || "").trim();
+    if (remove.length) {
+      const removeKeys = Object.create(null);
+      remove.forEach((tag) => { removeKeys[tagKey(tag)] = 1; });
+      text = splitPromptTags(text).filter((tag) => !removeKeys[tagKey(tag)]).join(", ");
+    }
+    const add = uniqueTags(splitPromptTags([pack.clothing, pack.extra, pack.extra_tags].filter(Boolean).join(", ")));
+    if (!add.length) return text;
+    const have = Object.create(null);
+    splitPromptTags(text).forEach((tag) => { have[tagKey(tag)] = 1; });
+    const extra = add.filter((tag) => !have[tagKey(tag)]);
+    return extra.length ? (text ? text + ", " + extra.join(", ") : extra.join(", ")) : text;
+  }
+
+  function applyAdhocLayers(comment, slots, opts) {
+    const layers = {
+      clothing: opts && opts.clothing,
+      extra: opts && (opts.extra || opts.extra_tags),
+      remove: opts && (opts.remove || opts.remove_tags),
+    };
+    if (!String(layers.clothing || "").trim() && !String(layers.extra || "").trim() && !String(layers.remove || "").trim()) {
+      return comment;
+    }
+    const cap = comment && comment.v4_prompt && comment.v4_prompt.caption;
+    if (!cap || !Array.isArray(cap.char_captions)) return comment;
+    (slots || []).forEach((slot) => {
+      const item = cap.char_captions[slot];
+      if (!item || typeof item !== "object") return;
+      item.char_caption = applyLayersToCaption(item.char_caption, layers);
+    });
+    return comment;
+  }
+
   function applyCharacterToComment(comment, record, slotIndex, model, sourceCaption) {
     if (slotIndex < 0 || slotIndex > 5) throw new Error("角色槽必须在 0 到 5 之间");
     const card = adaptCharacter(record, model || (comment && comment.model) || "");
@@ -336,10 +379,24 @@
     const currentCaption = String(sourceCaption || previous.char_caption || "").trim();
     const source = analyzeSlotCaption(currentCaption);
     const ocCaption = String((record && record.char_caption) || "").trim();
-    const inject = ocCaption
-      ? uniqueTags([].concat(card.character_tags || [], splitPromptTags(ocCaption)))
-      : (card.character_tags || []);
-    const captionText = uniqueTags(inject.concat(source.action_tags || [])).join(", ");
+    let captionText = "";
+    if (isOcCaption(record) && ocCaption) {
+      const actions = (source.action_tags || []).filter((tag) => {
+        const key = tagKey(tag);
+        return key && ocCaption.toLowerCase().replace(/_/g, " ").indexOf(key) < 0;
+      });
+      captionText = ocCaption + (actions.length ? ", " + actions.join(", ") : "");
+    } else {
+      const inject = ocCaption
+        ? uniqueTags([].concat(card.character_tags || [], splitPromptTags(ocCaption)))
+        : (card.character_tags || []);
+      captionText = uniqueTags(inject.concat(source.action_tags || [])).join(", ");
+    }
+    captionText = applyLayersToCaption(captionText, {
+      clothing: record && record.clothing,
+      extra: record && (record.extra || record.extra_tags),
+      remove: record && (record.remove || record.remove_tags),
+    });
     if (!captionText) throw new Error("目标角色没有可用标签");
     cap.char_captions[slotIndex] = {
       char_caption: captionText,
@@ -459,7 +516,13 @@
       character: String(raw.label || raw.name || raw.id || ""),
       gender: gender,
       kind: String(raw.kind || (String(referenceId || "").indexOf("custom:") === 0 ? "oc" : "")),
+      oc_mode: !!(raw.oc_mode || (String(raw.kind || "").toLowerCase() === "oc" && caption)),
       char_caption: caption,
+      clothing: String(raw.clothing || "").trim(),
+      extra: String(raw.extra || raw.extra_tags || "").trim(),
+      extra_tags: String(raw.extra || raw.extra_tags || "").trim(),
+      remove: String(raw.remove || raw.remove_tags || "").trim(),
+      remove_tags: String(raw.remove || raw.remove_tags || "").trim(),
       trigger: trigger,
       identity: identity,
       appearance: appearance,
@@ -633,6 +696,7 @@
       if (comment.v4_prompt && comment.v4_prompt.caption) comment.v4_prompt.caption.base_caption = finalBase;
     }
     if (opts.style_record) applyStyleToComment(comment, opts.style_record);
+    applyAdhocLayers(comment, slots, opts);
     const workId = String(work.work_id || work.id || "");
     const draft = {
       galleryId: "aitag-online",
@@ -1041,6 +1105,8 @@
     splitPromptTags: splitPromptTags,
     adaptCharacter: adaptCharacter,
     applyCharacterToComment: applyCharacterToComment,
+    isOcCaption: isOcCaption,
+    applyLayersToCaption: applyLayersToCaption,
     analyzeSlotCaption: analyzeSlotCaption,
     discoverCandidates: discoverCandidates,
     imageComment: imageComment,

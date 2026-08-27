@@ -60,39 +60,51 @@ final class CharLibrary {
     }
 
     JSONObject searchAll(String gender, String query, int limit) {
+        return searchAll(gender, query, limit, "");
+    }
+
+    JSONObject searchAll(String gender, String query, int limit, String source) {
         String bucket = normalizeGender(gender, "female");
         String needle = String.valueOf(query == null ? "" : query).trim().toLowerCase(Locale.ROOT);
+        String src = normalizeSource(source);
         int cap = Math.max(1, Math.min(limit <= 0 ? 24 : limit, 80));
         JSONArray items = new JSONArray();
         try {
-            JSONArray customItems = custom == null ? new JSONArray() : custom.list(bucket).optJSONArray("items");
-            if (customItems != null) {
-                for (int i = 0; i < customItems.length() && items.length() < cap; i++) {
-                    JSONObject item = customItems.optJSONObject(i);
-                    if (item == null) continue;
-                    if (!needle.isEmpty() && !hay(item).contains(needle)) continue;
-                    items.put(wrap(item, "custom:" + bucket + ":" + item.optString("id"), "我的角色"));
+            if ("all".equals(src) || "oc".equals(src)) {
+                JSONArray customItems = custom == null ? new JSONArray() : custom.list(bucket).optJSONArray("items");
+                if (customItems != null) {
+                    for (int i = 0; i < customItems.length() && items.length() < cap; i++) {
+                        JSONObject item = customItems.optJSONObject(i);
+                        if (item == null) continue;
+                        if (!needle.isEmpty() && !hay(item).contains(needle)) continue;
+                        items.put(wrap(item, "custom:" + bucket + ":" + item.optString("id"), "OC"));
+                    }
                 }
             }
-            JSONArray presets = this.presets.optJSONArray(bucket);
-            if (presets != null) {
-                for (int i = 0; i < presets.length() && items.length() < cap; i++) {
-                    JSONObject item = presets.optJSONObject(i);
-                    if (item == null) continue;
-                    if (!needle.isEmpty() && !hay(item).contains(needle)) continue;
-                    items.put(wrap(item, "preset:" + bucket + ":" + item.optString("id"), "常用角色"));
+            if ("all".equals(src)) {
+                JSONArray presets = this.presets.optJSONArray(bucket);
+                if (presets != null) {
+                    for (int i = 0; i < presets.length() && items.length() < cap; i++) {
+                        JSONObject item = presets.optJSONObject(i);
+                        if (item == null) continue;
+                        if (!needle.isEmpty() && !hay(item).contains(needle)) continue;
+                        items.put(wrap(item, "preset:" + bucket + ":" + item.optString("id"), "常用角色"));
+                    }
                 }
             }
-            JSONArray arkItems = searchArk(bucket, query, cap).optJSONArray("items");
-            if (arkItems != null) {
-                for (int i = 0; i < arkItems.length() && items.length() < cap; i++) {
-                    JSONObject item = arkItems.optJSONObject(i);
-                    if (item == null) continue;
-                    items.put(wrap(item, "ark:" + bucket + ":" + item.optString("id"), "明日方舟库"));
+            if ("all".equals(src) || "ark".equals(src)) {
+                JSONArray arkItems = searchArk(bucket, query, cap).optJSONArray("items");
+                if (arkItems != null) {
+                    for (int i = 0; i < arkItems.length() && items.length() < cap; i++) {
+                        JSONObject item = arkItems.optJSONObject(i);
+                        if (item == null) continue;
+                        items.put(wrap(item, "ark:" + bucket + ":" + item.optString("id"), "明日方舟库"));
+                    }
                 }
             }
-            if (items.length() < cap && needle.length() >= 1) {
-                JSONArray dan = searchDanbooru(bucket, needle, cap - items.length());
+            if (("all".equals(src) || "danbooru".equals(src)) && items.length() < cap && needle.length() >= 1) {
+                int room = "danbooru".equals(src) ? cap : cap - items.length();
+                JSONArray dan = searchDanbooru(bucket, needle, room);
                 for (int i = 0; i < dan.length() && items.length() < cap; i++) {
                     items.put(dan.opt(i));
                 }
@@ -103,6 +115,7 @@ final class CharLibrary {
             out.put("ok", true);
             out.put("q", query == null ? "" : query);
             out.put("gender", bucket);
+            out.put("source", src);
             out.put("total", items.length());
             out.put("items", items);
         } catch (Exception ignored) {}
@@ -494,6 +507,15 @@ final class CharLibrary {
         String value = String.valueOf(gender == null ? "" : gender).trim().toLowerCase(Locale.ROOT);
         if ("male".equals(value) || "female".equals(value)) return value;
         return fallback;
+    }
+
+    private static String normalizeSource(String source) {
+        String value = String.valueOf(source == null ? "" : source).trim().toLowerCase(Locale.ROOT);
+        if (value.isEmpty() || "all".equals(value) || "全部".equals(value)) return "all";
+        if ("oc".equals(value) || "custom".equals(value) || "我的角色".equals(value)) return "oc";
+        if ("ark".equals(value) || "arknights".equals(value) || "明日方舟".equals(value) || "明日方舟库".equals(value)) return "ark";
+        if ("danbooru".equals(value) || "d".equals(value) || "d站".equals(value)) return "danbooru";
+        return "all";
     }
 
     private static JSONObject readAssetObject(Context context, String name) {

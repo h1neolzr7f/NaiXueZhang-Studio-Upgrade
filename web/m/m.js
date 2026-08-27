@@ -15,6 +15,11 @@
     targetRecord: null,
     targetGender: "female",
     targetQuery: "",
+    searchSource: "all",
+    ocMode: true,
+    clothing: "",
+    extraTags: "",
+    removeTags: "",
     styleId: "",
     styleLabel: "",
     styleRecord: null,
@@ -628,41 +633,63 @@
     const body = document.getElementById("mPickerBody");
     if (!picker || !body) return;
     body.innerHTML = `
-      <p class="m-hint">输入即搜。中文会自动对到英文 tag。个人自定义可以只写名字就保存，下次直接点用。</p>
+      <p class="m-hint">D 站角色库 / 方舟 / OC 都能换。自定义就是 OC：整段咒语，支持 {{权重}}，不会拆开。</p>
+      <div class="m-row" id="mSourceRow"></div>
       <div class="m-row" id="mGenderRow"></div>
       <div class="m-row">
         <input id="mTargetQ" placeholder="初音 / 阿米娅 / 原神 / OC 名" value="${escapeHtml(state.targetQuery || "")}" enterkeyhint="search" />
         <button type="button" id="mTargetBtn" class="m-primary">搜角色</button>
       </div>
-      <p class="m-hint">也可点「搜明日方舟」只看方舟干员。</p>
       <div id="mTargets" class="m-list" style="margin-top:8px"></div>
-      <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "先搜再点一个名字"}</p>
+      <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "先选来源，再搜一个名字"}</p>
       <section class="m-card" id="mCustomBox" style="margin-top:12px">
-        <h3>个人自定义</h3>
-        <p class="m-hint">自己的角色写在这里。保存后会留在这台手机，换角时优先出现。</p>
+        <h3>OC / 群友 OC</h3>
+        <p class="m-hint">整段咒语原样进槽，只补原槽动作。服饰 / 额外 / 移除也按你写的来，不简化成人设卡片。</p>
+        <label class="m-hint" style="display:block;margin-top:10px">
+          <input type="checkbox" id="mCustomOcMode" ${state.ocMode === false ? "" : "checked"} /> 整段咒语模式
+        </label>
         <div class="m-row" style="margin-top:10px">
-          <input id="mCustomName" placeholder="自定义名字，如 香蕉姐" />
+          <input id="mCustomName" placeholder="OC 名字，如 香蕉姐" />
+        </div>
+        <textarea id="mCustomCaption" placeholder="整段角色咒语，例如 1girl, banana_onee_(oc), {{1.2::horns}}, blonde hair" style="margin-top:8px"></textarea>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mCustomIdentity" placeholder="身份标签（非整段时用），如 banana_onee_(oc)" />
         </div>
         <div class="m-row" style="margin-top:8px">
-          <input id="mCustomIdentity" placeholder="身份标签，如 banana_onee_(oc)" />
+          <input id="mCustomAppear" placeholder="外观（非整段时用），如 blonde_hair, yellow_eyes" />
         </div>
         <div class="m-row" style="margin-top:8px">
-          <input id="mCustomAppear" placeholder="外观，如 blonde_hair, yellow_eyes" />
+          <input id="mCustomClothing" placeholder="服饰替换，如 china dress, thighhighs" />
         </div>
-        <textarea id="mCustomCaption" placeholder="完整槽位咒语（可选，会保留原槽动作）" style="margin-top:8px"></textarea>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mCustomExtra" placeholder="额外添加，如 earrings, necklace" />
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mCustomRemove" placeholder="移除标签，如 long hair" />
+        </div>
         <div class="m-row" style="margin-top:8px">
           <button type="button" id="mCustomUse" class="m-ghost">用这次不保存</button>
-          <button type="button" id="mCustomSave" class="m-primary">保存自定义</button>
+          <button type="button" id="mCustomSave" class="m-primary">保存 OC</button>
         </div>
         <div id="mCustomList" class="m-list" style="margin-top:10px"></div>
       </section>
-      <div class="m-quote" style="margin-top:12px">小祥：也可以用中文描述角色，DeepSeek 帮你写成槽位 tag。这步不扣 Anlas。</div>
+      <div class="m-quote" style="margin-top:12px">小祥：也可以用中文描述角色，DeepSeek 帮你写成整段 OC 咒语。这步不扣 Anlas。</div>
       <textarea id="mDescribe" placeholder="例如：粉头发红眼睛的阿米娅风 OC，短外套" style="margin-top:8px"></textarea>
       <div class="m-row" style="margin-top:8px">
         <button type="button" id="mDescribeBtn" class="m-ghost">DeepSeek 写角色</button>
       </div>`;
     picker.classList.remove("hidden");
     picker.setAttribute("aria-hidden", "false");
+    if (opts.custom) state.searchSource = "oc";
+    const sourceRow = document.getElementById("mSourceRow");
+    [["all", "全部"], ["danbooru", "D站"], ["ark", "方舟"], ["oc", "OC"]].forEach(([value, label]) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "m-chip" + (state.searchSource === value ? " active" : "");
+      chip.textContent = label;
+      chip.onclick = () => { state.searchSource = value; openCharPicker(); };
+      sourceRow.appendChild(chip);
+    });
     const genderRow = document.getElementById("mGenderRow");
     [["female", "女角色"], ["male", "男角色"]].forEach(([value, label]) => {
       const chip = document.createElement("button");
@@ -673,16 +700,6 @@
       genderRow.appendChild(chip);
     });
     document.getElementById("mTargetBtn").onclick = searchTargets;
-    const arkChip = document.createElement("button");
-    arkChip.type = "button";
-    arkChip.className = "m-chip";
-    arkChip.textContent = "搜明日方舟";
-    arkChip.onclick = () => {
-      const box = document.getElementById("mTargetQ");
-      if (box && !box.value.trim()) box.value = "明日方舟";
-      searchTargets();
-    };
-    genderRow.appendChild(arkChip);
     const targetBox = document.getElementById("mTargetQ");
     if (targetBox) {
       targetBox.addEventListener("keydown", (event) => {
@@ -690,6 +707,8 @@
       });
       targetBox.addEventListener("input", debounce(searchTargets, 280));
     }
+    const ocModeBox = document.getElementById("mCustomOcMode");
+    if (ocModeBox) ocModeBox.onchange = () => { state.ocMode = !!ocModeBox.checked; };
     document.getElementById("mCustomUse").onclick = () => useCustomRecord(false);
     document.getElementById("mCustomSave").onclick = () => useCustomRecord(true);
     document.getElementById("mDescribeBtn").onclick = describeWithDeepSeek;
@@ -708,8 +727,8 @@
     if (!host) return;
     const items = await listCustom(state.targetGender);
     host.innerHTML = items.length
-      ? items.map((item) => `<div class="m-item"><div><strong>${escapeHtml(item.label || item.id)}</strong></div><div class="m-row"><button type="button" class="m-primary" data-use-custom="${escapeHtml(item.id)}">用这个</button><button type="button" class="m-ghost" data-del-custom="${escapeHtml(item.id)}">删除</button></div></div>`).join("")
-      : '<p class="m-hint">还没有已保存的自定义角色</p>';
+      ? items.map((item) => `<div class="m-item"><div><strong>${escapeHtml(item.label || item.id)}</strong></div><div class="m-row"><button type="button" class="m-primary" data-use-custom="${escapeHtml(item.id)}">用这个 OC</button><button type="button" class="m-ghost" data-del-custom="${escapeHtml(item.id)}">删除</button></div></div>`).join("")
+      : '<p class="m-hint">还没有已保存的 OC</p>';
     host.querySelectorAll("[data-use-custom]").forEach((button) => {
       button.onclick = () => {
         const id = button.getAttribute("data-use-custom");
@@ -717,16 +736,16 @@
         if (!item) return;
         pickTarget({
           reference_id: "custom:" + (item.gender || state.targetGender) + ":" + item.id,
-          label: "自定义：" + (item.label || item.id),
+          label: "OC：" + (item.label || item.id),
           record: Object.assign({ kind: "oc" }, item),
         });
-        toast("已选自定义：" + (item.label || item.id));
+        toast("已选 OC：" + (item.label || item.id));
       };
     });
     host.querySelectorAll("[data-del-custom]").forEach((button) => {
       button.onclick = async () => {
         const id = button.getAttribute("data-del-custom");
-        if (!await confirmAction("删除自定义角色", "只删本机保存的这条，不会出图。")) return;
+        if (!await confirmAction("删除 OC", "只删本机保存的这条，不会出图。")) return;
         try {
           if (isStandalone()) await api().post("/api/plugin/char-swap/custom/delete", { id: id });
           else {
@@ -773,7 +792,7 @@
 
   function draftPreviewHtml(entry) {
     const comment = draftComment(entry);
-    if (!comment) return '<p class="m-hint">还没有本页草稿。点「整系列换角并入队」，或在高级里先换本页。</p>';
+    if (!comment) return '<p class="m-hint">还没有本页草稿。可先点「本页换角」，或「整系列换角并入队」。</p>';
     const snap = (window.StandaloneCore && window.StandaloneCore.promptSnapshot)
       ? window.StandaloneCore.promptSnapshot(comment)
       : { prompt: comment.prompt || "", uc: comment.uc || comment.negative_prompt || "", char_captions: [] };
@@ -877,10 +896,10 @@
         <h3>角色槽</h3>
         <div class="m-row" id="mSlots"></div>
         <p class="m-hint" id="mSlotHint">还没选槽</p>
-        <p class="m-hint" id="mTargetHint" style="margin-top:8px">${state.targetLabel ? ("已选 " + state.targetLabel) : "点开搜索，从 D 站角色库 / OC / 自定义查找"}</p>
+        <p class="m-hint" id="mTargetHint" style="margin-top:8px">${state.targetLabel ? ("已选 " + state.targetLabel) : "D 站 / 方舟 / OC 都能换。OC 就是群友整段咒语。"}</p>
         <div class="m-row">
           <button type="button" id="mOpenPicker" class="m-primary">点开搜索</button>
-          <button type="button" id="mOpenCustom" class="m-ghost">个人自定义</button>
+          <button type="button" id="mOpenCustom" class="m-ghost">写 OC</button>
         </div>
         <div id="mSlotAssign" style="margin-top:10px"></div>
       </section>
@@ -895,10 +914,10 @@
         <p class="m-hint">选完会先清掉原图识别到的画风词，再写上新的。只换画风也可以，不必先换人。</p>
       </section>
       <section class="m-card">
-        <p class="m-eyebrow">第 4 步 · 整系列出图</p>
+        <p class="m-eyebrow">第 4 步 · 换角方式</p>
         <p class="m-hint">${canRemix
-          ? ("选好人/画风后，一键换完全部 " + pageCount + " 页并入队。已草稿 "
-            + Object.keys(state.drafts || {}).length + "/" + pageCount + " 页，收进图库一组。")
+          ? ("下面每种换法都直接可用，没有收进折叠。已草稿 "
+            + Object.keys(state.drafts || {}).length + "/" + pageCount + " 页。")
           : remixBlockReason()}</p>
         <div class="m-row" style="margin-top:8px">
           <input id="mCopies" inputmode="numeric" value="${escapeHtml(String(state.copies || 1))}" placeholder="每页张数 1-8" />
@@ -906,28 +925,35 @@
         <div class="m-row" style="margin-top:8px">
           <button type="button" id="mRemixSeries" class="m-primary m-cta" ${canRemix ? "" : "disabled"}>整系列换角并入队</button>
         </div>
-        <p class="m-hint">把这 ${pageCount} 页都换成选好的人/画风，并加入队列。还没扣费前会再确认。</p>
-        <details class="m-adv">
-          <summary>高级：只换本页 / 只写草稿 / DeepSeek</summary>
-          <div class="m-row" style="margin-top:8px">
-            <button type="button" id="mApplyOne" class="m-ghost" ${canRemix ? "" : "disabled"}>本页换角</button>
-            <button type="button" id="mApplyPageGender" class="m-ghost" ${canRemix ? "" : "disabled"}>本页全部女槽</button>
-          </div>
-          <div class="m-row" style="margin-top:8px">
-            <button type="button" id="mApplySlots" class="m-ghost" ${canRemix ? "" : "disabled"}>按槽位换本页</button>
-            <button type="button" id="mApplyAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页换同性别</button>
-          </div>
-          <div class="m-row" style="margin-top:8px">
-            <button type="button" id="mApplySlotsAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页按槽位换</button>
-            <button type="button" id="mOptimize" class="m-ghost">DeepSeek 优化草稿</button>
-          </div>
-          <div class="m-row" style="margin-top:8px">
-            <button type="button" id="mGenOne" class="m-ghost">加入队列</button>
-            ${isStandalone()
-              ? `<button type="button" id="mGenSeries" class="m-ghost">全部页加入队列</button>`
-              : `<button type="button" id="mQueueBtn" class="m-ghost">加入批量</button>`}
-          </div>
-        </details>
+        <p class="m-hint">把这 ${pageCount} 页都换成选好的人/画风并入队。还没扣费前会再确认。</p>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mApplyOne" class="m-ghost" ${canRemix ? "" : "disabled"}>本页换角</button>
+          <button type="button" id="mApplyPageGender" class="m-ghost" ${canRemix ? "" : "disabled"}>本页全部女槽</button>
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mApplySlots" class="m-ghost" ${canRemix ? "" : "disabled"}>按槽位换本页</button>
+          <button type="button" id="mApplyAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页换同性别</button>
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mApplySlotsAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页按槽位换</button>
+          <button type="button" id="mOptimize" class="m-ghost">DeepSeek 优化草稿</button>
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mGenOne" class="m-ghost">加入队列</button>
+          ${isStandalone()
+            ? `<button type="button" id="mGenSeries" class="m-ghost">全部页加入队列</button>`
+            : `<button type="button" id="mQueueBtn" class="m-ghost">加入批量</button>`}
+        </div>
+        <p class="m-hint" style="margin-top:12px">附加咒语（这次换角才用，不改原图）</p>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mClothing" placeholder="服饰替换，如 china dress" value="${escapeHtml(state.clothing || "")}" />
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mExtra" placeholder="额外添加，如 earrings" value="${escapeHtml(state.extraTags || "")}" />
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mRemove" placeholder="移除标签，如 long hair" value="${escapeHtml(state.removeTags || "")}" />
+        </div>
         ${draftPreviewHtml(currentDraftEntry())}
         <p id="mWorkStatus" class="m-status"></p>
         <img id="mGenImg" class="m-preview hidden" alt="生成结果">
@@ -999,6 +1025,11 @@
     if (remixSeries) remixSeries.onclick = remixSeriesAndEnqueue;
     const applyStyleAll = document.getElementById("mApplyStyleAll");
     if (applyStyleAll) applyStyleAll.onclick = applyStyleSeries;
+    ["mClothing", "mExtra", "mRemove"].forEach((id) => {
+      const box = document.getElementById(id);
+      if (!box) return;
+      box.addEventListener("input", readRemixLayers);
+    });
     const queueBtn = document.getElementById("mQueueBtn");
     if (queueBtn) queueBtn.onclick = enqueueCurrent;
     const saveDraft = document.getElementById("mSaveDraft");
@@ -1213,13 +1244,33 @@
     });
   }
 
+  function readRemixLayers() {
+    const clothing = document.getElementById("mClothing");
+    const extra = document.getElementById("mExtra");
+    const remove = document.getElementById("mRemove");
+    if (clothing) state.clothing = clothing.value.trim();
+    if (extra) state.extraTags = extra.value.trim();
+    if (remove) state.removeTags = remove.value.trim();
+    return {
+      clothing: state.clothing || "",
+      extra_tags: state.extraTags || "",
+      remove_tags: state.removeTags || "",
+    };
+  }
+
   function customDraftFromForm() {
     const name = (document.getElementById("mCustomName") && document.getElementById("mCustomName").value.trim())
       || (document.getElementById("mTargetQ") && document.getElementById("mTargetQ").value.trim());
-    if (!name) throw new Error("先写自定义名字");
+    if (!name) throw new Error("先写 OC 名字");
+    const ocMode = !document.getElementById("mCustomOcMode") || document.getElementById("mCustomOcMode").checked;
+    state.ocMode = ocMode;
     const identityRaw = document.getElementById("mCustomIdentity") ? document.getElementById("mCustomIdentity").value : "";
     const appearRaw = document.getElementById("mCustomAppear") ? document.getElementById("mCustomAppear").value : "";
     const caption = document.getElementById("mCustomCaption") ? document.getElementById("mCustomCaption").value.trim() : "";
+    const clothing = document.getElementById("mCustomClothing") ? document.getElementById("mCustomClothing").value.trim() : "";
+    const extra = document.getElementById("mCustomExtra") ? document.getElementById("mCustomExtra").value.trim() : "";
+    const remove = document.getElementById("mCustomRemove") ? document.getElementById("mCustomRemove").value.trim() : "";
+    if (ocMode && !caption) throw new Error("群友 OC 请填写整段角色咒语");
     const identity = String(identityRaw || "").split(",").map((item) => item.trim()).filter(Boolean);
     if (!identity.length) identity.push(name);
     const appearance = String(appearRaw || "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -1228,9 +1279,15 @@
       label: name,
       gender: state.targetGender === "male" ? "male" : "female",
       kind: "oc",
+      oc_mode: ocMode,
       identity: identity,
       appearance: appearance,
       char_caption: caption,
+      clothing: clothing,
+      extra: extra,
+      extra_tags: extra,
+      remove: remove,
+      remove_tags: remove,
       tag: identity[0] || name,
     };
   }
@@ -1244,17 +1301,17 @@
           const saved = await api().post("/api/plugin/char-swap/custom", record);
           record = saved.item || record;
           referenceId = "custom:" + record.gender + ":" + record.id;
-          toast(saved.message || "已保存自定义角色");
+          toast(saved.message || "已保存 OC");
         } else {
           const all = loadLocalCustom();
           record.id = "c" + Date.now();
           all.unshift(record);
           try { localStorage.setItem("nai-mobile-custom-chars", JSON.stringify(all.slice(0, 80))); } catch (_) { /* ignore */ }
           referenceId = "custom:" + record.gender + ":" + record.id;
-          toast("已保存自定义角色");
+          toast("已保存 OC");
         }
       }
-      pickTarget({ reference_id: referenceId, label: "自定义：" + record.label, record: record });
+      pickTarget({ reference_id: referenceId, label: "OC：" + record.label, record: record });
       searchTargets();
     } catch (error) {
       toast(error.message || String(error), "err");
@@ -1311,7 +1368,7 @@
       if (document.getElementById("mCustomCaption")) document.getElementById("mCustomCaption").value = record.char_caption || "";
       pickTarget({
         reference_id: "custom:" + (record.gender || state.targetGender) + ":typed",
-        label: "DeepSeek：" + (record.label || "自定义"),
+        label: "DeepSeek OC：" + (record.label || "OC"),
         record: record,
       });
       if (status) {
@@ -1370,12 +1427,13 @@
     const q = qEl ? qEl.value.trim() : "";
     state.targetQuery = q;
     const gender = state.targetGender === "male" ? "male" : "female";
+    const source = state.searchSource || "all";
     const seq = ++charSearchSeq;
     host.textContent = "正在搜…";
     try {
       let items = [];
       try {
-        const found = await api().get("/api/plugin/char-swap/search?gender=" + gender + "&q=" + encodeURIComponent(q) + "&limit=32");
+        const found = await api().get("/api/plugin/char-swap/search?gender=" + gender + "&q=" + encodeURIComponent(q) + "&limit=32&source=" + encodeURIComponent(source));
         (found.items || []).forEach((item) => {
           items.push({
             reference_id: item.reference_id,
@@ -1384,14 +1442,16 @@
           });
         });
       } catch (_) {
+        const wantCustom = source === "all" || source === "oc";
+        const wantArk = source === "all" || source === "ark";
         const [ark, customItems] = await Promise.all([
-          api().get("/api/plugin/char-swap/ark-library?gender=" + gender + "&q=" + encodeURIComponent(q) + "&limit=20"),
-          listCustom(gender),
+          wantArk ? api().get("/api/plugin/char-swap/ark-library?gender=" + gender + "&q=" + encodeURIComponent(q) + "&limit=20") : Promise.resolve({ items: [] }),
+          wantCustom ? listCustom(gender) : Promise.resolve([]),
         ]);
         (customItems || []).forEach((item) => {
           items.push({
             reference_id: "custom:" + (item.gender || gender) + ":" + item.id,
-            label: "自定义：" + (item.label || item.id),
+            label: "OC：" + (item.label || item.id),
             record: Object.assign({ kind: "oc" }, item),
           });
         });
@@ -1404,11 +1464,11 @@
         });
       }
       if (seq !== charSearchSeq) return;
-      if (q) {
+      if (q && (source === "all" || source === "oc")) {
         items.unshift({
           reference_id: "custom:" + gender + ":typed",
-          label: "本地创建：" + q,
-          record: { id: "typed", label: q, gender: gender, kind: "oc", identity: [q], appearance: [], tag: q },
+          label: "写 OC：" + q,
+          record: { id: "typed", label: q, gender: gender, kind: "oc", oc_mode: false, identity: [q], appearance: [], tag: q },
         });
       }
       host.innerHTML = "";
@@ -1423,7 +1483,11 @@
         };
         host.appendChild(row);
       });
-      if (!items.length) host.innerHTML = '<p class="m-hint">没有匹配角色，可在下方保存自定义</p>';
+      if (!items.length) {
+        host.innerHTML = source === "danbooru"
+          ? '<p class="m-hint">输入角色名搜 D 站</p>'
+          : '<p class="m-hint">没有匹配角色，可在下方写 OC</p>';
+      }
     } catch (error) {
       if (seq !== charSearchSeq) return;
       host.innerHTML = '<p class="m-err">' + escapeHtml(error.message || error) + "</p>";
@@ -1470,6 +1534,7 @@
     const status = document.getElementById("mWorkStatus");
     if (status) status.textContent = "正在写草稿…";
     state.busy = true;
+    const remixLayers = readRemixLayers();
     try {
       if (isStandalone() && window.StandaloneCore) {
         const compileOpts = {
@@ -1482,6 +1547,9 @@
           target_record: (options.useSlotTargets || styleOnly) ? null : state.targetRecord,
           target_reference_id: (options.useSlotTargets || styleOnly) ? "" : state.targetId,
           style_record: state.styleRecord,
+          clothing: remixLayers.clothing,
+          extra_tags: remixLayers.extra_tags,
+          remove_tags: remixLayers.remove_tags,
         };
         if (options.useSlotTargets) compileOpts.slot_targets = slotTargets;
         const result = options.allPages
@@ -1510,6 +1578,9 @@
         image_index: state.pageIndex,
         slot_index: Number((state.slot && state.slot.slot_index) || 0),
         all_pages: !!options.allPages,
+        clothing: remixLayers.clothing,
+        extra_tags: remixLayers.extra_tags,
+        remove_tags: remixLayers.remove_tags,
       };
       if (state.slot && state.slot.candidate_id && !options.allPages) payload.candidate_id = state.slot.candidate_id;
       if (options.genderScope) payload.gender_scope = options.genderScope;
