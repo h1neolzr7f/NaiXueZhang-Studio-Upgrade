@@ -146,9 +146,14 @@ final class FavoriteStore {
         writeSnapshotImage(id, snapshot);
         overlayLocalImages(payload, id);
         boolean prompts = payloadHasPrompts(payload);
+        boolean hasCover = imageFile(id, 0) != null;
         writeText(new File(dir, "work.json"), payload.toString());
         updateRow(id, payload.optJSONObject("work"), Math.max(row.optInt("image_count", 0), imageCountOf(payload)), prompts ? "ready" : "pending");
-        startEnrich(id);
+        if (prompts && hasCover) {
+            // 咒语和封面都在本机，断网也能看、换角、入队。
+        } else {
+            startEnrich(id, prompts, hasCover);
+        }
         out.put("ok", true);
         out.put("favorited", true);
         out.put("remix_ready", prompts);
@@ -378,13 +383,32 @@ final class FavoriteStore {
     }
 
     private void startEnrich(String workId) {
+        startEnrich(workId, payloadHasPrompts(workPayload(workId)), imageFile(workId, 0) != null);
+    }
+
+    private void startEnrich(String workId, boolean prompts, boolean hasCover) {
+        if (prompts && hasCover) return;
         new Thread(() -> {
             try {
-                enrich(workId);
+                if (!prompts) enrich(workId);
+                else if (!hasCover) enrichCoverOnly(workId);
             } catch (Exception error) {
                 if (!canRemix(workId)) mark(workId, "partial", error.getMessage());
             }
         }, "fav-" + workId).start();
+    }
+
+    private void enrichCoverOnly(String workId) {
+        if (imageFile(workId, 0) != null) return;
+        try {
+            JSONObject payload = workPayload(workId);
+            JSONArray images = payload == null ? null : payload.optJSONArray("images");
+            JSONObject first = images != null && images.length() > 0 ? images.optJSONObject(0) : null;
+            HttpOutbound.Result img = fetchImage(first, workId);
+            if (img != null && img.body != null && img.body.length > 32) {
+                writeBytes(new File(new File(root, workId), "p0.jpg"), compress(img.body));
+            }
+        } catch (Exception ignored) {}
     }
 
     private JSONObject absorbSnapshot(String id, JSONObject snapshot, JSONObject row) throws Exception {

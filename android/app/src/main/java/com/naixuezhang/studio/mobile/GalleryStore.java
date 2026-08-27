@@ -9,6 +9,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 final class GalleryStore {
     private final File indexFile;
@@ -121,6 +123,21 @@ final class GalleryStore {
         out.put("removed", removed);
         out.put("message", "已删除这组图");
         return out;
+    }
+
+    synchronized List<String> imageIds(String albumId) {
+        List<String> ids = new ArrayList<String>();
+        JSONObject album = find(normalize(albumId));
+        if (album == null) return ids;
+        JSONArray images = album.optJSONArray("images");
+        if (images == null) return ids;
+        for (int i = 0; i < images.length(); i++) {
+            JSONObject image = images.optJSONObject(i);
+            if (image == null) continue;
+            String imageId = JsonUtil.first(image, "id", "image_id");
+            if (!imageId.isEmpty()) ids.add(imageId);
+        }
+        return ids;
     }
 
     synchronized JSONObject get(String albumId) {

@@ -14,28 +14,104 @@ import java.util.List;
  * Heuristic skin boxes are only used if the ONNX session is not ready.
  */
 final class LightMosaic {
-    static final String[] METHODS = {"像素", "模糊", "纯色"};
+    static final String[] METHODS = {"像素", "模糊", "线条", "纯色", "黑条", "表情"};
+    static final String[] PARTS = {"欧金金", "欧芒果", "欧派派", "欧西利"};
 
     private LightMosaic() {}
 
     static String normalizeMethod(String raw) {
         String method = raw == null ? "" : raw.trim();
         if ("模糊".equals(method) || "blur".equalsIgnoreCase(method)) return "模糊";
+        if ("线条".equals(method) || "line".equalsIgnoreCase(method) || "hatch".equalsIgnoreCase(method)) {
+            return "线条";
+        }
         if ("纯色".equals(method) || "solid".equalsIgnoreCase(method) || "color".equalsIgnoreCase(method)) {
             return "纯色";
+        }
+        if ("黑条".equals(method) || "bar".equalsIgnoreCase(method) || "black".equalsIgnoreCase(method)) {
+            return "黑条";
+        }
+        if ("表情".equals(method) || "emoji".equalsIgnoreCase(method)) return "表情";
+        if ("不打码".equals(method) || "off".equalsIgnoreCase(method) || "none".equalsIgnoreCase(method)) {
+            return "不打码";
         }
         return "像素";
     }
 
     static int normalizeIntensity(int intensity) {
-        return Math.max(12, Math.min(intensity <= 0 ? 36 : intensity, 72));
+        return Math.max(8, Math.min(intensity <= 0 ? 36 : intensity, 80));
+    }
+
+    static int normalizeSensitivity(int level) {
+        return Math.max(1, Math.min(level <= 0 ? 8 : level, 10));
+    }
+
+    static int normalizeDilate(int dilate) {
+        return Math.max(0, Math.min(dilate < 0 ? 28 : dilate, 64));
+    }
+
+    static float confFromSensitivity(int level) {
+        int n = normalizeSensitivity(level);
+        return Math.max(0.06f, Math.min(0.32f - (n - 1) * 0.03f, 0.40f));
+    }
+
+    static List<String> normalizeParts(org.json.JSONArray raw) {
+        List<String> out = new ArrayList<String>();
+        if (raw != null) {
+            for (int i = 0; i < raw.length(); i++) {
+                String part = normalizePart(raw.optString(i));
+                if (!part.isEmpty() && !out.contains(part)) out.add(part);
+            }
+        }
+        if (out.isEmpty()) {
+            for (String part : PARTS) out.add(part);
+        }
+        return out;
+    }
+
+    static List<String> parseParts(String raw) {
+        List<String> out = new ArrayList<String>();
+        String text = raw == null ? "" : raw.trim();
+        if (text.isEmpty()) {
+            for (String part : PARTS) out.add(part);
+            return out;
+        }
+        for (String item : text.split("[,，|\\s]+")) {
+            String part = normalizePart(item);
+            if (!part.isEmpty() && !out.contains(part)) out.add(part);
+        }
+        if (out.isEmpty()) {
+            for (String part : PARTS) out.add(part);
+        }
+        return out;
+    }
+
+    static String joinParts(List<String> parts) {
+        if (parts == null || parts.isEmpty()) return String.join(",", PARTS);
+        return String.join(",", parts);
+    }
+
+    static String normalizePart(String raw) {
+        String part = raw == null ? "" : raw.trim();
+        if ("欧金金".equals(part) || "penis".equalsIgnoreCase(part)) return "欧金金";
+        if ("欧芒果".equals(part) || "pussy".equalsIgnoreCase(part)) return "欧芒果";
+        if ("欧派派".equals(part) || "nipple".equalsIgnoreCase(part) || "nipple_f".equalsIgnoreCase(part)) {
+            return "欧派派";
+        }
+        if ("欧西利".equals(part) || "anus".equalsIgnoreCase(part)) return "欧西利";
+        return "";
     }
 
     static Result apply(Bitmap src, String method, int intensity) {
+        return apply(src, method, intensity, parseParts(""), 8, 28);
+    }
+
+    static Result apply(Bitmap src, String method, int intensity, List<String> parts, int sensitivity, int dilate) {
         if (src == null) return new Result(null, 0, normalizeMethod(method));
         String kind = normalizeMethod(method);
+        if ("不打码".equals(kind)) return new Result(src, 0, kind);
         int strength = normalizeIntensity(intensity);
-        List<int[]> boxes = OnnxCensor.detectOrFallback(src);
+        List<int[]> boxes = OnnxCensor.detectOrFallback(src, parts, sensitivity, dilate);
         if (boxes.isEmpty()) return new Result(src, 0, kind);
         Bitmap out = src.copy(Bitmap.Config.ARGB_8888, true);
         if (out == null) return new Result(src, 0, kind);
@@ -131,11 +207,45 @@ final class LightMosaic {
         int right = Math.min(dest.getWidth(), Math.max(x1, x2));
         int bottom = Math.min(dest.getHeight(), Math.max(y1, y2));
         if (right - left < 4 || bottom - top < 4) return;
+        if ("黑条".equals(method)) {
+            Canvas canvas = new Canvas(dest);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            paint.setColor(Color.BLACK);
+            canvas.drawRect(left, top, right, bottom, paint);
+            return;
+        }
         if ("纯色".equals(method)) {
             Canvas canvas = new Canvas(dest);
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             paint.setColor(Color.argb(230, 128, 128, 128));
             canvas.drawRect(left, top, right, bottom, paint);
+            return;
+        }
+        if ("线条".equals(method)) {
+            Canvas canvas = new Canvas(dest);
+            Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+            fill.setColor(Color.argb(70, 20, 20, 20));
+            canvas.drawRect(left, top, right, bottom, fill);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            paint.setColor(Color.argb(220, 28, 28, 28));
+            paint.setStrokeWidth(Math.max(2f, block / 6f));
+            int step = Math.max(6, block / 2);
+            int height = bottom - top;
+            for (int x = left - height; x < right; x += step) {
+                canvas.drawLine(x, top, x + height, bottom, paint);
+            }
+            return;
+        }
+        if ("表情".equals(method)) {
+            Canvas canvas = new Canvas(dest);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            paint.setColor(Color.argb(200, 16, 16, 16));
+            canvas.drawRect(left, top, right, bottom, paint);
+            paint.setColor(Color.WHITE);
+            paint.setTextAlign(Paint.Align.CENTER);
+            float size = Math.max(18f, Math.min(right - left, bottom - top) * 0.58f);
+            paint.setTextSize(size);
+            canvas.drawText("😶", (left + right) / 2f, (top + bottom) / 2f + size / 3f, paint);
             return;
         }
         if ("模糊".equals(method)) {

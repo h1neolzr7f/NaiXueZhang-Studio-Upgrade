@@ -174,14 +174,15 @@
   function jobStepIndex(job) {
     const stage = String((job && (job.stage || job.status)) || "");
     if (stage === "done" || (job && job.status === "done")) return 4;
-    if (stage === "saving") return 4;
-    if (stage === "mosaic" || stage === "pipeline" || stage === "upscale") return stage === "upscale" ? 2 : 3;
+    if (stage === "mosaic") return 4;
+    if (stage === "upscale" || stage === "pipeline") return 3;
+    if (stage === "saving") return 2;
     if (stage === "generating" || stage === "requesting" || stage === "running") return 1;
     return 0;
   }
 
   function jobStepsHtml(job) {
-    const steps = ["排队", "出图", "超分", "打码", "入库"];
+    const steps = ["排队", "出图", "入库", "超分", "打码"];
     const active = jobIsTerminal(job) && job && job.status === "done" ? 4 : jobStepIndex(job);
     return `<div class="m-steps">${steps.map((label, index) => {
       const cls = index < active ? " done" : (index === active ? " now" : "");
@@ -560,10 +561,12 @@
         }
       } catch (error) {
         if (seq !== browseSearchSeq) return;
-        status.textContent = friendlyError(error);
+        status.textContent = state.browseMode === "library"
+          ? ("本地库还在，这次刷新失败：" + friendlyError(error))
+          : friendlyError(error);
         status.className = "m-status m-err";
         const pager = document.getElementById("mBrowsePager");
-        if (pager && !document.getElementById("mDemoFallback")) {
+        if (pager && state.browseMode !== "library" && !document.getElementById("mDemoFallback")) {
           pager.innerHTML = `<a class="m-primary" id="mDemoFallback" href="#/work/${encodeURIComponent("demo-ark-amiya")}">打开内置样例</a>`;
         }
       }
@@ -2428,7 +2431,7 @@
       const job = status.job || {};
       const backlog = status.backlog || {};
       const phoneHint = isStandalone()
-        ? "生成成功后跑本机流水线：2x 超分、清元数据、入本地库、存相册。打码需要电脑 ANR，不打进手机包。"
+        ? "出图先入库。打码可选，默认关，放到最后；也可以在图库对一组再打。"
         : "生成成功后，电脑端会按配置做超分 / 打码 / 清元数据。手机只负责查看和补跑。";
       root.innerHTML = `
         <section class="m-card">
@@ -2547,29 +2550,59 @@
       const auto = !!cfgObj.auto_after_generate;
       const upscale = cfgObj.upscale !== false;
       const metadata = cfgObj.metadata !== false;
-      const mosaic = cfgObj.mosaic !== false && cfgObj.mosaic_available !== false;
+      const mosaic = cfgObj.mosaic === true;
       const scale = Math.max(2, Math.min(Number(cfgObj.scale) || 2, 4));
       const mosaicMethod = String(cfgObj.mosaic_method || "像素");
+      const mosaicParts = Array.isArray(cfgObj.mosaic_parts) && cfgObj.mosaic_parts.length
+        ? cfgObj.mosaic_parts.map(String)
+        : ["欧金金", "欧芒果", "欧派派", "欧西利"];
+      const mosaicSensitivity = Math.max(1, Math.min(Number(cfgObj.mosaic_sensitivity) || 8, 10));
+      const mosaicIntensity = Math.max(8, Math.min(Number(cfgObj.mosaic_intensity) || 36, 80));
+      const mosaicDilate = Math.max(0, Math.min(Number(cfgObj.mosaic_dilate) || 28, 64));
+      const mosaicMethods = ["不打码", "像素", "模糊", "线条", "纯色", "黑条", "表情"];
+      const partOptions = ["欧金金", "欧芒果", "欧派派", "欧西利"];
+      const sensLabel = mosaicSensitivity <= 4 ? "保守" : (mosaicSensitivity >= 10 ? "严格" : "标准");
+      const intensityLabel = mosaicIntensity <= 22 ? "弱" : (mosaicIntensity >= 56 ? "强" : "中");
+      const dilateLabel = mosaicDilate <= 16 ? "小" : (mosaicDilate >= 44 ? "大" : "中");
       root.innerHTML = `
         <section class="m-hero">
           <p class="m-eyebrow">图库</p>
           <h2>本机图库</h2>
-          <p class="m-hint">按生成任务分组。生图后自动跑超分、机内 ONNX 打码和清元数据。打码模型是理塘同款 censor.onnx，已打进安装包。</p>
+          <p class="m-hint">按生成任务分组。出图先入库，打码放到最后，也可以不打。收藏后的本地库、图库、排队断网也能看。</p>
         </section>
         <section class="m-card">
           <h2>后处理流水线</h2>
           <p>自动后处理：<strong class="${auto ? "m-ok" : "m-err"}">${auto ? "已开" : "未开"}</strong></p>
           <p>本机超分：<strong class="${upscale ? "m-ok" : "m-err"}">${upscale ? scale + "x 已开" : "未开"}</strong></p>
-          <p>机内打码：<strong class="${mosaic ? "m-ok" : "m-err"}">${mosaic ? mosaicMethod + " 已开" : "未开"}</strong></p>
+          <p>机内打码：<strong class="${mosaic ? "m-ok" : "m-err"}">${mosaic ? mosaicMethod + " 已开" : "不打码"}</strong></p>
           <p>清元数据：<strong class="${metadata ? "m-ok" : "m-err"}">${metadata ? "已开" : "未开"}</strong></p>
-          <p class="m-hint">超分是本机拉伸。打码用安装包内的 censor.onnx 认欧金金 / 欧芒果 / 欧派派，再按像素/模糊/纯色盖上。漏打请自己再看一眼。</p>
+          <p class="m-hint">默认不打码。要打码选一种方式，出图最后才盖；也可以进某一组再点「对这组打码」。部位和理塘/ANR 对齐：欧金金 / 欧芒果 / 欧派派 / 欧西利。模型是安装包里的 censor.onnx，机内 ONNX 识别。</p>
           <div class="m-row" style="margin-top:10px">
             <span class="m-hint">倍率</span>
             ${[2, 3, 4].map((n) => `<button type="button" class="m-chip${scale === n ? " active" : ""}" data-scale="${n}">${n}x</button>`).join("")}
           </div>
           <div class="m-row" style="margin-top:8px">
             <span class="m-hint">打码</span>
-            ${["像素", "模糊", "纯色"].map((name) => `<button type="button" class="m-chip${mosaicMethod === name ? " active" : ""}" data-mosaic-method="${name}">${name}</button>`).join("")}
+            ${mosaicMethods.map((name) => {
+              const on = name === "不打码" ? !mosaic : (mosaic && mosaicMethod === name);
+              return `<button type="button" class="m-chip${on ? " active" : ""}" data-mosaic-method="${name}">${name}</button>`;
+            }).join("")}
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <span class="m-hint">部位</span>
+            ${partOptions.map((name) => `<button type="button" class="m-chip${mosaicParts.indexOf(name) >= 0 ? " active" : ""}" data-mosaic-part="${name}">${name}</button>`).join("")}
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <span class="m-hint">灵敏度 ${sensLabel}</span>
+            ${[["保守", 4], ["标准", 8], ["严格", 10]].map(([label, value]) => `<button type="button" class="m-chip${mosaicSensitivity === value ? " active" : ""}" data-mosaic-sensitivity="${value}">${label}</button>`).join("")}
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <span class="m-hint">强度 ${intensityLabel}</span>
+            ${[["弱", 18], ["中", 36], ["强", 56]].map(([label, value]) => `<button type="button" class="m-chip${mosaicIntensity === value ? " active" : ""}" data-mosaic-intensity="${value}">${label}</button>`).join("")}
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <span class="m-hint">外扩 ${dilateLabel}</span>
+            ${[["小", 12], ["中", 28], ["大", 48]].map(([label, value]) => `<button type="button" class="m-chip${mosaicDilate === value ? " active" : ""}" data-mosaic-dilate="${value}">${label}</button>`).join("")}
           </div>
           <div class="m-row" style="margin-top:10px">
             <button type="button" id="mPipeRun" class="m-primary">补跑流水线</button>
@@ -2596,7 +2629,7 @@
         </a>`;
       }).join("");
       document.getElementById("mPipeRun").onclick = async () => {
-        if (!await confirmAction("补跑流水线", "会对还没处理的生成图做本机超分、机内 ONNX 打码和清元数据，并补存相册。不会重新出图。")) return;
+        if (!await confirmAction("补跑流水线", "只补超分和清元数据。打码按上面开关：关着就不打，开着才打。不会重新出图。")) return;
         const box = document.getElementById("mPipeStatus");
         try {
           const result = await api().post("/api/pipeline/run", { only_missing: true });
@@ -2635,7 +2668,39 @@
       });
       root.querySelectorAll("[data-mosaic-method]").forEach((button) => {
         button.onclick = async () => {
-          await api().post("/api/pipeline/config", { mosaic: true, mosaic_method: button.getAttribute("data-mosaic-method") });
+          const method = button.getAttribute("data-mosaic-method") || "不打码";
+          await api().post("/api/pipeline/config", method === "不打码"
+            ? { mosaic: false }
+            : { mosaic: true, mosaic_method: method });
+          renderGallery(root);
+        };
+      });
+      root.querySelectorAll("[data-mosaic-part]").forEach((button) => {
+        button.onclick = async () => {
+          const name = button.getAttribute("data-mosaic-part");
+          const next = mosaicParts.slice();
+          const at = next.indexOf(name);
+          if (at >= 0) next.splice(at, 1);
+          else next.push(name);
+          await api().post("/api/pipeline/config", { mosaic_parts: next.length ? next : partOptions });
+          renderGallery(root);
+        };
+      });
+      root.querySelectorAll("[data-mosaic-sensitivity]").forEach((button) => {
+        button.onclick = async () => {
+          await api().post("/api/pipeline/config", { mosaic_sensitivity: Number(button.getAttribute("data-mosaic-sensitivity")) || 8 });
+          renderGallery(root);
+        };
+      });
+      root.querySelectorAll("[data-mosaic-intensity]").forEach((button) => {
+        button.onclick = async () => {
+          await api().post("/api/pipeline/config", { mosaic_intensity: Number(button.getAttribute("data-mosaic-intensity")) || 36 });
+          renderGallery(root);
+        };
+      });
+      root.querySelectorAll("[data-mosaic-dilate]").forEach((button) => {
+        button.onclick = async () => {
+          await api().post("/api/pipeline/config", { mosaic_dilate: Number(button.getAttribute("data-mosaic-dilate")) || 28 });
           renderGallery(root);
         };
       });
@@ -2654,21 +2719,58 @@
         <section class="m-card">
           <p class="m-eyebrow">图库任务</p>
           <h2>${escapeHtml(album.title || albumId)}</h2>
-          <p class="m-hint">${images.length}张 · 同一生成任务，点图看大图</p>
+          <p class="m-hint">${images.length}张 · 同一生成任务，点图看大图。出图时可以不打码，这里再补打。</p>
           <div class="m-row">
             <a class="m-ghost" href="#/gallery">返回图库</a>
             ${album.source_work_id ? `<a class="m-ghost" href="#/library/${encodeURIComponent("g" + album.album_id)}">用这组再换角</a>` : ""}
+            <button type="button" id="mAlbumMosaic" class="m-primary">对这组打码</button>
             <button type="button" id="mAlbumDel" class="m-danger">删除这组</button>
           </div>
+          <p id="mAlbumStatus" class="m-status"></p>
         </section>
         <div class="m-grid" id="mAlbumGrid"></div>`;
       const grid = document.getElementById("mAlbumGrid");
-      grid.innerHTML = images.map((item, index) => `
-        <a class="m-work" href="${escapeHtml(item.image_url || item.url || "")}" target="_blank" rel="noopener">
-          <img src="${escapeHtml(item.thumbnail_url || item.image_url || item.url || "")}" alt="">
+      const bust = Date.now();
+      grid.innerHTML = images.map((item, index) => {
+        const raw = item.image_url || item.url || "";
+        const thumb = item.thumbnail_url || raw;
+        const addBust = (url) => {
+          const src = String(url || "");
+          if (!src) return "";
+          return src + (src.indexOf("?") >= 0 ? "&" : "?") + "t=" + bust;
+        };
+        return `
+        <a class="m-work" href="${escapeHtml(addBust(raw))}" target="_blank" rel="noopener">
+          <img src="${escapeHtml(addBust(thumb))}" alt="">
           <em class="m-page-badge">P${index + 1}</em>
           <span>第 ${index + 1} 张</span>
-        </a>`).join("") || '<p class="m-hint">这个任务还没有图。</p>';
+        </a>`;
+      }).join("") || '<p class="m-hint">这个任务还没有图。</p>';
+      const mosaicAlbum = document.getElementById("mAlbumMosaic");
+      if (mosaicAlbum) {
+        mosaicAlbum.onclick = async () => {
+          if (!await confirmAction("对这组打码", "用图库里当前的打码方式、部位和强度，覆盖显示图。原图还留在本机。")) return;
+          const box = document.getElementById("mAlbumStatus");
+          mosaicAlbum.disabled = true;
+          if (box) box.textContent = "正在打码…";
+          try {
+            const result = await api().post("/api/mobile/gallery/" + encodeURIComponent(albumId) + "/mosaic", {});
+            if (box) {
+              box.textContent = result.message || "已打码";
+              box.className = "m-status m-ok";
+            }
+            toast(result.message || "已对这组打码");
+            renderAlbum(root, albumId);
+          } catch (error) {
+            if (box) {
+              box.textContent = friendlyError(error);
+              box.className = "m-status m-err";
+            }
+            toast(friendlyError(error), "err");
+            mosaicAlbum.disabled = false;
+          }
+        };
+      }
       const del = document.getElementById("mAlbumDel");
       if (del) {
         del.onclick = async () => {

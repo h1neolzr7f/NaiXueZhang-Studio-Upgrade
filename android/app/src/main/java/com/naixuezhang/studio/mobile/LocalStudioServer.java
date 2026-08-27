@@ -167,6 +167,14 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         if ("GET".equals(request.method) && "/api/mobile/gallery".equals(path)) {
             return json(200, gallery.list().toString());
         }
+        if ("POST".equals(request.method) && path.startsWith("/api/mobile/gallery/") && path.endsWith("/mosaic")) {
+            String albumId = LocalHttpServer.decode(path.substring("/api/mobile/gallery/".length(), path.length() - "/mosaic".length()));
+            try {
+                return json(200, pipeline.applyAlbum(gallery, albumId).toString());
+            } catch (Exception error) {
+                return json(400, errorJson(error.getMessage()));
+            }
+        }
         if ("POST".equals(request.method) && path.startsWith("/api/mobile/gallery/") && path.endsWith("/delete")) {
             String albumId = LocalHttpServer.decode(path.substring("/api/mobile/gallery/".length(), path.length() - "/delete".length()));
             try {
@@ -390,6 +398,18 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         }
         if ("POST".equals(request.method) && "/api/pipeline/run".equals(path)) {
             return json(200, pipeline.runMissing().toString());
+        }
+        if ("POST".equals(request.method) && "/api/pipeline/mosaic".equals(path)) {
+            try {
+                JSONObject payload = JsonUtil.obj(request.text());
+                String albumId = JsonUtil.first(payload, "album_id", "task_id");
+                String imageId = JsonUtil.first(payload, "image_id", "id");
+                if (!albumId.isEmpty()) return json(200, pipeline.applyAlbum(gallery, albumId).toString());
+                if (!imageId.isEmpty()) return json(200, pipeline.applyMosaicId(imageId).toString());
+                return json(400, errorJson("缺少 album_id 或 image_id"));
+            } catch (Exception error) {
+                return json(400, errorJson(error.getMessage()));
+            }
         }
         if ("/api/queue/works".equals(path) || path.startsWith("/api/plugin/char-swap/batch/")) {
             return json(400, "{\"ok\":false,\"detail\":\"手机独立版不读取电脑待生成队列\"}");

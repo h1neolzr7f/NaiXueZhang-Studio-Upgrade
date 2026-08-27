@@ -117,14 +117,20 @@ PIPELINE_CFG: dict = {
     "upscale": True,
     "scale": 2,
     "metadata": True,
-    "mosaic": True,
+    "mosaic": False,
+    "mosaic_optional": True,
     "mosaic_available": True,
     "mosaic_mode": "onnx",
     "mosaic_model": "censor.onnx",
     "mosaic_ready": True,
     "mosaic_method": "像素",
     "mosaic_intensity": 36,
-    "estimate_ms": 2200,
+    "mosaic_sensitivity": 8,
+    "mosaic_dilate": 28,
+    "mosaic_parts": ["欧金金", "欧芒果", "欧派派", "欧西利"],
+    "mosaic_methods": ["不打码", "像素", "模糊", "线条", "纯色", "黑条", "表情"],
+    "mosaic_part_options": ["欧金金", "欧芒果", "欧派派", "欧西利"],
+    "estimate_ms": 1200,
 }
 JOB_SEQ = 1
 JOBS: dict[str, dict] = {
@@ -265,6 +271,8 @@ def _decorate_job(job: dict) -> dict:
         if stage in {"pipeline", "upscale", "mosaic"}:
             unit = 0.84
         elif stage == "saving":
+            unit = 0.72
+        elif stage == "mosaic":
             unit = 0.94
         elif stage == "requesting":
             unit = 0.16
@@ -286,9 +294,9 @@ def _decorate_job(job: dict) -> dict:
             "generating": "正在出图",
             "running": "正在出图",
             "upscale": "本机超分",
-            "mosaic": "轻量打码",
+            "mosaic": "机内打码",
             "pipeline": "本机后处理",
-            "saving": "写入图库",
+            "saving": "先写入图库",
         }
         out["stage_label"] = labels.get(stage, status or "生成中")
     return out
@@ -305,11 +313,11 @@ def _tick_jobs() -> None:
     if cycle < 6:
         job.update({"done": 1, "running": 1, "stage": "generating", "stage_label": "正在出图", "message": "生成中 1/4 · 2 路并发"})
     elif cycle < 10:
-        job.update({"done": 2, "running": 1, "stage": "pipeline", "stage_label": "本机后处理：超分 2x，轻量打码 像素，清元数据开", "message": "生成中 2/4 · 轻量打码"})
+        job.update({"done": 2, "running": 1, "stage": "saving", "stage_label": "先写入图库", "message": "生成中 2/4 · 已入库，未打码"})
     elif cycle < 16:
         job.update({"done": 3, "running": 1, "stage": "generating", "stage_label": "正在出图", "message": "生成中 3/4 · 2 路并发"})
     else:
-        job.update({"done": 3, "running": 1, "stage": "saving", "stage_label": "写入图库和相册", "message": "生成中 3/4 · 写入图库"})
+        job.update({"done": 3, "running": 1, "stage": "upscale", "stage_label": "本机超分", "message": "生成中 3/4 · 入库后再超分"})
 
 
 def _simulate_job(task_id: str, total: int, title: str) -> None:
@@ -317,8 +325,9 @@ def _simulate_job(task_id: str, total: int, title: str) -> None:
         (0.4, "queued", "排队等待", 0, 0),
         (0.8, "requesting", "正在请求 NovelAI", 0, 1),
         (1.6, "generating", "正在出图", 0, 1),
-        (0.6, "pipeline", "本机后处理：超分 / 轻量打码 / 清元数据", 0, 1),
-        (0.4, "saving", "写入图库和相册", 1, 0),
+        (0.4, "saving", "先写入图库", 1, 0),
+        (0.4, "upscale", "本机超分", 0, 0),
+        (0.2, "mosaic", "机内打码（可选，默认关）", 0, 0),
     )
     job = JOBS.get(task_id)
     if not job:
@@ -349,7 +358,7 @@ def _simulate_job(task_id: str, total: int, title: str) -> None:
         "gallery_url": "/api/mobile/output/preview.png",
         "library_id": "g" + task_id,
         "album_id": task_id,
-        "message": "完成：已入图库并跑完流水线（超分 + 轻量打码 + 清元数据）",
+        "message": "完成：已入库，未打码",
     }
     job.update({
         "status": "done",
@@ -747,7 +756,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({
                 "ok": True,
                 "config": dict(PIPELINE_CFG),
-                "message": "手机流水线：超分 + 机内 ONNX 打码（理塘同款 censor.onnx）+ 清元数据。",
+                "message": "默认不打码。出图先入库，打码可选，也可在图库补打。",
             })
         if path == "/api/pipeline/status":
             return self._json({"ok": True, "job": {"status": "idle"}, "backlog": {"count": 0}})
@@ -821,6 +830,20 @@ class Handler(BaseHTTPRequestHandler):
             if len(ALBUMS) == before:
                 return self._json({"ok": False, "detail": "图库里没有这个任务"}, 400)
             return self._json({"ok": True, "album_id": album_id, "message": "已删除这组图"})
+        if path.startswith("/api/mobile/gallery/") and path.endswith("/mosaic"):
+            album_id = unquote(path.split("/gallery/", 1)[1].rsplit("/mosaic", 1)[0])
+            album = next((item for item in ALBUMS if item.get("album_id") == album_id), None)
+            if not album:
+                return self._json({"ok": False, "detail": "图库里没有这个任务"}, 400)
+            count = len(album.get("images") or [])
+            return self._json({
+                "ok": True,
+                "album_id": album_id,
+                "processed": count,
+                "mosaic": True,
+                "mosaic_method": PIPELINE_CFG.get("mosaic_method") or "像素",
+                "message": "已对这组 " + str(count) + " 张打码（预览）。原图还留着。",
+            })
         if path == "/api/plugin/char-swap/styles":
             item = dict(payload)
             item.setdefault("id", "s" + str(len(CUSTOM_STYLES) + 1))
@@ -934,15 +957,27 @@ class Handler(BaseHTTPRequestHandler):
                 for key in (
                     "auto_after_generate", "upscale", "metadata", "mosaic",
                     "scale", "mosaic_method", "mosaic_intensity",
+                    "mosaic_sensitivity", "mosaic_dilate", "mosaic_parts",
                 ):
                     if key in payload:
                         PIPELINE_CFG[key] = payload[key]
+                if payload.get("mosaic_method") == "不打码":
+                    PIPELINE_CFG["mosaic"] = False
                 PIPELINE_CFG["mosaic_available"] = True
+                PIPELINE_CFG["mosaic_optional"] = True
                 PIPELINE_CFG["mosaic_mode"] = "onnx"
                 PIPELINE_CFG["mosaic_model"] = "censor.onnx"
             return self._json({"ok": True, "config": dict(PIPELINE_CFG)})
         if path == "/api/pipeline/run":
             return self._json({"ok": True, "message": "已开始"})
+        if path == "/api/pipeline/mosaic":
+            album_id = str((payload or {}).get("album_id") or (payload or {}).get("task_id") or "")
+            return self._json({
+                "ok": True,
+                "album_id": album_id,
+                "processed": 1,
+                "message": "已打码（预览）",
+            })
         if path == "/api/nai/token":
             PREVIEW_TOKENS[:] = _parse_tokens(str(payload.get("token") or ""))
             n = len(PREVIEW_TOKENS)
