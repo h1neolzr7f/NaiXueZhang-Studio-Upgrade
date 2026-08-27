@@ -620,14 +620,22 @@ class Handler(BaseHTTPRequestHandler):
             CUSTOM_STYLES.insert(0, item)
             return self._json({"ok": True, "item": item, "message": "已保存自定义画风"})
         if path == "/api/mobile/char-describe":
+            text = str(payload.get("text") or payload.get("description") or "").strip()
+            parts = [item.strip() for item in text.replace("，", ",").split(",") if item.strip()]
+            caption = text or "1girl, white_hair, red_eyes"
             record = {
-                "label": "预览角色",
+                "label": parts[0] if parts else "预览角色",
                 "gender": payload.get("gender") or "female",
-                "identity": ["1girl"],
-                "appearance": ["white_hair", "red_eyes"],
-                "char_caption": "1girl, white_hair, red_eyes",
+                "kind": "oc",
+                "oc_mode": True,
+                "identity": [item for item in parts if "1girl" in item or "1boy" in item or "(oc)" in item] or ["1girl"],
+                "appearance": [item for item in parts if "hair" in item or "eyes" in item],
+                "clothing": ", ".join(item for item in parts if "dress" in item or "jacket" in item),
+                "extra": "",
+                "remove": "",
+                "char_caption": caption,
             }
-            return self._json({"ok": True, "item": record, "generation_calls": 0, "message": "角色槽已写好，还没扣 Anlas"})
+            return self._json({"ok": True, "item": record, "generation_calls": 0, "message": "OC 各栏已填好，还没扣 Anlas"})
         if path == "/api/studio/optimize":
             comment = payload.get("comment") or payload.get("patched_comment") or {}
             return self._json({

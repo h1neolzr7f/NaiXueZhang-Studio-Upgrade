@@ -29,6 +29,25 @@ final class AitagGateway {
         }
     };
     private final Map<String, Long> searchCacheAt = new HashMap<String, Long>();
+    private final Map<String, JSONObject> workCache = new LinkedHashMap<String, JSONObject>(24, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, JSONObject> eldest) {
+            return size() > 24;
+        }
+    };
+    private final Map<String, Long> workCacheAt = new HashMap<String, Long>();
+    private final Map<String, String[]> coverHint = new LinkedHashMap<String, String[]>(48, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, String[]> eldest) {
+            return size() > 80;
+        }
+    };
+    private final Map<String, HttpOutbound.Result> coverCache = new LinkedHashMap<String, HttpOutbound.Result>(32, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, HttpOutbound.Result> eldest) {
+            return size() > 32;
+        }
+    };
 
     AitagGateway(TokenStore tokens) {
         this.tokens = tokens;
@@ -175,6 +194,8 @@ final class AitagGateway {
         String id = String.valueOf(workId == null ? "" : workId).trim();
         if (DemoWorks.isDemo(id)) return DemoWorks.payload();
         if (!WORK_ID.matcher(id).matches()) throw new IllegalArgumentException("AITag work id is invalid");
+        JSONObject cached = takeWorkCache(id);
+        if (cached != null) return cached;
         JSONObject raw = fetchJson(SITE + "/api/work/" + enc(id));
         JSONObject root = raw.optJSONObject("data");
         if (root == null) root = raw;
@@ -205,17 +226,36 @@ final class AitagGateway {
         out.put("external_url", work.optString("external_url"));
         out.put("character_candidates", new JSONArray());
         out.put("generation_calls", 0);
+        rememberCoverFromPayload(id, out);
+        putWorkCache(id, out);
         return out;
     }
 
     HttpOutbound.Result cover(String workId) throws Exception {
-        if (DemoWorks.isDemo(workId)) {
+        String id = String.valueOf(workId == null ? "" : workId).trim();
+        if (DemoWorks.isDemo(id)) {
             return new HttpOutbound.Result(200, DemoWorks.png(0), "image/png");
         }
-        JSONObject detail = work(workId);
-        JSONArray images = detail.optJSONArray("images");
-        JSONObject image = images != null && images.length() > 0 ? images.optJSONObject(0) : null;
-        if (image == null) throw new IllegalStateException("AITag image was unavailable");
+        HttpOutbound.Result cached = takeCoverCache(id);
+        if (cached != null) return cached;
+        HttpOutbound.Result fetched = fetchCoverBytes(id);
+        putCoverCache(id, fetched);
+        return fetched;
+    }
+
+    private HttpOutbound.Result fetchCoverBytes(String id) throws Exception {
+        String[] hint = takeCoverHint(id);
+        if (hint != null) {
+            return fetchImage(CDN + "/" + enc(hint[0]) + "/" + enc(hint[1]) + "/" + enc(hint[2]));
+        }
+        JSONObject cached = takeWorkCache(id);
+        if (cached != null) {
+            JSONObject image = firstImage(cached);
+            if (image != null && hasCdnParts(image)) return fetchImage(cdnUrl(image));
+        }
+        JSONObject detail = work(id);
+        JSONObject image = firstImage(detail);
+        if (image == null || !hasCdnParts(image)) throw new IllegalStateException("AITag image was unavailable");
         return fetchImage(cdnUrl(image));
     }
 
@@ -255,10 +295,15 @@ final class AitagGateway {
             if (image != null) normalized.put(image);
         }
         if (normalized.length() == 0) {
-            JSONObject cover = new JSONObject();
-            cover.put("thumbnail_url", "/api/nai/aitag/cover/" + enc(workId));
-            cover.put("url", cover.optString("thumbnail_url"));
+            JSONObject cover = synthesizeCover(workId, src);
+            if (cover == null) {
+                cover = new JSONObject();
+                cover.put("thumbnail_url", "/api/nai/aitag/cover/" + enc(workId));
+                cover.put("url", cover.optString("thumbnail_url"));
+            }
             normalized.put(cover);
+        } else {
+            rememberCoverFromImage(workId, normalized.optJSONObject(0));
         }
         work.put("images", normalized);
         int count = imageCount(src, raw);
@@ -337,6 +382,116 @@ final class AitagGateway {
         }
         String text = blob.toString().toLowerCase(Locale.ROOT).replace('_', '-');
         return !text.contains("r-18") && !text.contains("r18") && !text.contains("nsfw") && !text.contains("explicit");
+    }
+
+    private JSONObject synthesizeCover(String workId, JSONObject src) {
+        String author = JsonUtil.first(src, "userId", "userid", "author_id", "user_id");
+        if (author.isEmpty()) return null;
+        String type = folderType(JsonUtil.first(src, "image_type", "AI_type", "ai_type"));
+        String file = workId + "_p0.webp";
+        try {
+            JSONObject cover = new JSONObject();
+            cover.put("image_id", workId + "_p0");
+            cover.put("image_type", type);
+            cover.put("author_id", author);
+            cover.put("file_name", file);
+            String proxy = "/api/nai/aitag/image/" + enc(type) + "/" + enc(author) + "/" + enc(file);
+            cover.put("url", proxy);
+            cover.put("thumbnail_url", proxy);
+            rememberCover(workId, type, author, file);
+            return cover;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String folderType(String raw) {
+        String value = String.valueOf(raw == null ? "" : raw).trim();
+        if (value.isEmpty() || value.toLowerCase(Locale.ROOT).contains("novel") || value.toLowerCase(Locale.ROOT).contains("nai")) {
+            return "NAI";
+        }
+        if (PART.matcher(value).matches() && value.length() <= 16) return value;
+        return "NAI";
+    }
+
+    private void rememberCoverFromPayload(String workId, JSONObject payload) {
+        rememberCoverFromImage(workId, firstImage(payload));
+    }
+
+    private void rememberCoverFromImage(String workId, JSONObject image) {
+        if (image == null || !hasCdnParts(image)) return;
+        String file = image.optString("file_name");
+        if (!file.toLowerCase(Locale.ROOT).endsWith(".webp")) file = file + ".webp";
+        rememberCover(workId, image.optString("image_type"), image.optString("author_id"), file);
+    }
+
+    private void rememberCover(String workId, String type, String author, String file) {
+        if (workId == null || workId.isEmpty() || type == null || author == null || file == null) return;
+        synchronized (coverHint) {
+            coverHint.put(workId, new String[]{type, author, file});
+        }
+    }
+
+    private String[] takeCoverHint(String workId) {
+        synchronized (coverHint) {
+            return coverHint.get(workId);
+        }
+    }
+
+    private JSONObject takeWorkCache(String id) {
+        synchronized (workCache) {
+            Long at = workCacheAt.get(id);
+            JSONObject hit = workCache.get(id);
+            if (at == null || hit == null) return null;
+            if (System.currentTimeMillis() - at > 120000) {
+                workCache.remove(id);
+                workCacheAt.remove(id);
+                return null;
+            }
+            try {
+                return new JSONObject(hit.toString());
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+    }
+
+    private void putWorkCache(String id, JSONObject body) {
+        synchronized (workCache) {
+            try {
+                workCache.put(id, new JSONObject(body.toString()));
+                workCacheAt.put(id, System.currentTimeMillis());
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private HttpOutbound.Result takeCoverCache(String id) {
+        synchronized (coverCache) {
+            return coverCache.get(id);
+        }
+    }
+
+    private void putCoverCache(String id, HttpOutbound.Result result) {
+        if (result == null || result.status != 200 || result.body == null || result.body.length < 32) return;
+        synchronized (coverCache) {
+            coverCache.put(id, result);
+        }
+    }
+
+    private static JSONObject firstImage(JSONObject payload) {
+        if (payload == null) return null;
+        JSONArray images = payload.optJSONArray("images");
+        if (images == null && payload.optJSONObject("work") != null) {
+            images = payload.optJSONObject("work").optJSONArray("images");
+        }
+        return images != null && images.length() > 0 ? images.optJSONObject(0) : null;
+    }
+
+    private static boolean hasCdnParts(JSONObject image) {
+        return image != null
+            && !JsonUtil.str(image, "image_type").isEmpty()
+            && !JsonUtil.str(image, "author_id").isEmpty()
+            && !JsonUtil.str(image, "file_name").isEmpty();
     }
 
     private String cdnUrl(JSONObject image) {

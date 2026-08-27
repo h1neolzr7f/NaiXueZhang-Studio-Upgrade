@@ -140,7 +140,11 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("candidate_id", js)
         self.assertIn("manageBusy", js)
         self.assertIn("开始在线批量", js)
-        self.assertIn("DeepSeek 写角色", js)
+        self.assertIn("DeepSeek 拆开填好", js)
+        self.assertIn("classifyOcLocal", js)
+        self.assertIn("cover_jpeg", js)
+        self.assertIn("captureVisibleJpeg", js)
+        self.assertIn("favoriteSnapshot", js)
         self.assertIn("/api/mobile/char-describe", js)
         self.assertIn("不遥控电脑", js)
         self.assertIn("三步就会用", js)
@@ -264,6 +268,22 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("payloadHasPrompts", fav)
         self.assertIn("原图下不下都行", fav)
         self.assertIn("咒语已齐", fav)
+        self.assertIn("cover_jpeg", fav)
+        self.assertIn("startEnrich", fav)
+        self.assertIn("absorbSnapshot", fav)
+        gateway = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/AitagGateway.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("coverCache", gateway)
+        self.assertIn("workCache", gateway)
+        self.assertIn("rememberCover", gateway)
+        self.assertIn("synthesizeCover", gateway)
+        deepseek = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/DeepSeekClient.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("clothing", deepseek)
+        self.assertIn("oc_mode", deepseek)
+        self.assertIn("6000", deepseek)
         http = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/HttpOutbound.java").read_text(
             encoding="utf-8"
         )

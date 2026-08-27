@@ -31,9 +31,10 @@ final class FavoriteStore {
     synchronized JSONObject list() {
         JSONObject out = new JSONObject();
         try {
+            JSONArray index = readIndex();
             out.put("ok", true);
-            out.put("items", readIndex());
-            out.put("total", readIndex().length());
+            out.put("items", index);
+            out.put("total", index.length());
         } catch (Exception ignored) {}
         return out;
     }
@@ -141,38 +142,20 @@ final class FavoriteStore {
         File dir = new File(root, id);
         if (!dir.exists()) dir.mkdirs();
         writeText(new File(dir, "snapshot.json"), (snapshot == null ? new JSONObject() : snapshot).toString());
-        writeText(new File(dir, "work.json"), stubWork(id, row).toString());
-        JSONObject detail = null;
-        String fetchError = "";
-        try {
-            detail = aitag.work(id);
-        } catch (Exception error) {
-            fetchError = error.getMessage() == null ? "咒语还没抓到" : error.getMessage();
-        }
-        if (detail != null) {
-            writeText(new File(dir, "work.json"), detail.toString());
-            JSONObject work = detail.optJSONObject("work");
-            JSONArray images = detail.optJSONArray("images");
-            int count = images == null ? 0 : images.length();
-            boolean prompts = payloadHasPrompts(detail);
-            updateRow(id, work, count, prompts ? "ready" : "partial");
-            if (!prompts) mark(id, "partial", "这套还没有 NovelAI 咒语，换不了角");
-            out.put("ok", true);
-            out.put("favorited", true);
-            out.put("remix_ready", prompts);
-            out.put("save_state", prompts ? "ready" : "partial");
-            out.put("message", prompts
-                ? "已入库。咒语已齐，可以换角。原图下不下都行。"
-                : "已收藏，但这套没有 NovelAI 咒语，换不了角。");
-            return out;
-        }
-        startDownload(id);
+        JSONObject payload = absorbSnapshot(id, snapshot, row);
+        writeSnapshotImage(id, snapshot);
+        overlayLocalImages(payload, id);
+        boolean prompts = payloadHasPrompts(payload);
+        writeText(new File(dir, "work.json"), payload.toString());
+        updateRow(id, payload.optJSONObject("work"), Math.max(row.optInt("image_count", 0), imageCountOf(payload)), prompts ? "ready" : "pending");
+        startEnrich(id);
         out.put("ok", true);
         out.put("favorited", true);
-        out.put("remix_ready", false);
-        out.put("save_state", "pending");
-        out.put("message", "已加入本地库。正在抓咒语，抓到就能换角，不用等原图。"
-            + (fetchError.isEmpty() ? "" : (" " + fetchError)));
+        out.put("remix_ready", prompts);
+        out.put("save_state", prompts ? "ready" : "pending");
+        out.put("message", prompts
+            ? "已入库。咒语已齐，可以换角。原图下不下都行。"
+            : "已加入本地库。先收了封面和能拿到的咒语，原图后补。");
         return out;
     }
 
@@ -394,14 +377,88 @@ final class FavoriteStore {
         return data;
     }
 
-    private void startDownload(String workId) {
+    private void startEnrich(String workId) {
         new Thread(() -> {
             try {
-                download(workId);
+                enrich(workId);
             } catch (Exception error) {
-                mark(workId, "partial", error.getMessage());
+                if (!canRemix(workId)) mark(workId, "partial", error.getMessage());
             }
         }, "fav-" + workId).start();
+    }
+
+    private JSONObject absorbSnapshot(String id, JSONObject snapshot, JSONObject row) throws Exception {
+        JSONObject payload = stubWork(id, row);
+        if (snapshot == null) return payload;
+        JSONObject workIn = snapshot.optJSONObject("work");
+        if (workIn != null && workIn.length() > 0) {
+            payload.put("work", workIn);
+            if (payload.optJSONObject("work") != null) {
+                payload.getJSONObject("work").put("work_id", id);
+                payload.getJSONObject("work").put("id", id);
+            }
+        }
+        JSONArray images = snapshot.optJSONArray("images");
+        if (images == null && workIn != null) images = workIn.optJSONArray("images");
+        if (images != null && images.length() > 0) {
+            payload.put("images", images);
+            if (payload.optJSONObject("work") != null) payload.getJSONObject("work").put("images", images);
+        } else if (!JsonUtil.str(snapshot, "prompt_text").isEmpty() || snapshot.opt("ai_json") != null) {
+            JSONArray slot = payload.optJSONArray("images");
+            JSONObject image = slot != null && slot.length() > 0 ? slot.optJSONObject(0) : new JSONObject();
+            if (image == null) image = new JSONObject();
+            if (!JsonUtil.str(snapshot, "prompt_text").isEmpty()) image.put("prompt_text", snapshot.optString("prompt_text"));
+            if (snapshot.opt("ai_json") != null) image.put("ai_json", snapshot.opt("ai_json"));
+            JSONArray next = new JSONArray().put(image);
+            payload.put("images", next);
+            if (payload.optJSONObject("work") != null) payload.getJSONObject("work").put("images", next);
+        }
+        return payload;
+    }
+
+    private boolean writeSnapshotImage(String id, JSONObject snapshot) {
+        if (snapshot == null) return false;
+        String raw = JsonUtil.first(snapshot, "cover_jpeg", "image_jpeg", "cover_data_url");
+        if (raw.isEmpty()) return false;
+        int comma = raw.indexOf(',');
+        if (comma >= 0) raw = raw.substring(comma + 1);
+        try {
+            byte[] data = android.util.Base64.decode(raw, android.util.Base64.DEFAULT);
+            if (data == null || data.length < 32 || data.length > 2500000) return false;
+            writeBytes(new File(new File(root, id), "p0.jpg"), compress(data));
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static int imageCountOf(JSONObject payload) {
+        if (payload == null) return 0;
+        JSONArray images = payload.optJSONArray("images");
+        if (images == null && payload.optJSONObject("work") != null) {
+            images = payload.optJSONObject("work").optJSONArray("images");
+        }
+        return images == null ? 0 : images.length();
+    }
+
+    private JSONObject mergePayload(JSONObject existing, JSONObject incoming) {
+        if (incoming == null) return existing == null ? new JSONObject() : existing;
+        if (existing == null || !payloadHasPrompts(existing)) return incoming;
+        if (!payloadHasPrompts(incoming)) {
+            try {
+                JSONObject next = new JSONObject(existing.toString());
+                JSONArray more = incoming.optJSONArray("images");
+                JSONArray have = next.optJSONArray("images");
+                if (more != null && (have == null || more.length() > have.length())) {
+                    next.put("images", more);
+                    if (next.optJSONObject("work") != null) next.getJSONObject("work").put("images", more);
+                }
+                return next;
+            } catch (Exception ignored) {
+                return existing;
+            }
+        }
+        return incoming;
     }
 
     private JSONObject stubWork(String id, JSONObject row) throws Exception {
@@ -433,19 +490,29 @@ final class FavoriteStore {
         return row == null ? "pending" : row.optString("save_state", "pending");
     }
 
-    private void download(String workId) throws Exception {
+    private void enrich(String workId) throws Exception {
         JSONObject detail = aitag.work(workId);
-        JSONObject work = detail.optJSONObject("work");
-        JSONArray images = detail.optJSONArray("images");
-        if (images == null) images = new JSONArray();
         synchronized (this) {
             File dir = new File(root, workId);
             if (!dir.exists()) dir.mkdirs();
-            writeText(new File(dir, "work.json"), detail.toString());
-            boolean prompts = payloadHasPrompts(detail);
-            updateRow(workId, work, images.length(), prompts ? "ready" : "partial");
+            JSONObject existing = workPayload(workId);
+            JSONObject merged = mergePayload(existing, detail);
+            writeText(new File(dir, "work.json"), merged.toString());
+            boolean prompts = payloadHasPrompts(merged);
+            JSONArray images = merged.optJSONArray("images");
+            updateRow(workId, merged.optJSONObject("work"), images == null ? 0 : images.length(), prompts ? "ready" : "partial");
             if (!prompts) mark(workId, "partial", "这套还没有 NovelAI 咒语，换不了角");
         }
+        if (imageFile(workId, 0) != null) return;
+        try {
+            JSONObject payload = workPayload(workId);
+            JSONArray images = payload == null ? null : payload.optJSONArray("images");
+            JSONObject first = images != null && images.length() > 0 ? images.optJSONObject(0) : null;
+            HttpOutbound.Result img = fetchImage(first, workId);
+            if (img != null && img.body != null && img.body.length > 32) {
+                writeBytes(new File(new File(root, workId), "p0.jpg"), compress(img.body));
+            }
+        } catch (Exception ignored) {}
     }
 
     private HttpOutbound.Result fetchImage(JSONObject image, String workId) throws Exception {
