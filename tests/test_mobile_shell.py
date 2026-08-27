@@ -27,6 +27,7 @@ class MobileShellTests(unittest.TestCase):
         self.assertIn('data-mobile="1"', html)
         self.assertIn("/assets/m/m.css?v=", html)
         self.assertIn("/assets/m/m.js?v=", html)
+        self.assertIn("/assets/m/standalone-core.js?v=", html)
         self.assertIn("/assets/shared/api-client.js?v=", html)
         self.assertNotIn("site-nav.js", html)
         self.assertNotIn("companion-dock", html)
@@ -34,11 +35,13 @@ class MobileShellTests(unittest.TestCase):
         self.assertIn("换角", html)
         self.assertIn("批量", html)
         self.assertIn("流水线", html)
+        self.assertIn("1.5.2", html)
         self.assertIn("m-sky", html)
         self.assertIn("m-tab-ico", html)
         css = (WEB / "m" / "m.css").read_text(encoding="utf-8")
         self.assertIn("--sakura", css)
         self.assertIn("#1a1230", css)
+        self.assertIn(".m-progress-bar", css)
 
     def test_mobile_js_uses_api_client_and_keeps_paid_gates(self) -> None:
         js = (WEB / "m" / "m.js").read_text(encoding="utf-8")

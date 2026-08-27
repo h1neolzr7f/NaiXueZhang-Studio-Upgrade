@@ -1,0 +1,32 @@
+Nai学长工作室 · 安卓独立版 1.5.2-phone.16（debug）
+
+安装包：NaiXueZhang-Phone-1.5.2.apk
+包名：com.naixuezhang.studio.mobile
+SHA256：2a8c1adbe6b4b8c60bf711c6344779f68c76e33c638cd877c8bb6a3cbdcdc8ca
+
+安装包约 51MB。已打进电脑同款全量 D 站角色包，以及理塘百宝箱同款打码模型 censor.onnx + ONNX Runtime（arm64）。
+这是 debug 签名包，只要 64 位 Android。不是官方 Windows 一键 zip。
+装完只填 NovelAI Token 和 DeepSeek Key，不连电脑，不遥控电脑。
+Token 每行一个，几个就能并发几路。
+
+用法：发现里搜图并点☆收藏。点☆会立刻收屏幕上的图和咒语，不用等原图。
+收藏后走本机：本地库、图库、排队、换角断网也能看，不联网的功能不受断网影响。
+整段 OC 可直接贴进「DeepSeek 拆开填好」；已是标签就立刻填栏。
+作品页会先识别原图画风。D 站 / 方舟 / 写 OC 都能换。自定义就是 OC 整段咒语，支持 {{权重}}。
+换角方式都摊开：本页换角、按槽位换、全部页换、整系列换角并入队、加入队列。也可写服饰/额外/移除。
+多女角：每个槽选不同人。只换画风也可以点「整系列换画风」。
+队列有进度条、当前阶段和预计还要多久。顺序是出图 → 入库 → 超分 → 打码。失败可手动重试或删除，不会自动重试。
+图库可开关超分 2/3/4x、清元数据。打码默认关，可选不打码，或像素/模糊/线条/纯色/黑条/表情。
+部位、灵敏度、强度、外扩按理塘/ANR 对齐：欧金金 / 欧芒果 / 欧派派 / 欧西利。也可进某一组再点「对这组打码」。
+在线库不通时，先开「内置样例」。Clash 填 HTTP（例如 http://127.0.0.1:7890），不要只开全局 VPN。
+
+手机浏览器直接下载：
+https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/raw/cursor/android-phone-standalone-9162/android/download/NaiXueZhang-Phone-1.5.2.apk
+
+公开源码仓库（安卓独立版）：
+https://github.com/h1neolzr7f/NaiXueZhang-Phone
+
+装法：
+1. 先卸载旧的「Nai学长工作室」，再用手机浏览器打开上面的链接，等 APK 下完。
+2. 打开下载文件。若系统拦截，到设置里允许「安装未知应用」。
+3. 打开应用，点设置填两把钥匙；发现里先点「内置样例」或先收藏再换角。

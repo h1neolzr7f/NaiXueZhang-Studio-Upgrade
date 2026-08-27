@@ -325,6 +325,49 @@
     return next;
   }
 
+  function isOcCaption(record) {
+    const caption = String((record && record.char_caption) || "").trim();
+    if (!caption) return false;
+    if (record.oc_mode === true || record.oc_mode === 1 || record.oc_mode === "1") return true;
+    return String(record.kind || "").toLowerCase() === "oc";
+  }
+
+  function applyLayersToCaption(caption, layers) {
+    const pack = layers || {};
+    const remove = uniqueTags(splitPromptTags(pack.remove || pack.remove_tags || ""));
+    let text = String(caption || "").trim();
+    if (remove.length) {
+      const removeKeys = Object.create(null);
+      remove.forEach((tag) => { removeKeys[tagKey(tag)] = 1; });
+      text = splitPromptTags(text).filter((tag) => !removeKeys[tagKey(tag)]).join(", ");
+    }
+    const add = uniqueTags(splitPromptTags([pack.clothing, pack.extra, pack.extra_tags].filter(Boolean).join(", ")));
+    if (!add.length) return text;
+    const have = Object.create(null);
+    splitPromptTags(text).forEach((tag) => { have[tagKey(tag)] = 1; });
+    const extra = add.filter((tag) => !have[tagKey(tag)]);
+    return extra.length ? (text ? text + ", " + extra.join(", ") : extra.join(", ")) : text;
+  }
+
+  function applyAdhocLayers(comment, slots, opts) {
+    const layers = {
+      clothing: opts && opts.clothing,
+      extra: opts && (opts.extra || opts.extra_tags),
+      remove: opts && (opts.remove || opts.remove_tags),
+    };
+    if (!String(layers.clothing || "").trim() && !String(layers.extra || "").trim() && !String(layers.remove || "").trim()) {
+      return comment;
+    }
+    const cap = comment && comment.v4_prompt && comment.v4_prompt.caption;
+    if (!cap || !Array.isArray(cap.char_captions)) return comment;
+    (slots || []).forEach((slot) => {
+      const item = cap.char_captions[slot];
+      if (!item || typeof item !== "object") return;
+      item.char_caption = applyLayersToCaption(item.char_caption, layers);
+    });
+    return comment;
+  }
+
   function applyCharacterToComment(comment, record, slotIndex, model, sourceCaption) {
     if (slotIndex < 0 || slotIndex > 5) throw new Error("角色槽必须在 0 到 5 之间");
     const card = adaptCharacter(record, model || (comment && comment.model) || "");
@@ -336,10 +379,24 @@
     const currentCaption = String(sourceCaption || previous.char_caption || "").trim();
     const source = analyzeSlotCaption(currentCaption);
     const ocCaption = String((record && record.char_caption) || "").trim();
-    const inject = ocCaption
-      ? uniqueTags([].concat(card.character_tags || [], splitPromptTags(ocCaption)))
-      : (card.character_tags || []);
-    const captionText = uniqueTags(inject.concat(source.action_tags || [])).join(", ");
+    let captionText = "";
+    if (isOcCaption(record) && ocCaption) {
+      const actions = (source.action_tags || []).filter((tag) => {
+        const key = tagKey(tag);
+        return key && ocCaption.toLowerCase().replace(/_/g, " ").indexOf(key) < 0;
+      });
+      captionText = ocCaption + (actions.length ? ", " + actions.join(", ") : "");
+    } else {
+      const inject = ocCaption
+        ? uniqueTags([].concat(card.character_tags || [], splitPromptTags(ocCaption)))
+        : (card.character_tags || []);
+      captionText = uniqueTags(inject.concat(source.action_tags || [])).join(", ");
+    }
+    captionText = applyLayersToCaption(captionText, {
+      clothing: record && record.clothing,
+      extra: record && (record.extra || record.extra_tags),
+      remove: record && (record.remove || record.remove_tags),
+    });
     if (!captionText) throw new Error("目标角色没有可用标签");
     cap.char_captions[slotIndex] = {
       char_caption: captionText,
@@ -459,7 +516,13 @@
       character: String(raw.label || raw.name || raw.id || ""),
       gender: gender,
       kind: String(raw.kind || (String(referenceId || "").indexOf("custom:") === 0 ? "oc" : "")),
+      oc_mode: !!(raw.oc_mode || (String(raw.kind || "").toLowerCase() === "oc" && caption)),
       char_caption: caption,
+      clothing: String(raw.clothing || "").trim(),
+      extra: String(raw.extra || raw.extra_tags || "").trim(),
+      extra_tags: String(raw.extra || raw.extra_tags || "").trim(),
+      remove: String(raw.remove || raw.remove_tags || "").trim(),
+      remove_tags: String(raw.remove || raw.remove_tags || "").trim(),
       trigger: trigger,
       identity: identity,
       appearance: appearance,
@@ -469,6 +532,50 @@
       source: String(raw.source || "phone-local"),
       source_id: String(raw.id || ""),
     };
+  }
+
+  function countGenderSlots(candidates, imageIndex, gender) {
+    const scope = String(gender || "female").toLowerCase();
+    return (candidates || []).filter((item) => (
+      Number(item.image_index) === Number(imageIndex)
+      && candidateGender(item.caption, item.role) === scope
+    )).length;
+  }
+
+  function genderSlotIndexOf(candidates, slot) {
+    if (!slot) return -1;
+    const scope = candidateGender(slot.caption, slot.role);
+    if (scope !== "female" && scope !== "male") return -1;
+    const page = (candidates || []).filter((item) => (
+      Number(item.image_index) === Number(slot.image_index)
+      && candidateGender(item.caption, item.role) === scope
+    ));
+    return page.findIndex((item) => String(item.candidate_id) === String(slot.candidate_id));
+  }
+
+  function resolveAssignments(candidates, imageIndex, opts) {
+    const raw = opts && Array.isArray(opts.slot_targets) ? opts.slot_targets : [];
+    if (!raw.length) return [];
+    const page = (candidates || []).filter((item) => Number(item.image_index) === Number(imageIndex));
+    const out = [];
+    raw.forEach((item) => {
+      if (!item || !item.target_record) return;
+      let slotIndex = item.slot_index;
+      if (item.gender_slot_index !== undefined && item.gender_slot_index !== null && String(item.gender_slot_index) !== "") {
+        const gender = String(item.gender || item.role || "female").toLowerCase();
+        const gendered = page.filter((row) => candidateGender(row.caption, row.role) === gender);
+        const hit = gendered[Number(item.gender_slot_index)];
+        if (!hit) return;
+        slotIndex = hit.slot_index;
+      }
+      if (slotIndex === undefined || slotIndex === null || String(slotIndex) === "") return;
+      out.push({
+        slot: Math.max(0, Math.min(5, Number(slotIndex))),
+        record: item.target_record,
+        ref: item.target_reference_id || "",
+      });
+    });
+    return out;
   }
 
   function resolveSlots(candidates, imageIndex, slotIndex, genderScope, candidateId) {
@@ -529,39 +636,57 @@
     const candidates = Array.isArray(workPayload.character_candidates)
       ? workPayload.character_candidates
       : discoverCandidates(workPayload);
-    const slots = resolveSlots(
-      candidates,
-      imageIndex,
-      Object.prototype.hasOwnProperty.call(opts, "slot_index") ? opts.slot_index : undefined,
-      opts.gender_scope,
-      opts.candidate_id
-    );
-    const primary = slots[0];
+    const assignments = resolveAssignments(candidates, imageIndex, opts);
+    const slots = assignments.length
+      ? assignments.map((item) => item.slot)
+      : resolveSlots(
+        candidates,
+        imageIndex,
+        Object.prototype.hasOwnProperty.call(opts, "slot_index") ? opts.slot_index : undefined,
+        opts.gender_scope,
+        opts.candidate_id
+      );
+    const primary = slots.length ? slots[0] : 0;
     const source = candidates.find((item) => Number(item.image_index) === imageIndex && Number(item.slot_index) === primary) || null;
     const comment = JSON.parse(JSON.stringify(baseCommentFromImage(image, source)));
     let card = null;
-    const target = opts.target_record || null;
-    if (target) {
+    const applyOne = (record, slot) => {
+      const sourceSlot = candidates.find((item) => Number(item.image_index) === imageIndex && Number(item.slot_index) === slot);
+      const adapted = sourceSlot ? adaptCharacter(targetRecord({
+        identity: sourceSlot.identity_tags,
+        appearance: sourceSlot.appearance_tags,
+        label: sourceSlot.label,
+        gender: sourceSlot.role,
+      })) : {};
+      const applied = applyCharacterToComment(
+        comment,
+        record,
+        slot,
+        opts.model || image.model || "",
+        sourceSlot && sourceSlot.caption
+      );
+      Object.assign(comment, applied.comment);
+      card = applied.card;
+      return String(adapted.base_subject_tag || "");
+    };
+    if (assignments.length) {
+      const preserved = String((comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.base_caption) || comment.prompt || "");
+      const sourceSubjects = [];
+      assignments.forEach((item) => {
+        sourceSubjects.push(applyOne(item.record, item.slot));
+      });
+      let finalBase = preserved;
+      sourceSubjects.forEach((subject) => {
+        finalBase = replaceBaseSubject(finalBase, subject, (card && card.base_subject_tag) || "");
+      });
+      comment.prompt = finalBase;
+      if (comment.v4_prompt && comment.v4_prompt.caption) comment.v4_prompt.caption.base_caption = finalBase;
+    } else if (opts.target_record) {
+      const target = opts.target_record;
       const preserved = String((comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.base_caption) || comment.prompt || "");
       const sourceSubjects = [];
       slots.forEach((slot) => {
-        const sourceSlot = candidates.find((item) => Number(item.image_index) === imageIndex && Number(item.slot_index) === slot);
-        const adapted = sourceSlot ? adaptCharacter(targetRecord({
-          identity: sourceSlot.identity_tags,
-          appearance: sourceSlot.appearance_tags,
-          label: sourceSlot.label,
-          gender: sourceSlot.role,
-        })) : {};
-        sourceSubjects.push(String(adapted.base_subject_tag || ""));
-        const applied = applyCharacterToComment(
-          comment,
-          target,
-          slot,
-          opts.model || image.model || "",
-          sourceSlot && sourceSlot.caption
-        );
-        Object.assign(comment, applied.comment);
-        card = applied.card;
+        sourceSubjects.push(applyOne(target, slot));
       });
       let finalBase = preserved;
       sourceSubjects.forEach((subject) => {
@@ -570,6 +695,8 @@
       comment.prompt = finalBase;
       if (comment.v4_prompt && comment.v4_prompt.caption) comment.v4_prompt.caption.base_caption = finalBase;
     }
+    if (opts.style_record) applyStyleToComment(comment, opts.style_record);
+    applyAdhocLayers(comment, slots, opts);
     const workId = String(work.work_id || work.id || "");
     const draft = {
       galleryId: "aitag-online",
@@ -599,7 +726,12 @@
         thumb: image.thumbnail_url || image.url || "",
       },
     };
-    if (opts.target_reference_id) {
+    if (assignments.length) {
+      draft.reference = {
+        slotIndexes: slots,
+        replacements: assignments.map((item) => ({ slotIndex: item.slot, referenceId: item.ref })),
+      };
+    } else if (opts.target_reference_id) {
       draft.reference = { referenceId: opts.target_reference_id, slotIndex: primary };
       if (slots.length > 1) draft.reference.slotIndexes = slots;
     }
@@ -620,15 +752,32 @@
     const opts = Object.assign({}, options || {});
     delete opts.candidate_id;
     const images = (workPayload && workPayload.images) || [];
-    const pages = images.map((_, index) => compileDraft(workPayload, Object.assign({}, opts, {
-      image_index: index,
-    })));
+    const pages = [];
+    const skipped = [];
+    images.forEach((_, index) => {
+      try {
+        pages.push(compileDraft(workPayload, Object.assign({}, opts, {
+          image_index: index,
+        })));
+      } catch (error) {
+        skipped.push({
+          image_index: index,
+          error: String((error && error.message) || error || "这一页不能换"),
+        });
+      }
+    });
+    if (!pages.length) {
+      throw new Error((skipped[0] && skipped[0].error) || "没有可换的页");
+    }
     return {
       ok: true,
       draft: pages[0] && pages[0].draft,
       pages: pages,
+      skipped: skipped,
       generation_calls: 0,
-      message: "已为 " + pages.length + " 页写好零费用草稿",
+      message: skipped.length
+        ? ("已为 " + pages.length + " 页写好零费用草稿，跳过 " + skipped.length + " 页")
+        : ("已为 " + pages.length + " 页写好零费用草稿"),
     };
   }
 
@@ -649,6 +798,122 @@
       base_caption: String(cap.base_caption || (comment && comment.prompt) || "").slice(0, 2000),
       char_captions: characters,
     };
+  }
+
+  const STYLE_HINT_RE = /(style|artstyle|official art|official_art|watercolor|sketch|lineart|cel shading|cel_shading|flat color|flat_color|pixel art|pixel_art|chibi|manga|game cg|visual novel|oil painting|cinematic|painterly|monochrome|pastel|neon|impasto|gouache|1990s|2000s|light novel|manhwa|realistic|anime coloring)/i;
+
+  const STYLE_LABELS = {
+    "official art": "官方画风",
+    "anime style": "动画风",
+    "manga style": "漫画风",
+    manga: "漫画风",
+    "game cg": "游戏 CG",
+    "visual novel": "视觉小说 CG",
+    "visual novel cg": "视觉小说 CG",
+    watercolor: "水彩",
+    "oil painting": "油画",
+    sketch: "线稿素描",
+    lineart: "干净线稿",
+    "cel shading": "赛璐璐",
+    "flat color": "平涂",
+    "pixel art": "像素",
+    chibi: "Q 版",
+    "retro artstyle": "复古画风",
+    "1990s": "90 年代动画",
+    "1990s (style)": "90 年代动画",
+    "2000s": "2000 年代动画",
+    "2000s (style)": "2000 年代动画",
+    "light novel": "轻小说插画",
+    manhwa: "条漫",
+    cinematic: "电影光影",
+    "cinematic lighting": "电影光影",
+    painterly: "厚涂",
+    realistic: "偏写实",
+    monochrome: "单色",
+    pastel: "粉彩",
+    "pastel colors": "粉彩",
+    neon: "霓虹",
+    "neon lights": "霓虹",
+    impasto: "厚颜料",
+    gouache: "水粉",
+    "gouache (medium)": "水粉",
+    "anime coloring": "赛璐璐上色",
+  };
+
+  function styleTokenLabel(token, catalog) {
+    const key = tagKey(token);
+    if (STYLE_LABELS[key]) return STYLE_LABELS[key];
+    if (Array.isArray(catalog)) {
+      const hit = catalog.find((item) => item && tagKey(item.tag || item.replace || item.style || "") === key);
+      if (hit) return String(hit.label || hit.name || token);
+    }
+    return String(token || key);
+  }
+
+  function collectStyleText(source) {
+    if (!source) return "";
+    if (typeof source === "string") return source;
+    if (source.prompt_text || source.ai_json || source.aiJson || source.metadata) {
+      try {
+        return collectStyleText(imageComment(source));
+      } catch (_) {
+        return String(source.prompt_text || "");
+      }
+    }
+    const prompt = String(source.prompt || "");
+    const base = source.v4_prompt && source.v4_prompt.caption
+      ? String(source.v4_prompt.caption.base_caption || "")
+      : "";
+    const tags = Array.isArray(source.tags) ? source.tags.join(", ") : "";
+    return [prompt, base, tags].filter(Boolean).join(", ");
+  }
+
+  function recognizeStyles(source, catalog) {
+    const extra = Array.isArray(catalog) ? catalog : [];
+    const tokens = uniqueTags(splitPromptTags(collectStyleText(source)).filter((token) => {
+      if (STYLE_HINT_RE.test(token) || STYLE_HINT_RE.test(tagKey(token))) return true;
+      return extra.some((item) => item && tagKey(item.tag || item.replace || item.style || "") === tagKey(token));
+    }));
+    const labels = tokens.map((token) => styleTokenLabel(token, extra));
+    return {
+      tokens: tokens,
+      labels: labels,
+      text: tokens.join(" / "),
+      label_text: labels.join(" / "),
+    };
+  }
+
+  function recognizeWorkStyles(workPayload, catalog) {
+    const work = (workPayload && (workPayload.work || workPayload)) || {};
+    const images = (workPayload && workPayload.images) || work.images || [];
+    const pages = images.map((image, index) => Object.assign({ image_index: index }, recognizeStyles(image, catalog)));
+    const fromTags = recognizeStyles({ tags: work.tags || [] }, catalog);
+    const tokens = uniqueTags(pages.reduce((acc, page) => acc.concat(page.tokens || []), fromTags.tokens || []));
+    const labels = tokens.map((token) => styleTokenLabel(token, catalog));
+    return {
+      tokens: tokens,
+      labels: labels,
+      text: tokens.join(" / "),
+      label_text: labels.join(" / "),
+      pages: pages,
+    };
+  }
+
+  function applyStyleToComment(comment, styleRecord) {
+    if (!comment || !styleRecord) return comment;
+    const incoming = uniqueTags(splitPromptTags(String(styleRecord.tag || styleRecord.replace || styleRecord.style || "")));
+    if (!incoming.length) return comment;
+    const current = String((comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.base_caption) || comment.prompt || "");
+    const kept = splitPromptTags(current).filter((token) => !STYLE_HINT_RE.test(tagKey(token)));
+    const next = uniqueTags(kept.concat(incoming)).join(", ");
+    comment.prompt = next;
+    if (comment.v4_prompt && comment.v4_prompt.caption) comment.v4_prompt.caption.base_caption = next;
+    comment._style = {
+      id: String(styleRecord.id || ""),
+      label: String(styleRecord.label || styleRecord.name || incoming[0] || ""),
+      tag: incoming.join(", "),
+    };
+    return comment;
   }
 
   function inferModel(source, explicit) {
@@ -776,19 +1041,89 @@
     };
   }
 
+  function applyOptimizeTexts(comment, texts) {
+    const patched = JSON.parse(JSON.stringify(comment || {}));
+    const incoming = texts || {};
+    const prompt = String(incoming.prompt || patched.prompt || "");
+    const uc = incoming.uc != null ? String(incoming.uc) : String(patched.uc || "");
+    const base = String(incoming.base_caption || prompt || "");
+    const nextCaps = Array.isArray(incoming.char_captions) ? incoming.char_captions : null;
+    if (nextCaps && nextCaps.length) {
+      const v4 = patched.v4_prompt && typeof patched.v4_prompt === "object" ? patched.v4_prompt : {};
+      const cap = v4.caption && typeof v4.caption === "object" ? v4.caption : {};
+      const existing = Array.isArray(cap.char_captions) ? cap.char_captions : [];
+      cap.char_captions = nextCaps.map((raw, index) => {
+        const text = raw && typeof raw === "object"
+          ? String(raw.char_caption || raw.caption || "")
+          : String(raw || "");
+        const old = existing[index] || {};
+        const centers = old.centers && old.centers.length ? old.centers : [{ x: 0.5, y: 0.5 }];
+        return { char_caption: text, centers: centers };
+      });
+      cap.base_caption = base;
+      v4.caption = cap;
+      patched.v4_prompt = v4;
+      patched.prompt = base || prompt;
+    } else {
+      patched.prompt = prompt || base;
+      if (patched.v4_prompt && patched.v4_prompt.caption && base) {
+        patched.v4_prompt.caption.base_caption = base;
+      }
+    }
+    patched.uc = uc;
+    return patched;
+  }
+
+  function applyDraftEdits(comment, edits) {
+    const patched = JSON.parse(JSON.stringify(comment || {}));
+    const incoming = edits || {};
+    if (incoming.prompt != null) {
+      patched.prompt = String(incoming.prompt);
+      if (!patched.v4_prompt || typeof patched.v4_prompt !== "object") patched.v4_prompt = {};
+      if (!patched.v4_prompt.caption || typeof patched.v4_prompt.caption !== "object") patched.v4_prompt.caption = {};
+      patched.v4_prompt.caption.base_caption = patched.prompt;
+    }
+    if (incoming.uc != null) {
+      patched.uc = String(incoming.uc);
+      patched.negative_prompt = patched.uc;
+      if (!patched.v4_negative_prompt || typeof patched.v4_negative_prompt !== "object") patched.v4_negative_prompt = {};
+      if (!patched.v4_negative_prompt.caption || typeof patched.v4_negative_prompt.caption !== "object") patched.v4_negative_prompt.caption = {};
+      patched.v4_negative_prompt.caption.base_caption = patched.uc;
+    }
+    if (incoming.seed != null && String(incoming.seed).trim() !== "") {
+      const seedValue = Number(incoming.seed);
+      if (seedValue === -1 || seedValue >= 0) patched.seed = seedValue;
+    }
+    if (incoming.steps != null && String(incoming.steps).trim() !== "") {
+      patched.steps = Math.max(1, Math.min(28, Number(incoming.steps) || 28));
+    }
+    return patched;
+  }
+
   const api = {
     effectiveComment: effectiveComment,
     splitPromptTags: splitPromptTags,
     adaptCharacter: adaptCharacter,
     applyCharacterToComment: applyCharacterToComment,
+    isOcCaption: isOcCaption,
+    applyLayersToCaption: applyLayersToCaption,
     analyzeSlotCaption: analyzeSlotCaption,
     discoverCandidates: discoverCandidates,
+    imageComment: imageComment,
     decorateWork: decorateWork,
     targetRecord: targetRecord,
     compileDraft: compileDraft,
     compileDrafts: compileDrafts,
+    countGenderSlots: countGenderSlots,
+    genderSlotIndexOf: genderSlotIndexOf,
+    resolveAssignments: resolveAssignments,
     buildGeneratePayload: buildGeneratePayload,
     naiRequestBody: naiRequestBody,
+    applyOptimizeTexts: applyOptimizeTexts,
+    applyDraftEdits: applyDraftEdits,
+    applyStyleToComment: applyStyleToComment,
+    recognizeStyles: recognizeStyles,
+    recognizeWorkStyles: recognizeWorkStyles,
     fitOpusFreeSize: fitOpusFreeSize,
     promptSnapshot: promptSnapshot,
   };

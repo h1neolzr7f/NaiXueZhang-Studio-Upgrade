@@ -9,8 +9,11 @@ android {
         applicationId = "com.naixuezhang.studio.mobile"
         minSdk = 24
         targetSdk = 34
-        versionCode = 152
-        versionName = "1.5.2-phone"
+        versionCode = 167
+        versionName = "1.5.2-phone.16"
+        ndk {
+            abiFilters "arm64-v8a"
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -21,9 +24,16 @@ android {
             minifyEnabled = false
         }
     }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
+    implementation "androidx.webkit:webkit:1.11.0"
+    implementation "com.microsoft.onnxruntime:onnxruntime-android:1.20.0"
 }
 
 def repoRoot = rootProject.projectDir.parentFile
@@ -46,7 +56,20 @@ tasks.register("syncPhoneAssets") {
         }
         copy {
             from(new File(repoRoot, "data"))
-            include("char_presets.json", "ark_char_library.json", "ark_cn_aliases.json")
+            include(
+                "char_presets.json",
+                "ark_char_library.json",
+                "ark_cn_aliases.json",
+                "char_tag_index.json",
+                "char_tag_groups.json",
+                "phone_char_index.txt",
+                "phone_copyright_index.txt",
+                "phone_series_aliases.json",
+                "phone_style_index.json",
+                "danbooru_style_tags.json",
+                "danbooru_creature.json",
+                "tag_dict.json"
+            )
             into(dataDir)
         }
         def html = new File(repoRoot, "web/m/index.html").getText("UTF-8")

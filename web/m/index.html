@@ -2,12 +2,12 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
   <meta name="theme-color" content="#1a1230" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Nai学长工作室 · 手机版</title>
-  <link rel="stylesheet" href="/assets/m/m.css?v=47ce112029" />
+  <link rel="stylesheet" href="/assets/m/m.css?v=fd22169a1d" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
 </head>
 <body data-mobile="1">
@@ -18,6 +18,8 @@
     <i class="m-star s3"></i>
     <i class="m-star s4"></i>
     <i class="m-star s5"></i>
+    <i class="m-star s6"></i>
+    <i class="m-star s7"></i>
     <i class="m-petal p1"></i>
     <i class="m-petal p2"></i>
     <i class="m-petal p3"></i>
@@ -28,7 +30,7 @@
       <span class="m-mark" aria-hidden="true"></span>
       <div>
         <strong>Nai学长工作室</strong>
-        <em>升级版 · 手机本地</em>
+        <em>1.5.2 · 手机独立</em>
         <span id="mConn" class="m-pill">检查中</span>
       </div>
     </div>
@@ -64,7 +66,17 @@
       </div>
     </div>
   </div>
+  <div id="mPicker" class="m-sheet hidden" aria-hidden="true">
+    <div class="m-sheet-card">
+      <div class="m-sheet-head">
+        <h3>换成谁</h3>
+        <button type="button" id="mPickerClose" class="m-ghost">关闭</button>
+      </div>
+      <div id="mPickerBody"></div>
+    </div>
+  </div>
+  <script src="/assets/m/standalone-core.js?v=4d990c36a4"></script>
   <script src="/assets/shared/api-client.js?v=afd161a5c9"></script>
-  <script src="/assets/m/m.js?v=f29fcf7699"></script>
+  <script src="/assets/m/m.js?v=2d527b5103"></script>
 </body>
 </html>

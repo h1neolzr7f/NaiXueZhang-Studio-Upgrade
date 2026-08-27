@@ -12,6 +12,7 @@
 *.ps1 text eol=crlf
 
 *.db binary
+*.apk binary
 *.png binary
 *.webp binary
 *.ico binary
