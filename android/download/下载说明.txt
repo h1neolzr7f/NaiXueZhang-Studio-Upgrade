@@ -23,6 +23,9 @@ Token 每行一个，几个就能并发几路。
 手机浏览器直接下载：
 https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/raw/cursor/android-phone-standalone-9162/android/download/NaiXueZhang-Phone-1.5.2.apk
 
+公开源码仓库（安卓独立版）：
+https://github.com/h1neolzr7f/NaiXueZhang-Phone
+
 装法：
 1. 先卸载旧的「Nai学长工作室」，再用手机浏览器打开上面的链接，等 APK 下完。
 2. 打开下载文件。若系统拦截，到设置里允许「安装未知应用」。
