@@ -2,7 +2,7 @@ Nai学长工作室 · 安卓独立版 1.5.2-phone.8（debug）
 
 安装包：NaiXueZhang-Phone-1.5.2.apk
 包名：com.naixuezhang.studio.mobile
-SHA256：pending
+SHA256：4f13a39ed4d046361c376bf49957ce068e7e25cf95508385f8f7cafc41068885
 
 安装包约 7.6MB（已打进电脑同款全量 D 站角色包）。
 这是 debug 签名包，不是官方 Windows 一键 zip。
