@@ -162,6 +162,73 @@ assert.ok(ocSlot.includes("standing"));
 assert.ok(!ocSlot.includes("faceless boy"));
 assert.strictEqual(ocDraft.draft.comment.v4_prompt.caption.char_captions[1].char_caption, "woman, tall, big breasts, plump");
 
+const weightedOc = core.targetRecord({
+  id: "banana",
+  label: "香蕉姐",
+  gender: "female",
+  kind: "oc",
+  oc_mode: true,
+  identity: ["should_not_inject_identity"],
+  appearance: ["should_not_inject_appearance"],
+  char_caption: "1girl, banana_onee_(oc), {{1.2::horns}}, long hair",
+  clothing: "china dress",
+  extra: "earrings",
+  remove: "long hair",
+}, "custom:female:banana");
+const weightedWork = core.decorateWork({
+  work: { work_id: "oc-weight", title: "整段OC" },
+  images: [{
+    image_id: "p0",
+    ai_json: {
+      Comment: {
+        v4_prompt: {
+          caption: {
+            base_caption: "1girl, indoors",
+            char_captions: [
+              { char_caption: "1girl, brown hair, standing", centers: [{ x: 0.5, y: 0.5 }] },
+            ],
+          },
+        },
+      },
+    },
+  }],
+});
+const weightedDraft = core.compileDraft(weightedWork, {
+  image_index: 0,
+  candidate_id: weightedWork.character_candidates[0].candidate_id,
+  target_record: weightedOc,
+  target_reference_id: "custom:female:banana",
+});
+const weightedSlot = weightedDraft.draft.comment.v4_prompt.caption.char_captions[0].char_caption;
+assert.ok(weightedSlot.includes("{{1.2::horns}}"));
+assert.ok(weightedSlot.includes("banana_onee_(oc)"));
+assert.ok(weightedSlot.includes("standing"));
+assert.ok(weightedSlot.includes("china dress"));
+assert.ok(weightedSlot.includes("earrings"));
+assert.ok(!weightedSlot.includes("should_not_inject"));
+assert.ok(!weightedSlot.includes("long hair"));
+assert.ok(core.isOcCaption(weightedOc));
+
+const adhocWork = core.compileDraft(weightedWork, {
+  image_index: 0,
+  candidate_id: weightedWork.character_candidates[0].candidate_id,
+  target_record: core.targetRecord({
+    id: "amiya",
+    label: "阿米娅",
+    gender: "female",
+    identity: ["amiya_(arknights)"],
+    appearance: ["brown hair"],
+  }, "ark:female:amiya"),
+  extra_tags: "halo",
+  clothing: "jacket",
+  remove_tags: "brown hair",
+});
+const adhocSlot = adhocWork.draft.comment.v4_prompt.caption.char_captions[0].char_caption;
+assert.ok(adhocSlot.includes("amiya_(arknights)"));
+assert.ok(adhocSlot.includes("halo"));
+assert.ok(adhocSlot.includes("jacket"));
+assert.ok(!adhocSlot.includes("brown hair"));
+
 const fat = core.decorateWork({
   work: { work_id: "fat", title: "整段提示词" },
   images: [{

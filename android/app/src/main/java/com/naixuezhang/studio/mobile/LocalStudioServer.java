@@ -301,7 +301,7 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             return json(200, library.listPresets(request.query("gender")).toString());
         }
         if ("GET".equals(request.method) && "/api/plugin/char-swap/search".equals(path)) {
-            return json(200, library.searchAll(request.query("gender"), request.query("q"), parseInt(request.query("limit"), 32)).toString());
+            return json(200, library.searchAll(request.query("gender"), request.query("q"), parseInt(request.query("limit"), 32), request.query("source")).toString());
         }
         if ("GET".equals(request.method) && "/api/plugin/char-swap/ark-library".equals(path)) {
             return json(200, library.searchArk(request.query("gender"), request.query("q"), parseInt(request.query("limit"), 20)).toString());

@@ -38,7 +38,7 @@ final class CustomCharStore {
     synchronized JSONObject add(JSONObject raw) throws Exception {
         String label = JsonUtil.str(raw, "label");
         if (label.isEmpty()) label = JsonUtil.str(raw, "name");
-        if (label.isEmpty()) throw new IllegalArgumentException("自定义角色要有名字");
+        if (label.isEmpty()) throw new IllegalArgumentException("OC 要有名字");
         String gender = normalizeGender(JsonUtil.str(raw, "gender"));
         if (gender.isEmpty()) gender = "female";
         JSONObject item = new JSONObject();
@@ -49,12 +49,19 @@ final class CustomCharStore {
         item.put("name", label);
         item.put("gender", gender);
         item.put("kind", "oc");
+        item.put("oc_mode", raw.optBoolean("oc_mode", !JsonUtil.str(raw, "char_caption").isEmpty()));
         item.put("source", "phone-custom");
         item.put("tag", JsonUtil.first(raw, "tag", "trigger"));
         item.put("char_caption", JsonUtil.str(raw, "char_caption"));
+        item.put("clothing", JsonUtil.str(raw, "clothing"));
+        item.put("extra", JsonUtil.first(raw, "extra", "extra_tags"));
+        item.put("remove", JsonUtil.first(raw, "remove", "remove_tags"));
         item.put("identity", raw.has("identity") ? raw.opt("identity") : new JSONArray().put(label));
         item.put("appearance", raw.has("appearance") ? raw.opt("appearance") : new JSONArray());
         item.put("body", raw.has("body") ? raw.opt("body") : new JSONArray());
+        if (item.optBoolean("oc_mode") && JsonUtil.str(item, "char_caption").isEmpty()) {
+            throw new IllegalArgumentException("群友 OC 请填写整段角色咒语");
+        }
         JSONArray all = readAll();
         JSONArray next = new JSONArray();
         next.put(item);
@@ -66,7 +73,7 @@ final class CustomCharStore {
         JSONObject out = new JSONObject();
         out.put("ok", true);
         out.put("item", item);
-        out.put("message", "已保存自定义角色");
+        out.put("message", "已保存 OC");
         return out;
     }
 
