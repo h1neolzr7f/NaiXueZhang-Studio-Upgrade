@@ -110,6 +110,9 @@
 
   function friendlyError(error) {
     const raw = String((error && (error.message || error.detail)) || error || "");
+    if (/connection closed|connection reset|broken pipe|unexpected end|生成连接被掐断/i.test(raw)) {
+      return "生成连接被掐断。没看到成功回执，先看 NovelAI 记录有没有扣费，再手动重试。失败任务可从队列删除。";
+    }
     if (/proxy|Connection refused|Failed to connect|ECONNREFUSED|CONNECT|7890|7897/i.test(raw)) {
       return "代理没通。Clash 开 HTTP，填 http://127.0.0.1:7890，不要只开全局 VPN。";
     }
@@ -265,18 +268,35 @@
     return null;
   }
 
+  function workHasPrompts() {
+    const images = (state.work && state.work.images) || [];
+    return images.some((image) => {
+      if (!image) return false;
+      if (String(image.prompt_text || "").trim()) return true;
+      const comment = (window.StandaloneCore && window.StandaloneCore.imageComment)
+        ? window.StandaloneCore.imageComment(image)
+        : {};
+      const prompt = String((comment && (comment.prompt || (comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.base_caption))) || "").trim();
+      const slots = comment && comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.char_captions;
+      return !!prompt || (Array.isArray(slots) && slots.some((slot) => slot && String(slot.char_caption || "").trim()));
+    });
+  }
+
   function remixReady() {
     if (!isStandalone()) return true;
     const workId = String((state.work && state.work.work && (state.work.work.work_id || state.work.work.id)) || "");
     if (!workId) return false;
     if (DemoWorksSafe(workId) || String(workId).startsWith("g")) return true;
-    return String((state.work && state.work.save_state) || "") === "ready";
+    const saveState = String((state.work && state.work.save_state) || "");
+    if (saveState === "ready") return true;
+    return workHasPrompts();
   }
 
   function remixBlockReason() {
     const saveState = String((state.work && state.work.save_state) || "");
-    if (saveState === "pending" || saveState === "saving") return "入库还没完成，等本地库显示「可换角生成」再换";
-    if (saveState === "partial") return "入库不完整，等图下完再换角";
+    if (workHasPrompts()) return "";
+    if (saveState === "pending" || saveState === "saving") return "正在抓咒语，抓到就能换角，不用等原图";
+    if (saveState === "partial") return "这套还没有 NovelAI 咒语，换不了角";
     return "先收藏入本地库，才能换角和生成";
   }
 
@@ -315,7 +335,7 @@
           <li>${standalone ? "本地库选人、看画风，点「整系列换角并入队」" : "选人 → 写草稿 → 确认出图"}</li>
         </ol>
         <p class="m-hint">${standalone
-          ? "不遥控电脑。在线库只负责搜图收藏。必须先入库，才能换角色、换画风和生成。原图画风会先识别出来，再整系列替换。同一任务的图会收进图库一组。多个 Token 可并发出图。"
+          ? "不遥控电脑。在线库只负责搜图收藏。收藏后咒语到了就能换角，原图下不下都行。原图画风会先识别出来，再整系列替换。同一任务的图会收进图库一组。多个 Token 可并发出图。"
           : "搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。"}</p>
         <div class="m-quote">凑企鹅：先选人，再看原图画风。整系列一键入队。没填 Token 我不会替你出图。</div>
       </section>
@@ -529,7 +549,7 @@
       ? `#/library/${encodeURIComponent(id)}`
       : `#/work/${encodeURIComponent(id)}`;
     const saveState = String(item.save_state || "");
-    const saveLabel = saveState === "ready" ? "可换角生成" : saveState === "pending" ? "入库中" : saveState === "partial" ? "入库不完整" : "";
+    const saveLabel = saveState === "ready" ? "可换角生成" : saveState === "pending" ? "正在抓咒语" : saveState === "partial" ? "没有咒语" : "";
     return `<div class="m-work-card">
       <a class="m-work" href="${href}">
         <img src="${escapeHtml(cover)}" alt="">
@@ -594,18 +614,21 @@
   function closeCharPicker() {
     const picker = document.getElementById("mPicker");
     if (!picker) return;
+    const active = document.activeElement;
+    if (active && picker.contains(active) && active.blur) active.blur();
     picker.classList.add("hidden");
     picker.setAttribute("aria-hidden", "true");
     const title = picker.querySelector(".m-sheet-head h3");
     if (title) title.textContent = "换成谁";
   }
 
-  function openCharPicker() {
+  function openCharPicker(options) {
+    const opts = options || {};
     const picker = document.getElementById("mPicker");
     const body = document.getElementById("mPickerBody");
     if (!picker || !body) return;
     body.innerHTML = `
-      <p class="m-hint">输入即搜。中文会自动对到英文 tag，热门角色排前面。也可以保存 OC / 自定义。明日方舟只是其中一部分。</p>
+      <p class="m-hint">输入即搜。中文会自动对到英文 tag。个人自定义可以只写名字就保存，下次直接点用。</p>
       <div class="m-row" id="mGenderRow"></div>
       <div class="m-row">
         <input id="mTargetQ" placeholder="初音 / 阿米娅 / 原神 / OC 名" value="${escapeHtml(state.targetQuery || "")}" enterkeyhint="search" />
@@ -614,21 +637,17 @@
       <p class="m-hint">也可点「搜明日方舟」只看方舟干员。</p>
       <div id="mTargets" class="m-list" style="margin-top:8px"></div>
       <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "先搜再点一个名字"}</p>
-      <div class="m-quote" style="margin-top:12px">小祥：也可以用中文描述角色，DeepSeek 帮你写成槽位 tag。这步不扣 Anlas。</div>
-      <textarea id="mDescribe" placeholder="例如：粉头发红眼睛的阿米娅风 OC，短外套" style="margin-top:8px"></textarea>
-      <div class="m-row" style="margin-top:8px">
-        <button type="button" id="mDescribeBtn" class="m-ghost">DeepSeek 写角色</button>
-      </div>
-      <details class="m-adv">
-        <summary>本地创建 / 保存自定义</summary>
+      <section class="m-card" id="mCustomBox" style="margin-top:12px">
+        <h3>个人自定义</h3>
+        <p class="m-hint">自己的角色写在这里。保存后会留在这台手机，换角时优先出现。</p>
         <div class="m-row" style="margin-top:10px">
-          <input id="mCustomName" placeholder="自定义名字" />
+          <input id="mCustomName" placeholder="自定义名字，如 香蕉姐" />
         </div>
         <div class="m-row" style="margin-top:8px">
-          <input id="mCustomIdentity" placeholder="身份标签，如 my_oc_(oc)" />
+          <input id="mCustomIdentity" placeholder="身份标签，如 banana_onee_(oc)" />
         </div>
         <div class="m-row" style="margin-top:8px">
-          <input id="mCustomAppear" placeholder="外观，如 white_hair, red_eyes" />
+          <input id="mCustomAppear" placeholder="外观，如 blonde_hair, yellow_eyes" />
         </div>
         <textarea id="mCustomCaption" placeholder="完整槽位咒语（可选，会保留原槽动作）" style="margin-top:8px"></textarea>
         <div class="m-row" style="margin-top:8px">
@@ -636,7 +655,12 @@
           <button type="button" id="mCustomSave" class="m-primary">保存自定义</button>
         </div>
         <div id="mCustomList" class="m-list" style="margin-top:10px"></div>
-      </details>`;
+      </section>
+      <div class="m-quote" style="margin-top:12px">小祥：也可以用中文描述角色，DeepSeek 帮你写成槽位 tag。这步不扣 Anlas。</div>
+      <textarea id="mDescribe" placeholder="例如：粉头发红眼睛的阿米娅风 OC，短外套" style="margin-top:8px"></textarea>
+      <div class="m-row" style="margin-top:8px">
+        <button type="button" id="mDescribeBtn" class="m-ghost">DeepSeek 写角色</button>
+      </div>`;
     picker.classList.remove("hidden");
     picker.setAttribute("aria-hidden", "false");
     const genderRow = document.getElementById("mGenderRow");
@@ -671,6 +695,12 @@
     document.getElementById("mDescribeBtn").onclick = describeWithDeepSeek;
     searchTargets();
     refreshCustomList();
+    if (opts.custom) {
+      const box = document.getElementById("mCustomBox");
+      const name = document.getElementById("mCustomName");
+      if (box && box.scrollIntoView) box.scrollIntoView({ block: "start" });
+      if (name) name.focus();
+    }
   }
 
   async function refreshCustomList() {
@@ -678,8 +708,21 @@
     if (!host) return;
     const items = await listCustom(state.targetGender);
     host.innerHTML = items.length
-      ? items.map((item) => `<div class="m-item"><div><strong>${escapeHtml(item.label || item.id)}</strong></div><button type="button" class="m-ghost" data-del-custom="${escapeHtml(item.id)}">删除</button></div>`).join("")
+      ? items.map((item) => `<div class="m-item"><div><strong>${escapeHtml(item.label || item.id)}</strong></div><div class="m-row"><button type="button" class="m-primary" data-use-custom="${escapeHtml(item.id)}">用这个</button><button type="button" class="m-ghost" data-del-custom="${escapeHtml(item.id)}">删除</button></div></div>`).join("")
       : '<p class="m-hint">还没有已保存的自定义角色</p>';
+    host.querySelectorAll("[data-use-custom]").forEach((button) => {
+      button.onclick = () => {
+        const id = button.getAttribute("data-use-custom");
+        const item = items.find((row) => String(row.id) === String(id));
+        if (!item) return;
+        pickTarget({
+          reference_id: "custom:" + (item.gender || state.targetGender) + ":" + item.id,
+          label: "自定义：" + (item.label || item.id),
+          record: Object.assign({ kind: "oc" }, item),
+        });
+        toast("已选自定义：" + (item.label || item.id));
+      };
+    });
     host.querySelectorAll("[data-del-custom]").forEach((button) => {
       button.onclick = async () => {
         const id = button.getAttribute("data-del-custom");
@@ -818,7 +861,7 @@
           ${isStandalone() ? `<button type="button" class="m-fav${favOn ? " on" : ""}" data-fav="${escapeHtml(workId)}" aria-label="收藏">${favOn ? "★" : "☆"}</button>` : ""}
         </div>
         <img class="m-preview" src="${escapeHtml(cover)}" alt="">
-        <p class="m-hint">${pageCount}张 · ${images.length} 页已加载${work.creator ? " · " + escapeHtml(work.creator) : ""}${work.ai_type ? " · " + escapeHtml(work.ai_type) : ""}${saveState === "pending" || saveState === "saving" ? " · 入库中" : saveState === "partial" ? " · 入库不完整" : canRemix ? " · 可换角生成" : ""}</p>
+        <p class="m-hint">${pageCount}张 · ${images.length} 页已加载${work.creator ? " · " + escapeHtml(work.creator) : ""}${work.ai_type ? " · " + escapeHtml(work.ai_type) : ""}${saveState === "pending" || saveState === "saving" ? " · 正在抓咒语" : saveState === "partial" && !canRemix ? " · 没有咒语" : canRemix ? " · 可换角生成" : ""}</p>
         ${tags.length ? `<p class="m-meta">标签：${escapeHtml(tags.join(" / "))}</p>` : ""}
         ${promptText
           ? `<p class="m-meta">原图咒语：${escapeHtml(promptText.slice(0, 220))}</p>`
@@ -837,6 +880,7 @@
         <p class="m-hint" id="mTargetHint" style="margin-top:8px">${state.targetLabel ? ("已选 " + state.targetLabel) : "点开搜索，从 D 站角色库 / OC / 自定义查找"}</p>
         <div class="m-row">
           <button type="button" id="mOpenPicker" class="m-primary">点开搜索</button>
+          <button type="button" id="mOpenCustom" class="m-ghost">个人自定义</button>
         </div>
         <div id="mSlotAssign" style="margin-top:10px"></div>
       </section>
@@ -926,6 +970,8 @@
     }
     const openPicker = document.getElementById("mOpenPicker");
     if (openPicker) openPicker.onclick = openCharPicker;
+    const openCustom = document.getElementById("mOpenCustom");
+    if (openCustom) openCustom.onclick = () => openCharPicker({ custom: true });
     const openStyle = document.getElementById("mOpenStyle");
     if (openStyle) openStyle.onclick = openStylePicker;
     bindFavButtons(root);
@@ -957,6 +1003,13 @@
     if (queueBtn) queueBtn.onclick = enqueueCurrent;
     const saveDraft = document.getElementById("mSaveDraft");
     if (saveDraft) saveDraft.onclick = saveDraftEdits;
+    if (isStandalone() && !canRemix && (saveState === "pending" || saveState === "saving") && workId) {
+      setTimeout(() => {
+        if (state.route && state.route.name === "work" && String(state.route.id || "") === workId) {
+          renderWork(document.getElementById("mApp"), workId);
+        }
+      }, 1600);
+    }
   }
 
   function saveDraftEdits() {
@@ -1834,20 +1887,25 @@
       ${isStandalone() ? `
       <section class="m-card">
         <h2>生成队列</h2>
-        <p class="m-hint">几个 Token 就几路并发。整系列用「全部页加入队列」，多页收进图库一组。失败可手动重试，不会自动重试。</p>
+        <p class="m-hint">几个 Token 就几路并发。整系列用「整系列换角并入队」，多页收进图库一组。失败可手动重试或删除，不会自动重试。</p>
+        <div class="m-row" style="margin-bottom:8px">
+          <button type="button" id="mClearEnded" class="m-ghost">清空已结束</button>
+        </div>
         <div class="m-list">${jobs.map((job) => `
           <div class="m-item">
             <div></div>
             <div>
               <strong>${escapeHtml(job.title || job.task_id || "任务")}</strong>
-              <div class="m-hint">${escapeHtml(job.status || "")} · ${job.done || 0}/${job.total || 1}张${job.concurrency > 1 ? " · " + job.concurrency + "路并发" : ""}${job.message ? " · " + escapeHtml(String(job.message).slice(0, 40)) : ""}</div>
+              <div class="m-hint">${escapeHtml(job.status || "")} · ${job.done || 0}/${job.total || 1}张${job.concurrency > 1 ? " · " + job.concurrency + "路并发" : ""}</div>
+              ${job.message ? `<div class="m-err">${escapeHtml(String(job.message).slice(0, 160))}</div>` : ""}
             </div>
             <div class="m-row">
               ${job.cancellable ? `<button type="button" class="m-ghost" data-cancel="${escapeHtml(job.task_id || "")}">取消</button>` : ""}
               ${job.retryable ? `<button type="button" class="m-ghost" data-retry="${escapeHtml(job.task_id || "")}">重试</button>` : ""}
+              <button type="button" class="m-danger" data-del-job="${escapeHtml(job.task_id || "")}">删除</button>
               <a class="m-ghost" href="#/gallery/${encodeURIComponent(job.album_id || job.task_id || "")}">图库</a>
             </div>
-          </div>`).join("") || '<p class="m-hint">队列是空的。在本地库换角后点「加入队列」。</p>'}
+          </div>`).join("") || '<p class="m-hint">队列是空的。在本地库换角后点「整系列换角并入队」。</p>'}
         </div>
       </section>` : ""}
       <section class="m-card" ${isStandalone() ? "hidden" : ""}>
@@ -1921,6 +1979,38 @@
         }
       };
     });
+    const deleteJob = async (taskId) => {
+      if (!taskId) return;
+      if (!await confirmAction("删除队列任务", "只从排队列表拿掉。已经发出的请求拦不住，图库里已生成的还在。")) return;
+      try {
+        await api().post("/api/mobile/queue/" + encodeURIComponent(taskId) + "/delete", {});
+        toast("已从队列删除");
+        renderBatch(root);
+      } catch (error) {
+        toast(friendlyError(error), "err");
+      }
+    };
+    root.querySelectorAll("[data-del-job]").forEach((button) => {
+      button.onclick = () => deleteJob(button.getAttribute("data-del-job"));
+    });
+    const clearEnded = document.getElementById("mClearEnded");
+    if (clearEnded) {
+      clearEnded.onclick = async () => {
+        const ended = jobs.filter((job) => job && (job.terminal || job.status === "error" || job.status === "done" || job.status === "cancelled" || job.status === "unknown"));
+        if (!ended.length) {
+          toast("没有已结束的任务");
+          return;
+        }
+        if (!await confirmAction("清空已结束", "从排队列表拿掉 " + ended.length + " 个已结束任务。图库里的图还在。")) return;
+        for (const job of ended) {
+          try {
+            await api().post("/api/mobile/queue/" + encodeURIComponent(job.task_id) + "/delete", {});
+          } catch (_) { /* ignore */ }
+        }
+        toast("已清空结束任务");
+        renderBatch(root);
+      };
+    }
     document.getElementById("mClearOnline").onclick = () => { saveQueue([]); renderBatch(root); };
     document.getElementById("mRunOnline").onclick = runOnlineBatch;
     if (isStandalone() && jobs.some((job) => job && !job.terminal && job.status !== "done" && job.status !== "error" && job.status !== "cancelled" && job.status !== "unknown")) {

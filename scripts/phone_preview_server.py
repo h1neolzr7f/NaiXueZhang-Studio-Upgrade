@@ -110,7 +110,21 @@ TAG_DICT = _load_json("tag_dict.json")
 FAV_IDS: list[str] = [DEMO_ID]
 OUTPUTS: list[dict] = []
 ALBUMS: list[dict] = []
-JOBS: dict[str, dict] = {}
+JOBS: dict[str, dict] = {
+    "preview-error": {
+        "task_id": "preview-error",
+        "album_id": "preview-error",
+        "status": "error",
+        "terminal": True,
+        "cancellable": False,
+        "retryable": True,
+        "done": 0,
+        "total": 4,
+        "pages": 2,
+        "title": "香蕉姐 · 全系列",
+        "message": "生成连接被掐断。没看到成功回执，先看 NovelAI 记录有没有扣费，再手动重试",
+    }
+}
 CUSTOM: list[dict] = []
 CUSTOM_STYLES: list[dict] = []
 PREVIEW_TOKENS: list[str] = []
@@ -517,7 +531,7 @@ class Handler(BaseHTTPRequestHandler):
                 FAV_IDS.remove(work_id)
                 return self._json({"ok": True, "favorited": False, "message": "已取消收藏"})
             FAV_IDS.append(work_id)
-            return self._json({"ok": True, "favorited": True, "message": "已加入本地库。数据和咒语留下后，可离线换角。"})
+            return self._json({"ok": True, "favorited": True, "remix_ready": True, "save_state": "ready", "message": "已入库。咒语已齐，可以换角。原图下不下都行。"})
         if path == "/api/plugin/char-swap/custom":
             item = dict(payload)
             item.setdefault("id", "c" + str(len(CUSTOM) + 1))
@@ -549,6 +563,12 @@ class Handler(BaseHTTPRequestHandler):
             job["retryable"] = False
             job["message"] = "已重新入队"
             return self._json({**job, "ok": True, "task_id": task_id, "album_id": job.get("album_id") or task_id, "message": "已重新入队"})
+        if path.startswith("/api/mobile/queue/") and path.endswith("/delete"):
+            task_id = unquote(path.split("/queue/", 1)[1].rsplit("/delete", 1)[0])
+            if task_id not in JOBS:
+                return self._json({"ok": False, "detail": "队列里没有这个任务"}, 400)
+            JOBS.pop(task_id, None)
+            return self._json({"ok": True, "task_id": task_id, "message": "已从队列删除"})
         if path.startswith("/api/mobile/gallery/") and path.endswith("/delete"):
             album_id = unquote(path.split("/gallery/", 1)[1].rsplit("/delete", 1)[0])
             before = len(ALBUMS)

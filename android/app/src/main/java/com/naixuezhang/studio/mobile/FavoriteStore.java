@@ -142,10 +142,37 @@ final class FavoriteStore {
         if (!dir.exists()) dir.mkdirs();
         writeText(new File(dir, "snapshot.json"), (snapshot == null ? new JSONObject() : snapshot).toString());
         writeText(new File(dir, "work.json"), stubWork(id, row).toString());
+        JSONObject detail = null;
+        String fetchError = "";
+        try {
+            detail = aitag.work(id);
+        } catch (Exception error) {
+            fetchError = error.getMessage() == null ? "咒语还没抓到" : error.getMessage();
+        }
+        if (detail != null) {
+            writeText(new File(dir, "work.json"), detail.toString());
+            JSONObject work = detail.optJSONObject("work");
+            JSONArray images = detail.optJSONArray("images");
+            int count = images == null ? 0 : images.length();
+            boolean prompts = payloadHasPrompts(detail);
+            updateRow(id, work, count, prompts ? "ready" : "partial");
+            if (!prompts) mark(id, "partial", "这套还没有 NovelAI 咒语，换不了角");
+            out.put("ok", true);
+            out.put("favorited", true);
+            out.put("remix_ready", prompts);
+            out.put("save_state", prompts ? "ready" : "partial");
+            out.put("message", prompts
+                ? "已入库。咒语已齐，可以换角。原图下不下都行。"
+                : "已收藏，但这套没有 NovelAI 咒语，换不了角。");
+            return out;
+        }
         startDownload(id);
         out.put("ok", true);
         out.put("favorited", true);
-        out.put("message", "已加入本地库。数据和咒语留下后，可离线换角。");
+        out.put("remix_ready", false);
+        out.put("save_state", "pending");
+        out.put("message", "已加入本地库。正在抓咒语，抓到就能换角，不用等原图。"
+            + (fetchError.isEmpty() ? "" : (" " + fetchError)));
         return out;
     }
 
@@ -237,7 +264,38 @@ final class FavoriteStore {
         if (DemoWorks.isDemo(id)) return true;
         if (id.startsWith("g")) return has(id);
         if (!has(id)) return false;
-        return "ready".equals(rowState(id));
+        if ("ready".equals(rowState(id))) return true;
+        return payloadHasPrompts(workPayload(id));
+    }
+
+    static boolean payloadHasPrompts(JSONObject payload) {
+        if (payload == null) return false;
+        JSONArray images = payload.optJSONArray("images");
+        if (images == null && payload.optJSONObject("work") != null) {
+            images = payload.optJSONObject("work").optJSONArray("images");
+        }
+        if (images == null) return false;
+        for (int i = 0; i < images.length(); i++) {
+            JSONObject image = images.optJSONObject(i);
+            if (image == null) continue;
+            if (!JsonUtil.str(image, "prompt_text").isEmpty()) return true;
+            JSONObject ai = JsonUtil.parseMaybe(image.opt("ai_json"));
+            if (ai == null) ai = new JSONObject();
+            JSONObject comment = JsonUtil.parseMaybe(ai.opt("Comment"));
+            if (comment == null) comment = JsonUtil.parseMaybe(image.opt("metadata"));
+            if (comment == null) comment = new JSONObject();
+            if (!JsonUtil.str(comment, "prompt").isEmpty()) return true;
+            JSONObject v4 = JsonUtil.parseMaybe(comment.opt("v4_prompt"));
+            JSONObject cap = JsonUtil.parseMaybe(v4.opt("caption"));
+            if (cap != null && !JsonUtil.str(cap, "base_caption").isEmpty()) return true;
+            JSONArray slots = cap == null ? null : cap.optJSONArray("char_captions");
+            if (slots == null) continue;
+            for (int s = 0; s < slots.length(); s++) {
+                JSONObject slot = slots.optJSONObject(s);
+                if (slot != null && !JsonUtil.str(slot, "char_caption").isEmpty()) return true;
+            }
+        }
+        return false;
     }
 
     synchronized void ensureDemo() {
@@ -384,28 +442,10 @@ final class FavoriteStore {
             File dir = new File(root, workId);
             if (!dir.exists()) dir.mkdirs();
             writeText(new File(dir, "work.json"), detail.toString());
-            updateRow(workId, work, images.length(), "saving");
+            boolean prompts = payloadHasPrompts(detail);
+            updateRow(workId, work, images.length(), prompts ? "ready" : "partial");
+            if (!prompts) mark(workId, "partial", "这套还没有 NovelAI 咒语，换不了角");
         }
-        int saved = 0;
-        String lastError = "";
-        int limit = Math.min(images.length(), MAX_PAGES);
-        for (int i = 0; i < limit; i++) {
-            JSONObject image = images.optJSONObject(i);
-            if (image == null) continue;
-            try {
-                byte[] data = DemoWorks.isDemo(workId) ? DemoWorks.png(i) : fetchImage(image, workId).body;
-                File dir = new File(root, workId);
-                if (i == 0) {
-                    writeBytes(new File(dir, "p0.orig"), data);
-                } else {
-                    writeBytes(new File(dir, "p" + i + ".jpg"), compress(data));
-                }
-                saved += 1;
-            } catch (Exception error) {
-                lastError = error.getMessage() == null ? "image failed" : error.getMessage();
-            }
-        }
-        mark(workId, saved > 0 ? "ready" : "partial", lastError);
     }
 
     private HttpOutbound.Result fetchImage(JSONObject image, String workId) throws Exception {
