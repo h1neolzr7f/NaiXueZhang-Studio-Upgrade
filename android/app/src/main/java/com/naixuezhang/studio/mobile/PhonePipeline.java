@@ -11,7 +11,7 @@ final class PhonePipeline {
     private PhonePipeline() {}
 
     static byte[] process(byte[] png, boolean upscale, int scale, boolean stripMetadata) {
-        return process(png, upscale, scale, false, "像素", 36, stripMetadata);
+        return process(png, upscale, scale, false, "像素", 36, stripMetadata, null, 8, 28);
     }
 
     static byte[] process(
@@ -22,6 +22,21 @@ final class PhonePipeline {
         String mosaicMethod,
         int mosaicIntensity,
         boolean stripMetadata
+    ) {
+        return process(png, upscale, scale, mosaic, mosaicMethod, mosaicIntensity, stripMetadata, null, 8, 28);
+    }
+
+    static byte[] process(
+        byte[] png,
+        boolean upscale,
+        int scale,
+        boolean mosaic,
+        String mosaicMethod,
+        int mosaicIntensity,
+        boolean stripMetadata,
+        java.util.List<String> mosaicParts,
+        int mosaicSensitivity,
+        int mosaicDilate
     ) {
         if (png == null || png.length == 0) return png;
         boolean needScale = upscale && scale > 1;
@@ -43,7 +58,14 @@ final class PhonePipeline {
             work = scaled;
         }
         if (mosaic) {
-            LightMosaic.Result result = LightMosaic.apply(work, mosaicMethod, mosaicIntensity);
+            LightMosaic.Result result = LightMosaic.apply(
+                work,
+                mosaicMethod,
+                mosaicIntensity,
+                mosaicParts == null ? LightMosaic.parseParts("") : mosaicParts,
+                mosaicSensitivity,
+                mosaicDilate
+            );
             if (result.bitmap != null && result.bitmap != work) {
                 if (work != src) work.recycle();
                 work = result.bitmap;

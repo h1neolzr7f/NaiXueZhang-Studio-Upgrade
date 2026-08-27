@@ -306,14 +306,8 @@ final class JobStore {
                         charged = true;
                         markStage(job, "generating", "正在出图");
                         byte[] png = generator.generatePng(page, forceFree);
-                        markStage(job, "pipeline", "本机后处理：" + pipeline.summary());
+                        markStage(job, "saving", "先写入图库");
                         String imageId = images.save(id + "p" + index, png, false);
-                        byte[] processed = pipeline.process(png);
-                        markStage(job, "saving", "写入图库和相册");
-                        images.saveFinal(imageId, processed);
-                        if (pipeline.autoAfterGenerate()) {
-                            images.exportOne(imageId + "-final", processed);
-                        }
                         String imageUrl = "/api/mobile/output/" + imageId + ".png";
                         if (catalog != null) catalog.add(imageId, source);
                         if (gallery != null) gallery.addImage(id, imageId, imageUrl, source);
@@ -321,7 +315,23 @@ final class JobStore {
                             JSONObject record = new JSONObject(page.toString());
                             record.put("title", JsonUtil.first(source, "title", "source_title"));
                             if (record.optString("title").isEmpty()) record.put("title", "本机生成");
-                            library.importGeneratedPage(id, index, record, processed, total);
+                            library.importGeneratedPage(id, index, record, png, total);
+                        }
+                        byte[] processed = png;
+                        boolean changed = false;
+                        if (pipeline.upscaleEnabled() || pipeline.metadataEnabled()) {
+                            markStage(job, "upscale", pipeline.upscaleEnabled() ? "本机超分" : "清元数据");
+                            processed = pipeline.processWithoutMosaic(png);
+                            changed = true;
+                        }
+                        if (pipeline.mosaicEnabled()) {
+                            markStage(job, "mosaic", "机内打码：" + pipeline.mosaicMethod());
+                            processed = pipeline.processMosaicOnly(processed);
+                            changed = true;
+                        }
+                        if (changed) images.saveFinal(imageId, processed);
+                        if (pipeline.autoAfterGenerate()) {
+                            images.exportOne(imageId + (changed ? "-final" : ""), processed);
                         }
                         JSONObject item = new JSONObject();
                         item.put("ok", true);
@@ -330,9 +340,14 @@ final class JobStore {
                         item.put("album_id", id);
                         item.put("library_id", "g" + id);
                         item.put("page_index", pageIndex);
-                        item.put("message", pipeline.autoAfterGenerate()
-                            ? ("完成：已入图库、跑完 " + pipeline.summary() + "、存进相册")
-                            : ("完成：已入图库并跑完流水线（" + pipeline.summary() + "）"));
+                        item.put("mosaic", pipeline.mosaicEnabled());
+                        item.put("message", pipeline.mosaicEnabled()
+                            ? (pipeline.autoAfterGenerate()
+                                ? ("完成：已先入库，最后打码（" + pipeline.summary() + "），存进相册")
+                                : ("完成：已先入库，最后打码（" + pipeline.summary() + "）"))
+                            : (pipeline.autoAfterGenerate()
+                                ? "完成：已入库，未打码，原图已进图库和相册"
+                                : "完成：已入库，未打码"));
                         rememberDuration((int) (System.currentTimeMillis() - unitStart));
                         int done = finished.incrementAndGet();
                         synchronized (job) {
@@ -560,8 +575,9 @@ final class JobStore {
     }
 
     private static double stageWeight(String stage) {
-        if ("saving".equals(stage)) return 0.94;
-        if ("pipeline".equals(stage) || "upscale".equals(stage) || "mosaic".equals(stage)) return 0.84;
+        if ("mosaic".equals(stage)) return 0.94;
+        if ("upscale".equals(stage) || "pipeline".equals(stage)) return 0.84;
+        if ("saving".equals(stage)) return 0.72;
         if ("generating".equals(stage)) return 0.55;
         if ("requesting".equals(stage)) return 0.16;
         return 0.08;

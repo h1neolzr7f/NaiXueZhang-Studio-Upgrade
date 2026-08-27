@@ -15,8 +15,10 @@ import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -82,16 +84,35 @@ final class OnnxCensor {
     }
 
     static List<int[]> detectOrFallback(Bitmap src) {
-        List<int[]> boxes = detect(src, DEFAULT_CONF);
+        return detectOrFallback(src, LightMosaic.parseParts(""), 8, 28);
+    }
+
+    static List<int[]> detectOrFallback(Bitmap src, List<String> parts, int sensitivity, int dilate) {
+        List<int[]> boxes = detect(src, LightMosaic.confFromSensitivity(sensitivity), parts, dilate);
         if (!boxes.isEmpty()) return boxes;
         return LightMosaic.detectBoxes(src);
     }
 
     static List<int[]> detect(Bitmap src, float conf) {
+        return detect(src, conf, LightMosaic.parseParts(""), 28);
+    }
+
+    static List<int[]> detect(Bitmap src, float conf, List<String> parts, int dilate) {
         if (src == null) return new ArrayList<int[]>();
         awaitReady();
         if (!available()) return new ArrayList<int[]>();
         float threshold = Math.max(0.06f, Math.min(conf, 0.40f));
+        Set<String> wanted = partClasses(parts);
+        boolean anus = parts != null && parts.contains("欧西利");
+        if (wanted.isEmpty() && !anus) {
+            wanted.add("nipple_f");
+            wanted.add("penis");
+            wanted.add("pussy");
+        }
+        if (anus) {
+            wanted.add("penis");
+            wanted.add("pussy");
+        }
         List<Det> raw = new ArrayList<Det>();
         raw.addAll(detectWindow(src, 0, 0, src.getWidth(), src.getHeight(), threshold));
         if (Math.min(src.getWidth(), src.getHeight()) >= 900) {
@@ -108,31 +129,62 @@ final class OnnxCensor {
         }
         List<Det> kept = nms(raw);
         List<int[]> boxes = new ArrayList<int[]>();
+        int pad = LightMosaic.normalizeDilate(dilate);
         for (Det det : kept) {
-            float extra = ("penis".equals(det.name) || "pussy".equals(det.name)) ? 0.42f : 0.0f;
-            boxes.add(LightMosaic.expandBox(
-                Math.round(det.x1),
-                Math.round(det.y1),
-                Math.round(det.x2),
-                Math.round(det.y2),
-                src.getWidth(),
-                src.getHeight(),
-                0.32f + extra * 0.15f
-            ));
-            if (extra > 0) {
+            boolean genital = "penis".equals(det.name) || "pussy".equals(det.name);
+            boolean keepBody = wanted.contains(det.name);
+            if (!keepBody && !(anus && genital)) continue;
+            if (keepBody) {
+                boxes.add(dilateBox(
+                    LightMosaic.expandBox(
+                        Math.round(det.x1),
+                        Math.round(det.y1),
+                        Math.round(det.x2),
+                        Math.round(det.y2),
+                        src.getWidth(),
+                        src.getHeight(),
+                        0.28f + (genital ? 0.08f : 0.0f)
+                    ),
+                    src.getWidth(),
+                    src.getHeight(),
+                    pad
+                ));
+            }
+            if (anus && genital) {
                 int[] grown = LightMosaic.expandBox(
                     Math.round(det.x1),
                     Math.round(det.y1),
                     Math.round(det.x2),
-                    Math.round(det.y2 + (det.y2 - det.y1) * extra),
+                    Math.round(det.y2 + (det.y2 - det.y1) * 0.42f),
                     src.getWidth(),
                     src.getHeight(),
                     0.28f
                 );
-                boxes.add(grown);
+                boxes.add(dilateBox(grown, src.getWidth(), src.getHeight(), pad));
             }
         }
         return boxes;
+    }
+
+    private static Set<String> partClasses(List<String> parts) {
+        Set<String> out = new HashSet<String>();
+        if (parts == null) return out;
+        for (String part : parts) {
+            if ("欧派派".equals(part)) out.add("nipple_f");
+            if ("欧金金".equals(part)) out.add("penis");
+            if ("欧芒果".equals(part)) out.add("pussy");
+        }
+        return out;
+    }
+
+    private static int[] dilateBox(int[] box, int width, int height, int pad) {
+        if (box == null || box.length < 4 || pad <= 0) return box;
+        return new int[]{
+            Math.max(0, box[0] - pad),
+            Math.max(0, box[1] - pad),
+            Math.min(width, box[2] + pad),
+            Math.min(height, box[3] + pad)
+        };
     }
 
     private static void awaitReady() {

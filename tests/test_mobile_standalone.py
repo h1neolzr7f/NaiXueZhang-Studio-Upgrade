@@ -196,8 +196,11 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("预计还要", js)
         self.assertIn("m-progress-bar", js)
         self.assertIn("censor.onnx", js)
-        self.assertIn("机内 ONNX", js)
+        self.assertIn("不打码", js)
+        self.assertIn("对这组打码", js)
+        self.assertIn("欧西利", js)
         self.assertIn("data-mosaic-method", js)
+        self.assertIn('["排队", "出图", "入库", "超分", "打码"]', js)
         self.assertIn("原图画风", js)
         self.assertIn("整系列换画风", js)
         self.assertIn("remixSeriesAndEnqueue", js)
@@ -257,6 +260,8 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("/api/nai/network", server)
         self.assertIn("/api/nai/aitag/probe", server)
         self.assertIn("/api/mobile/gallery", server)
+        self.assertIn("/mosaic", server)
+        self.assertIn("/api/pipeline/mosaic", server)
         self.assertIn("/api/mobile/queue", server)
         self.assertIn("/cancel", server)
         self.assertIn("/retry", server)
@@ -281,6 +286,9 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("生成连接被掐断", jobs)
         self.assertIn("formatEta", jobs)
         self.assertIn("pipeline.summary", jobs)
+        self.assertIn("先写入图库", jobs)
+        self.assertIn("processMosaicOnly", jobs)
+        self.assertIn("processWithoutMosaic", jobs)
         fav = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/FavoriteStore.java").read_text(
             encoding="utf-8"
         )
@@ -290,6 +298,8 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("cover_jpeg", fav)
         self.assertIn("startEnrich", fav)
         self.assertIn("absorbSnapshot", fav)
+        self.assertIn("咒语和封面都在本机", fav)
+        self.assertIn("enrichCoverOnly", fav)
         gateway = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/AitagGateway.java").read_text(
             encoding="utf-8"
         )
@@ -336,6 +346,10 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("mosaic_mode", pipeline)
         self.assertIn("censor.onnx", pipeline)
         self.assertIn("OnnxCensor.available", pipeline)
+        self.assertIn("getBoolean(\"mosaic\", false)", pipeline)
+        self.assertIn("mosaic_optional", pipeline)
+        self.assertIn("applyAlbum", pipeline)
+        self.assertIn("欧西利", pipeline)
         phonePipe = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/PhonePipeline.java").read_text(
             encoding="utf-8"
         )
@@ -348,6 +362,10 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("isSkin", mosaic)
         self.assertIn("detectBoxes", mosaic)
         self.assertIn("OnnxCensor.detectOrFallback", mosaic)
+        self.assertIn("线条", mosaic)
+        self.assertIn("黑条", mosaic)
+        self.assertIn("表情", mosaic)
+        self.assertIn("欧西利", mosaic)
         detector = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/OnnxCensor.java").read_text(
             encoding="utf-8"
         )
@@ -392,6 +410,9 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("_normalize_source", preview)
         self.assertIn("_format_eta", preview)
         self.assertIn("mosaic_available", preview)
+        self.assertIn("mosaic_optional", preview)
+        self.assertIn("不打码", preview)
+        self.assertIn("/mosaic", preview)
         self.assertIn("preview-running", preview)
         self.assertIn("_simulate_job", preview)
 
