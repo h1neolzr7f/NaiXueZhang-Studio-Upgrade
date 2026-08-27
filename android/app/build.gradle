@@ -9,8 +9,11 @@ android {
         applicationId = "com.naixuezhang.studio.mobile"
         minSdk = 24
         targetSdk = 34
-        versionCode = 165
-        versionName = "1.5.2-phone.14"
+        versionCode = 166
+        versionName = "1.5.2-phone.15"
+        ndk {
+            abiFilters "arm64-v8a"
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -21,10 +24,16 @@ android {
             minifyEnabled = false
         }
     }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
     implementation "androidx.webkit:webkit:1.11.0"
+    implementation "com.microsoft.onnxruntime:onnxruntime-android:1.20.0"
 }
 
 def repoRoot = rootProject.projectDir.parentFile

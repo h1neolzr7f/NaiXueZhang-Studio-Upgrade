@@ -11,6 +11,7 @@ public class StudioApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        OnnxCensor.init(this);
         server = new LocalStudioServer(this);
         try {
             port = server.start();

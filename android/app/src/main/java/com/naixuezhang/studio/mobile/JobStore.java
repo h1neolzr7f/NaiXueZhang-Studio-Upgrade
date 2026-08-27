@@ -576,7 +576,7 @@ final class JobStore {
         if ("requesting".equals(stage)) return "正在请求 NovelAI";
         if ("generating".equals(stage) || "running".equals(stage)) return "正在出图";
         if ("upscale".equals(stage)) return "本机超分";
-        if ("mosaic".equals(stage)) return "轻量打码";
+        if ("mosaic".equals(stage)) return "机内打码";
         if ("pipeline".equals(stage)) return "本机后处理";
         if ("saving".equals(stage)) return "写入图库";
         return "生成中";

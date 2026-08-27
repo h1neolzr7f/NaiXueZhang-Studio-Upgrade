@@ -29,6 +29,7 @@ class MobileStandaloneTests(unittest.TestCase):
         )
         self.assertIn("demo-ark-amiya", demo)
         self.assertIn("nai-diffusion-4-5-full", demo)
+        self.assertIn("OnnxCensor.init", (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/StudioApp.java").read_text(encoding="utf-8"))
         self.assertIn("waitForLocalServer", (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/SplashActivity.java").read_text(encoding="utf-8"))
         self.assertIn("onReceivedError", main)
         self.assertIn("MIXED_CONTENT_COMPATIBILITY_MODE", main)
@@ -194,7 +195,8 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("jobProgressHtml", js)
         self.assertIn("预计还要", js)
         self.assertIn("m-progress-bar", js)
-        self.assertIn("轻量打码", js)
+        self.assertIn("censor.onnx", js)
+        self.assertIn("机内 ONNX", js)
         self.assertIn("data-mosaic-method", js)
         self.assertIn("原图画风", js)
         self.assertIn("整系列换画风", js)
@@ -332,8 +334,8 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("metadata", pipeline)
         self.assertIn("mosaic_available", pipeline)
         self.assertIn("mosaic_mode", pipeline)
-        self.assertIn("light", pipeline)
-        self.assertIn("轻量打码", pipeline)
+        self.assertIn("censor.onnx", pipeline)
+        self.assertIn("OnnxCensor.available", pipeline)
         phonePipe = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/PhonePipeline.java").read_text(
             encoding="utf-8"
         )
@@ -345,8 +347,18 @@ class MobileStandaloneTests(unittest.TestCase):
         )
         self.assertIn("isSkin", mosaic)
         self.assertIn("detectBoxes", mosaic)
-        self.assertNotIn(".onnx", mosaic)
-        self.assertNotIn("ultralytics", mosaic)
+        self.assertIn("OnnxCensor.detectOrFallback", mosaic)
+        detector = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/OnnxCensor.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("censor.onnx", detector)
+        self.assertIn("output0", detector)
+        self.assertIn("nipple_f", detector)
+        self.assertIn("OrtSession", detector)
+        weights = ANDROID / "app/src/main/assets/censor.onnx"
+        self.assertTrue(weights.is_file())
+        self.assertGreater(weights.stat().st_size, 20 * 1024 * 1024)
+        self.assertIn("onnxruntime-android", gradle)
 
     def test_phone_preview_search_ranks_popular_names(self) -> None:
         import importlib.util
