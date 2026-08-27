@@ -30,7 +30,9 @@ final class CharLibrary {
     private List<String> danbooru;
     private Map<String, List<String>> prefixIndex;
     private Map<String, List<String>> seriesIndex;
+    private Map<String, String> cnMap;
     private Set<String> copyrights;
+    private final Map<String, JSONArray> searchCache = new HashMap<>();
 
     CharLibrary(Context context, CustomCharStore custom) {
         this.context = context.getApplicationContext();
@@ -40,6 +42,10 @@ final class CharLibrary {
         aliases = readAssetObject(this.context, "data/ark_cn_aliases.json");
         seriesAliases = readAssetObject(this.context, "data/phone_series_aliases.json");
         tagDict = readAssetObject(this.context, "data/tag_dict.json");
+    }
+
+    void warmup() {
+        ensureDanbooru();
     }
 
     JSONObject listPresets(String gender) {
@@ -168,6 +174,11 @@ final class CharLibrary {
         JSONArray items = new JSONArray();
         ensureDanbooru();
         if (danbooru == null || danbooru.isEmpty()) return items;
+        String cacheKey = gender + "|" + needle + "|" + limit;
+        synchronized (searchCache) {
+            JSONArray cached = searchCache.get(cacheKey);
+            if (cached != null) return cached;
+        }
         String compact = needle.replace(' ', '_');
         String alias = resolveAlias(needle);
         String series = "";
@@ -182,22 +193,36 @@ final class CharLibrary {
             List<String> pool = candidates(compactKey, seriesKey);
             List<String> hits = new ArrayList<>();
             Set<String> seen = new HashSet<>();
+            int capHits = Math.max(80, limit * 8);
             for (String tag : pool) {
                 if (!seen.add(tag)) continue;
                 String name = nameOf(tag);
-                boolean nameHit = !compactKey.isEmpty() && (tag.startsWith(compactKey) || name.startsWith(compactKey) || name.contains(compactKey));
-                boolean seriesHit = !seriesKey.isEmpty() && tag.contains(seriesKey);
+                boolean nameHit = !compactKey.isEmpty() && (
+                    tag.equals(compactKey)
+                    || tag.startsWith(compactKey + "_(")
+                    || name.equals(compactKey)
+                    || name.startsWith(compactKey)
+                    || (compactKey.length() >= 3 && name.contains(compactKey))
+                );
+                boolean seriesHit = !seriesKey.isEmpty() && (tag.endsWith("_(" + seriesKey + ")") || tag.contains(seriesKey));
                 if (nameHit || seriesHit) hits.add(tag);
+                if (hits.size() >= capHits) break;
             }
             hits.sort((a, b) -> {
                 int sa = rank(a, compactKey, seriesKey);
                 int sb = rank(b, compactKey, seriesKey);
                 if (sa != sb) return Integer.compare(sa, sb);
-                return Integer.compare(nameOf(a).length(), nameOf(b).length());
+                int len = Integer.compare(nameOf(a).length(), nameOf(b).length());
+                if (len != 0) return len;
+                return a.compareTo(b);
             });
             for (int i = 0; i < hits.size() && items.length() < limit; i++) {
                 String tag = hits.get(i);
                 items.put(wrap(danbooruRecord(gender, tag), "danbooru:" + gender + ":" + tag, "D 站角色库"));
+            }
+            synchronized (searchCache) {
+                if (searchCache.size() > 64) searchCache.clear();
+                searchCache.put(cacheKey, items);
             }
         } catch (Exception ignored) {}
         return items;
@@ -212,32 +237,53 @@ final class CharLibrary {
         if (compact.length() >= 2 && prefixIndex != null) {
             List<String> prefixHits = prefixIndex.get(compact.substring(0, 2));
             if (prefixHits != null) pool.addAll(prefixHits);
+        } else if (compact.length() == 1 && prefixIndex != null) {
+            List<String> prefixHits = prefixIndex.get(compact);
+            if (prefixHits != null) pool.addAll(prefixHits);
         }
-        if (pool.isEmpty()) return danbooru;
+        if (pool.isEmpty() && compact.length() >= 4) return danbooru;
         return pool;
     }
 
     private String resolveAlias(String needle) {
+        if (needle == null || needle.isEmpty()) return "";
+        if (cnMap != null) {
+            String mapped = cnMap.get(needle);
+            if (mapped != null && !mapped.isEmpty()) return mapped;
+        }
         String direct = seriesAliases.optString(needle);
         if (!direct.isEmpty()) return direct.toLowerCase(Locale.ROOT);
+        boolean chinese = looksChinese(needle);
+        String bestKey = "";
+        String bestVal = "";
         Iterator<String> keys = seriesAliases.keys();
         while (keys.hasNext()) {
             String key = keys.next();
-            if (needle.contains(key.toLowerCase(Locale.ROOT))) {
-                return seriesAliases.optString(key).toLowerCase(Locale.ROOT);
+            String lk = key.toLowerCase(Locale.ROOT);
+            if (lk.isEmpty()) continue;
+            boolean hit = needle.contains(lk)
+                || ((chinese || needle.length() >= 2) && lk.startsWith(needle))
+                || (chinese && lk.contains(needle));
+            if (!hit) continue;
+            if (lk.length() >= bestKey.length()) {
+                bestKey = lk;
+                bestVal = seriesAliases.optString(key).toLowerCase(Locale.ROOT);
             }
         }
-        if (tagDict != null && tagDict.length() > 0) {
-            Iterator<String> dictKeys = tagDict.keys();
-            while (dictKeys.hasNext()) {
-                String key = dictKeys.next();
-                String cn = tagDict.optString(key);
-                if (!cn.isEmpty() && (cn.equals(needle) || needle.equals(key.toLowerCase(Locale.ROOT)))) {
-                    return key.toLowerCase(Locale.ROOT).replace(' ', '_');
+        if (!bestVal.isEmpty()) return bestVal;
+        if (cnMap != null && chinese) {
+            for (Map.Entry<String, String> entry : cnMap.entrySet()) {
+                String key = entry.getKey();
+                if (key == null || key.isEmpty()) continue;
+                if (key.contains(needle) || needle.contains(key)) {
+                    if (key.length() >= bestKey.length()) {
+                        bestKey = key;
+                        bestVal = entry.getValue();
+                    }
                 }
             }
         }
-        return "";
+        return bestVal == null ? "" : bestVal;
     }
 
     private String seriesOfCopyright(String compact) {
@@ -245,18 +291,36 @@ final class CharLibrary {
         return "";
     }
 
+    private static final String[] POPULAR = {
+        "vocaloid", "genshin_impact", "arknights", "honkai:_star_rail", "honkai", "azur_lane",
+        "fate", "pokemon", "umamusume", "girls'_frontline", "blue_archive", "zenless_zone_zero",
+        "wuthering_waves", "nikke", "idolmaster", "love_live!", "bang_dream!", "kancolle"
+    };
+
     private static int rank(String tag, String compact, String series) {
         String name = nameOf(tag);
+        String ser = seriesOf(tag);
         int junk = (name.contains("abyss") || name.contains("slime") || name.contains("hilichurl")
             || name.contains("samachurl") || name.contains("mitachurl") || name.contains("spectator")
-            || name.contains("npc") || name.contains("monster") || name.contains("enemy")) ? 8 : 0;
-        if (!compact.isEmpty() && (name.equals(compact) || tag.equals(compact) || tag.startsWith(compact + "_("))) return junk;
-        if (!compact.isEmpty() && name.startsWith(compact)) return 1 + junk;
+            || name.contains("npc") || name.contains("monster") || name.contains("enemy")
+            || name.contains("cosplay") || ser.contains("meme")) ? 10 : 0;
+        if (!compact.isEmpty() && tag.equals(compact)) return junk;
+        if (!compact.isEmpty() && name.equals(compact) && isPopular(ser)) return 1 + junk;
+        if (!compact.isEmpty() && (name.equals(compact) || tag.startsWith(compact + "_("))) return 2 + junk;
+        if (!compact.isEmpty() && name.startsWith(compact)) return 3 + junk;
         int tokens = 0;
         for (int i = 0; i < name.length(); i++) if (name.charAt(i) == '_') tokens++;
-        if (!series.isEmpty() && tag.endsWith("_(" + series + ")")) return 2 + junk + Math.min(tokens, 3);
-        if (!series.isEmpty() && tag.contains(series)) return 6 + junk;
-        return 7 + junk;
+        if (!series.isEmpty() && tag.endsWith("_(" + series + ")")) return 4 + junk + Math.min(tokens, 3);
+        if (!series.isEmpty() && tag.contains(series)) return 7 + junk;
+        return 8 + junk;
+    }
+
+    private static boolean isPopular(String series) {
+        if (series == null || series.isEmpty()) return false;
+        for (String item : POPULAR) {
+            if (series.equals(item) || series.startsWith(item)) return true;
+        }
+        return false;
     }
 
     private static String nameOf(String tag) {
@@ -312,6 +376,15 @@ final class CharLibrary {
         Map<String, List<String>> seriesMap = new HashMap<>();
         for (String tag : tags) {
             String name = nameOf(tag);
+            if (name.length() >= 1) {
+                String one = name.substring(0, 1);
+                List<String> oneBucket = prefixes.get(one);
+                if (oneBucket == null) {
+                    oneBucket = new ArrayList<>();
+                    prefixes.put(one, oneBucket);
+                }
+                if (oneBucket.size() < 400) oneBucket.add(tag);
+            }
             if (name.length() >= 2) {
                 String prefix = name.substring(0, 2);
                 List<String> bucket = prefixes.get(prefix);
@@ -334,6 +407,7 @@ final class CharLibrary {
         danbooru = tags;
         prefixIndex = prefixes;
         seriesIndex = seriesMap;
+        cnMap = buildCnMap();
         copyrights = new HashSet<>(readLines("data/phone_copyright_index.txt"));
         if (copyrights.isEmpty()) {
             JSONObject pack = readAssetObject(context, "data/char_tag_index.json");
@@ -342,6 +416,35 @@ final class CharLibrary {
                 for (int i = 0; i < raw.length(); i++) copyrights.add(String.valueOf(raw.opt(i)).toLowerCase(Locale.ROOT));
             }
         }
+    }
+
+    private Map<String, String> buildCnMap() {
+        Map<String, String> map = new HashMap<>();
+        Iterator<String> keys = seriesAliases.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            String value = seriesAliases.optString(key);
+            if (!key.isEmpty() && !value.isEmpty()) map.put(key.toLowerCase(Locale.ROOT), value.toLowerCase(Locale.ROOT));
+        }
+        if (tagDict != null) {
+            Iterator<String> dictKeys = tagDict.keys();
+            while (dictKeys.hasNext()) {
+                String key = dictKeys.next();
+                String cn = tagDict.optString(key).trim().toLowerCase(Locale.ROOT);
+                if (cn.length() < 2 || cn.length() > 8) continue;
+                if (!looksChinese(cn)) continue;
+                map.putIfAbsent(cn, key.toLowerCase(Locale.ROOT).replace(' ', '_'));
+            }
+        }
+        return map;
+    }
+
+    private static boolean looksChinese(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (ch >= 0x4e00 && ch <= 0x9fff) return true;
+        }
+        return false;
     }
 
     private List<String> readCharactersFromPack() {

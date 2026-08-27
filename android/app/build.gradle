@@ -9,8 +9,8 @@ android {
         applicationId = "com.naixuezhang.studio.mobile"
         minSdk = 24
         targetSdk = 34
-        versionCode = 158
-        versionName = "1.5.2-phone.7"
+        versionCode = 159
+        versionName = "1.5.2-phone.8"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
