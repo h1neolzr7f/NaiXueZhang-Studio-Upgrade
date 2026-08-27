@@ -170,6 +170,11 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("全部页加入队列", js)
         self.assertIn("按槽位换本页", js)
         self.assertIn("本页全部女槽", js)
+        self.assertIn("整系列换角并入队", js)
+        self.assertIn("原图画风", js)
+        self.assertIn("整系列换画风", js)
+        self.assertIn("remixSeriesAndEnqueue", js)
+        self.assertIn("recognizeStyles", js)
         self.assertIn("slot_targets", js)
         self.assertIn("startPages", (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/JobStore.java").read_text(encoding="utf-8"))
         self.assertIn("mBrowsePager", js)
@@ -193,6 +198,9 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("analyzeSlotCaption", core)
         self.assertIn("imageComment", core)
         self.assertIn("promptSnapshot", core)
+        self.assertIn("recognizeStyles", core)
+        self.assertIn("recognizeWorkStyles", core)
+        self.assertIn("STYLE_LABELS", core)
         self.assertIn("没找到这个角色槽", core)
         server = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/LocalStudioServer.java").read_text(
             encoding="utf-8"

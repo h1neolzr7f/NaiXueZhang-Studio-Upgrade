@@ -312,12 +312,12 @@
         <ol class="m-guide">
           <li>点右上角「设置」，填 NovelAI 和 DeepSeek</li>
           <li>${standalone ? "发现里点☆收藏，入本地库" : "下面搜一张图，点进去"}</li>
-          <li>${standalone ? "本地库换角 / 画风，再排队生成" : "选人 → 写草稿 → 确认出图"}</li>
+          <li>${standalone ? "本地库选人、看画风，点「整系列换角并入队」" : "选人 → 写草稿 → 确认出图"}</li>
         </ol>
         <p class="m-hint">${standalone
-          ? "不遥控电脑。在线库只负责搜图收藏。必须先入库，才能换角色、换画风和生成。同一任务的图会收进图库一组。多个 Token 可并发出图。"
+          ? "不遥控电脑。在线库只负责搜图收藏。必须先入库，才能换角色、换画风和生成。原图画风会先识别出来，再整系列替换。同一任务的图会收进图库一组。多个 Token 可并发出图。"
           : "搜 AITag 在线库，点进作品后换角。默认只要 NAI 图。"}</p>
-        <div class="m-quote">凑企鹅：先选图，再点准角色槽。没填 Token 我不会替你出图。</div>
+        <div class="m-quote">凑企鹅：先选人，再看原图画风。整系列一键入队。没填 Token 我不会替你出图。</div>
       </section>
       ${standalone ? `
       <section class="m-card m-keys">
@@ -410,7 +410,7 @@
         const offline = !!data.offline_demo;
         status.textContent = items.length
           ? (state.browseMode === "library"
-            ? `本地库 ${items.length} 个，点进去换角、换画风、排队生成`
+            ? `本地库 ${items.length} 个，点进去选人、看画风，整系列入队`
             : (offline
               ? "在线库暂时打不开，先用内置样例把换角跑通。连上后再搜。"
               : `第 ${state.searchPage} 页 · ${items.length} 个作品，先☆收藏入库`))
@@ -704,9 +704,33 @@
     return state.drafts[String(state.pageIndex)] || null;
   }
 
+  function recognizedStylesFor(image, work) {
+    if (!(window.StandaloneCore && window.StandaloneCore.recognizeStyles)) {
+      return { tokens: [], labels: [], text: "", label_text: "" };
+    }
+    const extra = work && Array.isArray(work.tags) ? { tags: work.tags } : {};
+    if (window.StandaloneCore.imageComment) {
+      return window.StandaloneCore.recognizeStyles(Object.assign({}, window.StandaloneCore.imageComment(image || {}), extra));
+    }
+    return window.StandaloneCore.recognizeStyles(image || extra);
+  }
+
+  function recognizedWorkStyles() {
+    if (window.StandaloneCore && window.StandaloneCore.recognizeWorkStyles) {
+      return window.StandaloneCore.recognizeWorkStyles(state.work || {});
+    }
+    return { tokens: [], labels: [], text: "", label_text: "", pages: [] };
+  }
+
+  function styleSummaryText(rec) {
+    if (!rec) return "";
+    if (rec.label_text && rec.text && rec.label_text !== rec.text) return rec.label_text + "（" + rec.text + "）";
+    return rec.label_text || rec.text || "";
+  }
+
   function draftPreviewHtml(entry) {
     const comment = draftComment(entry);
-    if (!comment) return '<p class="m-hint">还没有本页草稿。先点「本页换角」。</p>';
+    if (!comment) return '<p class="m-hint">还没有本页草稿。点「整系列换角并入队」，或在高级里先换本页。</p>';
     const snap = (window.StandaloneCore && window.StandaloneCore.promptSnapshot)
       ? window.StandaloneCore.promptSnapshot(comment)
       : { prompt: comment.prompt || "", uc: comment.uc || comment.negative_prompt || "", char_captions: [] };
@@ -779,6 +803,13 @@
     const tags = Array.isArray(work.tags) ? work.tags.map((tag) => String(tag || "")).filter(Boolean).slice(0, 8) : [];
     const saveState = String((state.work && state.work.save_state) || "");
     const canRemix = remixReady();
+    const pageStyle = recognizedStylesFor(img, work);
+    const seriesStyle = recognizedWorkStyles();
+    const pageStyleText = styleSummaryText(pageStyle);
+    const seriesStyleText = styleSummaryText(seriesStyle);
+    const styleReplaceText = state.styleLabel
+      ? ("将替换为 " + state.styleLabel)
+      : "不换画风就保持原图识别到的词";
     root.innerHTML = `
       <section class="m-card">
         <p class="m-eyebrow">第 1 步 · 看图</p>
@@ -792,52 +823,67 @@
         ${promptText
           ? `<p class="m-meta">原图咒语：${escapeHtml(promptText.slice(0, 220))}</p>`
           : `<p class="m-err">这页没有 NovelAI 咒语，不能换角。换一页或换一张图。</p>`}
+        <p class="m-meta" id="mPageStyle">原图画风：${pageStyleText ? escapeHtml(pageStyleText) : "这页没识别到画风词"}</p>
+        ${pageCount > 1
+          ? `<p class="m-meta" id="mSeriesStyle">整系列画风：${seriesStyleText ? escapeHtml(seriesStyleText) : "各页都没识别到画风词"}</p>`
+          : ""}
         <div class="m-row" id="mPages"></div>
       </section>
       <section class="m-card">
-        <p class="m-eyebrow">第 2 步 · 选要换的人</p>
+        <p class="m-eyebrow">第 2 步 · 选人</p>
         <h3>角色槽</h3>
         <div class="m-row" id="mSlots"></div>
         <p class="m-hint" id="mSlotHint">还没选槽</p>
-      </section>
-      <section class="m-card">
-        <p class="m-eyebrow">第 3 步 · 换成谁</p>
-        <h3>换成谁</h3>
-        <p class="m-hint" id="mTargetHint">${state.targetLabel ? ("已选 " + state.targetLabel) : "点开搜索，从 D 站角色库 / OC / 自定义查找"}</p>
+        <p class="m-hint" id="mTargetHint" style="margin-top:8px">${state.targetLabel ? ("已选 " + state.targetLabel) : "点开搜索，从 D 站角色库 / OC / 自定义查找"}</p>
         <div class="m-row">
           <button type="button" id="mOpenPicker" class="m-primary">点开搜索</button>
         </div>
         <div id="mSlotAssign" style="margin-top:10px"></div>
-        <p class="m-hint" id="mStyleHint" style="margin-top:10px">${state.styleLabel ? ("画风：" + state.styleLabel) : "画风可选。点开后选内置或自定义。"}</p>
-        <div class="m-row">
-          <button type="button" id="mOpenStyle" class="m-ghost">选画风</button>
-        </div>
       </section>
       <section class="m-card">
-        <p class="m-eyebrow">第 4 步 · 写草稿再出图</p>
-        <p class="m-hint">${canRemix
-          ? ("先写零费用草稿，再入队。多女角可给每个槽选不同人。整系列用「全部页加入队列」，会收进图库一组。已草稿 "
-            + Object.keys(state.drafts || {}).length + "/" + pageCount + " 页")
-          : remixBlockReason()}</p>
+        <p class="m-eyebrow">第 3 步 · 看/换画风</p>
+        <p class="m-meta">原图画风：${pageStyleText ? escapeHtml(pageStyleText) : "这页没识别到画风词"}</p>
+        <p class="m-hint" id="mStyleHint">${escapeHtml(styleReplaceText)}</p>
         <div class="m-row">
-          <button type="button" id="mApplyOne" class="m-primary" ${canRemix ? "" : "disabled"}>本页换角</button>
-          <button type="button" id="mApplyPageGender" class="m-ghost" ${canRemix ? "" : "disabled"}>本页全部女槽</button>
+          <button type="button" id="mOpenStyle" class="m-primary">选画风</button>
+          <button type="button" id="mApplyStyleAll" class="m-ghost" ${canRemix ? "" : "disabled"}>整系列换画风</button>
+        </div>
+        <p class="m-hint">选完会先清掉原图识别到的画风词，再写上新的。只换画风也可以，不必先换人。</p>
+      </section>
+      <section class="m-card">
+        <p class="m-eyebrow">第 4 步 · 整系列出图</p>
+        <p class="m-hint">${canRemix
+          ? ("选好人/画风后，一键换完全部 " + pageCount + " 页并入队。已草稿 "
+            + Object.keys(state.drafts || {}).length + "/" + pageCount + " 页，收进图库一组。")
+          : remixBlockReason()}</p>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mCopies" inputmode="numeric" value="${escapeHtml(String(state.copies || 1))}" placeholder="每页张数 1-8" />
         </div>
         <div class="m-row" style="margin-top:8px">
-          <button type="button" id="mApplySlots" class="m-ghost" ${canRemix ? "" : "disabled"}>按槽位换本页</button>
-          <button type="button" id="mApplyAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页换同性别</button>
+          <button type="button" id="mRemixSeries" class="m-primary m-cta" ${canRemix ? "" : "disabled"}>整系列换角并入队</button>
         </div>
-        <div class="m-row" style="margin-top:8px">
-          <button type="button" id="mApplySlotsAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页按槽位换</button>
-          <button type="button" id="mOptimize" class="m-ghost">DeepSeek 优化草稿</button>
-        </div>
-        <div class="m-row" style="margin-top:8px">
-          <input id="mCopies" inputmode="numeric" value="${escapeHtml(String(state.copies || 1))}" placeholder="张数 1-8" />
-          <button type="button" id="mGenOne" class="m-primary">加入队列</button>
-          ${isStandalone()
-            ? `<button type="button" id="mGenSeries" class="m-ghost">全部页加入队列</button>`
-            : `<button type="button" id="mQueueBtn" class="m-ghost">加入批量</button>`}
-        </div>
+        <p class="m-hint">把这 ${pageCount} 页都换成选好的人/画风，并加入队列。还没扣费前会再确认。</p>
+        <details class="m-adv">
+          <summary>高级：只换本页 / 只写草稿 / DeepSeek</summary>
+          <div class="m-row" style="margin-top:8px">
+            <button type="button" id="mApplyOne" class="m-ghost" ${canRemix ? "" : "disabled"}>本页换角</button>
+            <button type="button" id="mApplyPageGender" class="m-ghost" ${canRemix ? "" : "disabled"}>本页全部女槽</button>
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <button type="button" id="mApplySlots" class="m-ghost" ${canRemix ? "" : "disabled"}>按槽位换本页</button>
+            <button type="button" id="mApplyAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页换同性别</button>
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <button type="button" id="mApplySlotsAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页按槽位换</button>
+            <button type="button" id="mOptimize" class="m-ghost">DeepSeek 优化草稿</button>
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <button type="button" id="mGenOne" class="m-ghost">加入队列</button>
+            ${isStandalone()
+              ? `<button type="button" id="mGenSeries" class="m-ghost">全部页加入队列</button>`
+              : `<button type="button" id="mQueueBtn" class="m-ghost">加入批量</button>`}
+          </div>
+        </details>
         ${draftPreviewHtml(currentDraftEntry())}
         <p id="mWorkStatus" class="m-status"></p>
         <img id="mGenImg" class="m-preview hidden" alt="生成结果">
@@ -902,7 +948,11 @@
     if (applySlotsAll) applySlotsAll.onclick = () => applyDraft({ allPages: true, useSlotTargets: true });
     document.getElementById("mGenOne").onclick = generateCurrent;
     const genSeries = document.getElementById("mGenSeries");
-    if (genSeries) genSeries.onclick = enqueueSeries;
+    if (genSeries) genSeries.onclick = () => enqueueSeries({});
+    const remixSeries = document.getElementById("mRemixSeries");
+    if (remixSeries) remixSeries.onclick = remixSeriesAndEnqueue;
+    const applyStyleAll = document.getElementById("mApplyStyleAll");
+    if (applyStyleAll) applyStyleAll.onclick = applyStyleSeries;
     const queueBtn = document.getElementById("mQueueBtn");
     if (queueBtn) queueBtn.onclick = enqueueCurrent;
     const saveDraft = document.getElementById("mSaveDraft");
@@ -984,7 +1034,7 @@
             state.styleLabel = item.label;
             state.styleRecord = item.record || item;
             const hint = document.getElementById("mStyleHint");
-            if (hint) hint.textContent = "画风：" + item.label;
+            if (hint) hint.textContent = "将替换为 " + item.label;
             closeCharPicker();
             const sheetTitle = document.querySelector("#mPicker .m-sheet-head h3");
             if (sheetTitle) sheetTitle.textContent = "换成谁";
@@ -1086,7 +1136,7 @@
       return;
     }
     const role = rows[0].role === "male" ? "male" : "female";
-    host.innerHTML = `<p class="m-hint">这页有 ${rows.length} 个${role === "male" ? "男" : "女"}槽。每个槽选不同人后，点「按槽位换本页」或「全部页按槽位换」。</p>`;
+    host.innerHTML = `<p class="m-hint">这页有 ${rows.length} 个${role === "male" ? "男" : "女"}槽。每个槽选不同人后，点「整系列换角并入队」。</p>`;
     rows.forEach((item, index) => {
       const assigned = state.slotTargets[role + ":" + index];
       const row = document.createElement("div");
@@ -1328,47 +1378,56 @@
   }
 
   async function applyDraft(options) {
-    if (!requireWrite() || state.busy) return;
+    if (!requireWrite() || state.busy) return false;
     if (isStandalone() && !remixReady()) {
       toast(remixBlockReason(), "err");
-      return;
+      return false;
     }
     const workId = String((state.work && state.work.work && state.work.work.work_id) || "");
-    if (!workId) return;
+    if (!workId) return false;
+    const styleOnly = !!options.styleOnly;
     const slotTargets = options.useSlotTargets
       ? collectSlotTargets((state.slot && state.slot.role === "male") ? "male" : "female")
       : [];
     if (options.useSlotTargets && !slotTargets.length) {
       toast("先给每个角色槽选好人", "err");
-      return;
+      return false;
     }
-    if (!options.useSlotTargets && !state.targetId) {
+    if (!options.useSlotTargets && !state.targetId && !styleOnly) {
       toast("先选目标角色", "err");
-      return;
+      return false;
+    }
+    if (styleOnly && !state.styleRecord) {
+      toast("先选画风", "err");
+      return false;
     }
     const roleLabel = (options.genderScope === "male" || (state.slot && state.slot.role === "male")) ? "男" : "女";
-    if (options.allPages) {
-      const title = options.useSlotTargets ? "全部页按槽位换" : ("全部页换" + roleLabel + "角");
-      if (!await confirmAction(title, "会给每一页做零费用草稿，不会出图。缺槽的页会跳过该槽。")) return;
-    } else if (options.genderScope) {
-      if (!await confirmAction("本页全部" + roleLabel + "槽", "只改这一页的全部" + roleLabel + "槽，换成同一个人。不会出图。")) return;
-    } else if (options.useSlotTargets) {
-      if (!await confirmAction("按槽位换本页", "按你给每个槽选的人写草稿，不会出图。")) return;
+    if (!options.skipConfirm) {
+      if (styleOnly && options.allPages) {
+        if (!await confirmAction("整系列换画风", "会清掉每页识别到的画风词，换成你选的。只写草稿，不出图。缺页会跳过。")) return false;
+      } else if (options.allPages) {
+        const title = options.useSlotTargets ? "全部页按槽位换" : ("全部页换" + roleLabel + "角");
+        if (!await confirmAction(title, "会给每一页做零费用草稿，不会出图。缺槽的页会跳过该槽。")) return false;
+      } else if (options.genderScope) {
+        if (!await confirmAction("本页全部" + roleLabel + "槽", "只改这一页的全部" + roleLabel + "槽，换成同一个人。不会出图。")) return false;
+      } else if (options.useSlotTargets) {
+        if (!await confirmAction("按槽位换本页", "按你给每个槽选的人写草稿，不会出图。")) return false;
+      }
     }
     const status = document.getElementById("mWorkStatus");
-    status.textContent = "正在写草稿…";
+    if (status) status.textContent = "正在写草稿…";
     state.busy = true;
     try {
       if (isStandalone() && window.StandaloneCore) {
         const compileOpts = {
           image_index: state.pageIndex,
           slot_index: Number((state.slot && state.slot.slot_index) || 0),
-          candidate_id: (options.allPages || options.genderScope || options.useSlotTargets)
+          candidate_id: (options.allPages || options.genderScope || options.useSlotTargets || styleOnly)
             ? ""
             : String((state.slot && state.slot.candidate_id) || ""),
-          gender_scope: options.useSlotTargets ? "" : (options.genderScope || ""),
-          target_record: options.useSlotTargets ? null : state.targetRecord,
-          target_reference_id: options.useSlotTargets ? "" : state.targetId,
+          gender_scope: (options.useSlotTargets || styleOnly) ? "" : (options.genderScope || ""),
+          target_record: (options.useSlotTargets || styleOnly) ? null : state.targetRecord,
+          target_reference_id: (options.useSlotTargets || styleOnly) ? "" : state.targetId,
           style_record: state.styleRecord,
         };
         if (options.useSlotTargets) compileOpts.slot_targets = slotTargets;
@@ -1392,7 +1451,7 @@
           next.textContent = result.message || "草稿已就绪，还没扣 Anlas";
           next.className = "m-status m-ok";
         }
-        return;
+        return true;
       }
       const payload = {
         image_index: state.pageIndex,
@@ -1424,12 +1483,85 @@
         next.textContent = result.message || "草稿已就绪，还没扣 Anlas";
         next.className = "m-status m-ok";
       }
+      return true;
     } catch (error) {
-      status.textContent = error.message || String(error);
-      status.className = "m-status m-err";
+      if (status) {
+        status.textContent = error.message || String(error);
+        status.className = "m-status m-err";
+      } else {
+        toast(error.message || String(error), "err");
+      }
+      return false;
     } finally {
       state.busy = false;
     }
+  }
+
+  function seriesRole() {
+    return (state.slot && state.slot.role === "male") ? "male" : "female";
+  }
+
+  function seriesWhoLabel(slotTargets, useSlots) {
+    if (useSlots) {
+      return slotTargets.map((item) => {
+        const rec = item.target_record || {};
+        return rec.label || rec.name || rec.character || "角色";
+      }).filter(Boolean).join(" / ") || "分槽角色";
+    }
+    return state.targetLabel || "原角色";
+  }
+
+  async function applyStyleSeries() {
+    if (!state.styleRecord) {
+      toast("先选画风", "err");
+      return false;
+    }
+    return applyDraft({ allPages: true, styleOnly: true });
+  }
+
+  async function remixSeriesAndEnqueue() {
+    if (!requireWrite() || state.busy) return false;
+    if (isStandalone() && !remixReady()) {
+      toast(remixBlockReason(), "err");
+      return false;
+    }
+    const pageCount = imageCountOf(state.work);
+    const role = seriesRole();
+    const slotTargets = collectSlotTargets(role);
+    const genderCount = (window.StandaloneCore && window.StandaloneCore.countGenderSlots)
+      ? window.StandaloneCore.countGenderSlots((state.work && state.work.character_candidates) || [], state.pageIndex, role)
+      : slotTargets.length;
+    const useSlots = slotTargets.length >= 1 && genderCount >= 2;
+    const hasTarget = !!state.targetId;
+    const hasStyle = !!state.styleRecord;
+    if (!useSlots && !hasTarget && !hasStyle) {
+      toast("先选人，或先选画风", "err");
+      return false;
+    }
+    const nai = await api().get("/api/nai/status");
+    if (!nai.has_token) {
+      toast(isStandalone() ? "先在设置里填 NovelAI Token" : "电脑上还没配置 NovelAI Token", "err");
+      if (isStandalone()) openSettings();
+      return false;
+    }
+    const copiesBox = document.getElementById("mCopies");
+    const copies = Math.max(1, Math.min(8, Number(copiesBox && copiesBox.value) || state.copies || 1));
+    state.copies = copies;
+    const who = seriesWhoLabel(slotTargets, useSlots);
+    const stylePart = hasStyle ? ("，画风换成" + state.styleLabel) : "";
+    if (!await confirmAction(
+      "整系列换角并入队",
+      "把这 " + pageCount + " 页都换成「" + who + "」" + stylePart + "，每页出 " + copies + " 张，收进图库同一组。默认免费档。点确认后才会调用 NovelAI。"
+    )) return false;
+    const compiled = await applyDraft({
+      allPages: true,
+      useSlotTargets: useSlots,
+      genderScope: (!useSlots && hasTarget) ? role : "",
+      styleOnly: !useSlots && !hasTarget && hasStyle,
+      skipConfirm: true,
+    });
+    if (!compiled) return false;
+    return enqueueSeries({ skipConfirm: true });
   }
 
   async function generateCurrent() {
@@ -1514,30 +1646,33 @@
     return res;
   }
 
-  async function enqueueSeries() {
-    if (!requireWrite() || state.busy) return;
+  async function enqueueSeries(options) {
+    const opts = options || {};
+    if (!requireWrite() || state.busy) return false;
     if (isStandalone() && !remixReady()) {
       toast(remixBlockReason(), "err");
-      return;
+      return false;
     }
     const keys = Object.keys(state.drafts || {}).sort((a, b) => Number(a) - Number(b));
     if (!keys.length) {
-      toast("先给各页写草稿。可用「全部页换同性别」或「全部页按槽位换」", "err");
-      return;
+      toast("先给各页写草稿。点「整系列换角并入队」，或在高级里换各页。", "err");
+      return false;
     }
     const nai = await api().get("/api/nai/status");
     if (!nai.has_token) {
       toast(isStandalone() ? "先在设置里填 NovelAI Token" : "电脑上还没配置 NovelAI Token", "err");
       if (isStandalone()) openSettings();
-      return;
+      return false;
     }
     const copiesBox = document.getElementById("mCopies");
     const copies = Math.max(1, Math.min(8, Number(copiesBox && copiesBox.value) || state.copies || 1));
     state.copies = copies;
-    if (!await confirmAction(
-      "全部页加入队列",
-      "默认免费档。已草稿的 " + keys.length + " 页各出 " + copies + " 张，收进图库同一组。多个 Token 会并发。点确认后才会调用 NovelAI。"
-    )) return;
+    if (!opts.skipConfirm) {
+      if (!await confirmAction(
+        "全部页加入队列",
+        "默认免费档。已草稿的 " + keys.length + " 页各出 " + copies + " 张，收进图库同一组。多个 Token 会并发。点确认后才会调用 NovelAI。"
+      )) return false;
+    }
     const work = (state.work && state.work.work) || {};
     const workId = String(work.work_id || work.id || "");
     const pages = [];
@@ -1559,7 +1694,7 @@
     });
     if (!pages.length) {
       toast("草稿不完整", "err");
-      return;
+      return false;
     }
     const status = document.getElementById("mWorkStatus");
     try {
@@ -1587,6 +1722,7 @@
       }
       toast(res.message || "整系列已入队，去排队页看进度");
       location.hash = "#/batch";
+      return true;
     } catch (error) {
       if (status) {
         status.textContent = error.message || String(error);
@@ -1594,6 +1730,7 @@
       } else {
         toast(error.message || String(error), "err");
       }
+      return false;
     }
   }
 

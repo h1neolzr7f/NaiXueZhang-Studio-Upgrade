@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Nai学长工作室</string>
-    <string name="app_tagline">1.5.2-phone.9 · 手机独立换角出图</string>
+    <string name="app_tagline">1.5.2-phone.10 · 手机独立换角出图</string>
     <string name="settings_title">本机设置</string>
     <string name="settings_hint">这是独立安卓应用，不遥控电脑。密钥只写进这台手机。出图走 NovelAI，写角色/优化咒语用 DeepSeek。Token 每行一个，几个就能并发几路。搜图可走代理，出图默认直连。</string>
     <string name="token_hint">每行一个 NovelAI Token。几个就能并发几路。</string>

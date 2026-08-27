@@ -499,3 +499,8 @@ button:disabled { opacity: 0.45; }
 .m-album-empty { color: var(--muted); padding: 12px; }
 .m-adv { margin-top: 12px; color: var(--muted); }
 .m-adv summary { cursor: pointer; color: var(--gold); }
+.m-cta {
+  width: 100%;
+  min-height: 48px;
+  font-size: 16px;
+}
