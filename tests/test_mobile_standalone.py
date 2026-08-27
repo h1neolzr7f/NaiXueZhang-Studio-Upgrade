@@ -191,12 +191,24 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("按槽位换本页", js)
         self.assertIn("本页全部女槽", js)
         self.assertIn("整系列换角并入队", js)
+        self.assertIn("jobProgressHtml", js)
+        self.assertIn("预计还要", js)
+        self.assertIn("m-progress-bar", js)
+        self.assertIn("轻量打码", js)
+        self.assertIn("data-mosaic-method", js)
         self.assertIn("原图画风", js)
         self.assertIn("整系列换画风", js)
         self.assertIn("remixSeriesAndEnqueue", js)
         self.assertIn("recognizeStyles", js)
         self.assertIn("slot_targets", js)
-        self.assertIn("startPages", (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/JobStore.java").read_text(encoding="utf-8"))
+        jobs_src = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/JobStore.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("startPages", jobs_src)
+        self.assertIn("eta_seconds", jobs_src)
+        self.assertIn("decorateLive", jobs_src)
+        self.assertIn("预计还要", jobs_src)
+        self.assertIn("stage_label", jobs_src)
         self.assertIn("mBrowsePager", js)
         self.assertIn("D 站角色库", js)
         self.assertIn("画风", js)
@@ -207,6 +219,9 @@ class MobileStandaloneTests(unittest.TestCase):
         css = (WEB / "m" / "m.css").read_text(encoding="utf-8")
         self.assertIn("min-height: 44px", css)
         self.assertIn("--kb", css)
+        self.assertIn(".m-progress", css)
+        self.assertIn(".m-eta", css)
+        self.assertIn(".m-step.now", css)
         core = (WEB / "m" / "standalone-core.js").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"\bfetch\s*\(", core))
         self.assertIn("generation_calls: 0", core)
@@ -262,6 +277,8 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("JSONObject delete", jobs)
         self.assertIn("friendlyGenerateError", jobs)
         self.assertIn("生成连接被掐断", jobs)
+        self.assertIn("formatEta", jobs)
+        self.assertIn("pipeline.summary", jobs)
         fav = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/FavoriteStore.java").read_text(
             encoding="utf-8"
         )
@@ -313,11 +330,23 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertIn("PhonePipeline.process", pipeline)
         self.assertIn("upscale", pipeline)
         self.assertIn("metadata", pipeline)
+        self.assertIn("mosaic_available", pipeline)
+        self.assertIn("mosaic_mode", pipeline)
+        self.assertIn("light", pipeline)
+        self.assertIn("轻量打码", pipeline)
         phonePipe = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/PhonePipeline.java").read_text(
             encoding="utf-8"
         )
         self.assertIn("FILTER_BITMAP_FLAG", phonePipe)
         self.assertIn("PNG", phonePipe)
+        self.assertIn("LightMosaic.apply", phonePipe)
+        mosaic = (ANDROID / "app/src/main/java/com/naixuezhang/studio/mobile/LightMosaic.java").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("isSkin", mosaic)
+        self.assertIn("detectBoxes", mosaic)
+        self.assertNotIn(".onnx", mosaic)
+        self.assertNotIn("ultralytics", mosaic)
 
     def test_phone_preview_search_ranks_popular_names(self) -> None:
         import importlib.util
@@ -341,12 +370,18 @@ class MobileStandaloneTests(unittest.TestCase):
         self.assertTrue(d_only)
         self.assertTrue(all(str(item.get("source")) == "D 站角色库" for item in d_only), d_only[:3])
         self.assertEqual(module._search_chars("female", "", 8, "oc"), [])
+        self.assertEqual(module._format_eta(22), "预计还要 22 秒")
+        self.assertGreaterEqual(module._estimate_seconds(4, 2), 8)
         preview = (ROOT / "scripts" / "phone_preview_server.py").read_text(encoding="utf-8")
         self.assertIn("token_count", preview)
         self.assertIn("concurrency", preview)
         self.assertIn("_ensure_char_indexes", preview)
         self.assertIn("已保存 OC", preview)
         self.assertIn("_normalize_source", preview)
+        self.assertIn("_format_eta", preview)
+        self.assertIn("mosaic_available", preview)
+        self.assertIn("preview-running", preview)
+        self.assertIn("_simulate_job", preview)
 
     def test_user_guide_describes_phone_local_app(self) -> None:
         guide = (ROOT / "使用说明.txt").read_text(encoding="utf-8")

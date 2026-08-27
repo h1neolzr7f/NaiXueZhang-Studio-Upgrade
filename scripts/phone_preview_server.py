@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -110,6 +112,19 @@ TAG_DICT = _load_json("tag_dict.json")
 FAV_IDS: list[str] = [DEMO_ID]
 OUTPUTS: list[dict] = []
 ALBUMS: list[dict] = []
+PIPELINE_CFG: dict = {
+    "auto_after_generate": True,
+    "upscale": True,
+    "scale": 2,
+    "metadata": True,
+    "mosaic": True,
+    "mosaic_available": True,
+    "mosaic_mode": "light",
+    "mosaic_method": "像素",
+    "mosaic_intensity": 36,
+    "estimate_ms": 2200,
+}
+JOB_SEQ = 1
 JOBS: dict[str, dict] = {
     "preview-error": {
         "task_id": "preview-error",
@@ -121,9 +136,37 @@ JOBS: dict[str, dict] = {
         "done": 0,
         "total": 4,
         "pages": 2,
+        "progress": 12,
+        "stage": "error",
+        "stage_label": "失败",
+        "eta_seconds": 0,
+        "eta_text": "",
         "title": "香蕉姐 · 全系列",
         "message": "生成连接被掐断。没看到成功回执，先看 NovelAI 记录有没有扣费，再手动重试",
-    }
+    },
+    "preview-running": {
+        "task_id": "preview-running",
+        "album_id": "preview-running",
+        "status": "running",
+        "terminal": False,
+        "cancellable": True,
+        "retryable": False,
+        "done": 1,
+        "total": 4,
+        "pages": 2,
+        "copies": 2,
+        "running": 1,
+        "concurrency": 2,
+        "progress": 38,
+        "stage": "generating",
+        "stage_label": "正在出图",
+        "eta_seconds": 22,
+        "eta_text": "预计还要 22 秒",
+        "expected_seconds": 28,
+        "title": "阿米娅 · 全系列",
+        "message": "生成中 1/4 · 2 路并发",
+        "_t0": time.time(),
+    },
 }
 CUSTOM: list[dict] = []
 CUSTOM_STYLES: list[dict] = []
@@ -167,6 +210,160 @@ def _token_payload(message: str = "") -> dict:
         "slots": shown,
         "message": message or ("已配置 " + str(shown) + " 个 Token，可 " + str(shown) + " 路并发"),
     }
+
+
+def _format_eta(seconds: int) -> str:
+    seconds = max(0, int(seconds))
+    if seconds <= 0:
+        return "即将完成"
+    if seconds < 60:
+        return "预计还要 " + str(seconds) + " 秒"
+    minutes = seconds // 60
+    rest = seconds % 60
+    if rest == 0:
+        return "预计还要 " + str(minutes) + " 分钟"
+    return "预计还要 " + str(minutes) + " 分 " + str(rest) + " 秒"
+
+
+def _estimate_seconds(total: int, concurrency: int) -> int:
+    count = max(1, int(total or 1))
+    slots = max(1, int(concurrency or 1))
+    extra = 2.2
+    if PIPELINE_CFG.get("upscale"):
+        extra += 0.4 * int(PIPELINE_CFG.get("scale") or 2) ** 2
+    if PIPELINE_CFG.get("mosaic"):
+        extra += 1.1
+    if PIPELINE_CFG.get("metadata", True):
+        extra += 0.2
+    waves = (count + slots - 1) // slots
+    return max(4, int(round(waves * (12.0 + extra))))
+
+
+def _decorate_job(job: dict) -> dict:
+    out = dict(job)
+    out.pop("_t0", None)
+    status = str(out.get("status") or "")
+    terminal = bool(out.get("terminal")) or status in {"done", "error", "cancelled", "unknown"}
+    done = int(out.get("done") or 0)
+    total = max(1, int(out.get("total") or 1))
+    running = int(out.get("running") or 0)
+    stage = str(out.get("stage") or status)
+    if terminal and status == "done":
+        out["progress"] = 100
+        out["eta_seconds"] = 0
+        out["eta_text"] = "已完成"
+        out["stage_label"] = out.get("stage_label") or "完成"
+        return out
+    started = float(job.get("_t0") or 0)
+    elapsed = max(0.0, time.time() - started) if started else 0.0
+    if status == "queued":
+        frac = 0.02
+    else:
+        unit = 0.55
+        if stage in {"pipeline", "upscale", "mosaic"}:
+            unit = 0.84
+        elif stage == "saving":
+            unit = 0.94
+        elif stage == "requesting":
+            unit = 0.16
+        elif stage in {"generating", "running"}:
+            unit = min(0.72, 0.18 + elapsed / 16.0)
+        frac = done + running * unit
+    progress = 100 if terminal and status == "done" else max(2, min(99, int(round(frac * 100 / total))))
+    leftover = max(0, total - done)
+    conc = max(1, int(out.get("concurrency") or 1))
+    eta = 0 if terminal else max(1, _estimate_seconds(leftover, conc) - int(elapsed))
+    out["progress"] = progress
+    out["eta_seconds"] = 0 if terminal else eta
+    out["eta_text"] = "" if terminal else _format_eta(eta)
+    out["expected_seconds"] = out.get("expected_seconds") or _estimate_seconds(total, conc)
+    if not out.get("stage_label"):
+        labels = {
+            "queued": "排队等待",
+            "requesting": "正在请求 NovelAI",
+            "generating": "正在出图",
+            "running": "正在出图",
+            "upscale": "本机超分",
+            "mosaic": "轻量打码",
+            "pipeline": "本机后处理",
+            "saving": "写入图库",
+        }
+        out["stage_label"] = labels.get(stage, status or "生成中")
+    return out
+
+
+def _tick_jobs() -> None:
+    now = time.time()
+    job = JOBS.get("preview-running")
+    if not job or job.get("terminal"):
+        return
+    started = float(job.setdefault("_t0", now))
+    elapsed = now - started
+    cycle = elapsed % 24.0
+    if cycle < 6:
+        job.update({"done": 1, "running": 1, "stage": "generating", "stage_label": "正在出图", "message": "生成中 1/4 · 2 路并发"})
+    elif cycle < 10:
+        job.update({"done": 2, "running": 1, "stage": "pipeline", "stage_label": "本机后处理：超分 2x，轻量打码 像素，清元数据开", "message": "生成中 2/4 · 轻量打码"})
+    elif cycle < 16:
+        job.update({"done": 3, "running": 1, "stage": "generating", "stage_label": "正在出图", "message": "生成中 3/4 · 2 路并发"})
+    else:
+        job.update({"done": 3, "running": 1, "stage": "saving", "stage_label": "写入图库和相册", "message": "生成中 3/4 · 写入图库"})
+
+
+def _simulate_job(task_id: str, total: int, title: str) -> None:
+    stages = (
+        (0.4, "queued", "排队等待", 0, 0),
+        (0.8, "requesting", "正在请求 NovelAI", 0, 1),
+        (1.6, "generating", "正在出图", 0, 1),
+        (0.6, "pipeline", "本机后处理：超分 / 轻量打码 / 清元数据", 0, 1),
+        (0.4, "saving", "写入图库和相册", 1, 0),
+    )
+    job = JOBS.get(task_id)
+    if not job:
+        return
+    finished = 0
+    while finished < total and not job.get("terminal"):
+        for wait, stage, label, add_done, running in stages:
+            if job.get("terminal"):
+                return
+            job.update({
+                "status": "running",
+                "stage": stage,
+                "stage_label": label,
+                "running": running,
+                "done": finished,
+                "message": label + " · " + str(finished) + "/" + str(total),
+            })
+            time.sleep(wait)
+            if add_done:
+                finished += 1
+                job["done"] = finished
+                break
+    if job.get("terminal"):
+        return
+    item = {
+        "ok": True,
+        "image_url": "/api/mobile/output/preview.png",
+        "gallery_url": "/api/mobile/output/preview.png",
+        "library_id": "g" + task_id,
+        "album_id": task_id,
+        "message": "完成：已入图库并跑完流水线（超分 + 轻量打码 + 清元数据）",
+    }
+    job.update({
+        "status": "done",
+        "terminal": True,
+        "cancellable": False,
+        "retryable": False,
+        "done": total,
+        "running": 0,
+        "progress": 100,
+        "stage": "done",
+        "stage_label": "完成",
+        "eta_seconds": 0,
+        "eta_text": "已完成",
+        "items": [item],
+        "message": "完成 " + str(total) + " 张，已按同一任务收入图库",
+    })
 
 
 def _name_of(tag: str) -> str:
@@ -517,7 +714,9 @@ class Handler(BaseHTTPRequestHandler):
             items = _search_styles(query.get("q") or "", int(query.get("limit") or 40))
             return self._json({"ok": True, "items": items, "total": len(items)})
         if path == "/api/mobile/queue":
-            return self._json({"ok": True, "items": list(JOBS.values()), "total": len(JOBS)})
+            _tick_jobs()
+            items = [_decorate_job(job) for job in JOBS.values()]
+            return self._json({"ok": True, "items": items, "total": len(items), "concurrency": max(1, len(PREVIEW_TOKENS) or 1)})
         if path == "/api/mobile/gallery":
             return self._json({"ok": True, "albums": ALBUMS, "items": ALBUMS, "total": len(ALBUMS), "grouped": True})
         if path.startswith("/api/mobile/gallery/"):
@@ -543,12 +742,20 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/mobile/outputs":
             return self._json({"ok": True, "albums": ALBUMS, "items": ALBUMS, "total": len(ALBUMS), "grouped": True})
         if path == "/api/pipeline/config":
-            return self._json({"ok": True, "config": {"auto_after_generate": True, "upscale": True, "metadata": True}})
+            return self._json({
+                "ok": True,
+                "config": dict(PIPELINE_CFG),
+                "message": "手机流水线：超分 + 轻量打码 + 清元数据。打码是肤色区域像素/模糊，不是电脑 ANR/YOLO。",
+            })
         if path == "/api/pipeline/status":
             return self._json({"ok": True, "job": {"status": "idle"}, "backlog": {"count": 0}})
         if path.startswith("/api/nai/jobs"):
+            _tick_jobs()
             task = query.get("task_id") or ""
-            return self._json(JOBS.get(task) or {"ok": False, "detail": "generation task not found"}, 404 if task not in JOBS else 200)
+            job = JOBS.get(task)
+            if not job:
+                return self._json({"ok": False, "detail": "generation task not found"}, 404)
+            return self._json(_decorate_job(job))
         if path.startswith("/api/mobile/output/"):
             return self._send(200, _png(0), "image/png")
         if path == "/api/session-token":
@@ -645,6 +852,7 @@ class Handler(BaseHTTPRequestHandler):
                 "generation_calls": 0,
             })
         if path == "/api/nai/generate":
+            global JOB_SEQ
             work_id = str(payload.get("work_id_str") or payload.get("remote_work_id") or payload.get("work_id") or "")
             if work_id and work_id not in FAV_IDS and work_id != DEMO_ID and not str(work_id).startswith("g"):
                 return self._json({"ok": False, "detail": "先收藏入本地库，才能换角和生成"}, 400)
@@ -653,7 +861,8 @@ class Handler(BaseHTTPRequestHandler):
             series_pages = payload.get("pages") or []
             page_count = len(series_pages) if series_pages else 1
             total = max(1, page_count * copies)
-            task_id = "previewjob01"
+            JOB_SEQ += 1
+            task_id = "previewjob" + str(JOB_SEQ)
             images = []
             for index in range(total):
                 images.append({
@@ -662,29 +871,31 @@ class Handler(BaseHTTPRequestHandler):
                     "thumbnail_url": "/api/mobile/output/preview.png",
                     "page_index": index,
                 })
-            item = {
-                "ok": True,
-                "image_url": "/api/mobile/output/preview.png",
-                "gallery_url": "/api/mobile/output/preview.png",
-                "library_id": "g" + task_id,
-                "album_id": task_id,
-                "message": "完成：已入图库并跑完流水线",
-            }
+            eta = _estimate_seconds(total, slots)
             JOBS[task_id] = {
                 "ok": True,
                 "task_id": task_id,
                 "album_id": task_id,
-                "status": "done",
-                "terminal": True,
-                "cancellable": False,
+                "status": "queued",
+                "terminal": False,
+                "cancellable": True,
                 "retryable": False,
-                "done": total,
+                "done": 0,
                 "total": total,
                 "pages": page_count,
+                "copies": copies,
+                "running": 0,
                 "concurrency": slots,
+                "progress": 2,
+                "stage": "queued",
+                "stage_label": "排队等待",
+                "eta_seconds": eta,
+                "eta_text": _format_eta(eta),
+                "expected_seconds": eta,
                 "title": payload.get("source_title") or "预览生成",
-                "items": [item],
-                "message": f"完成 {total} 张，已按同一任务收入图库" + (f" · {page_count} 页" if page_count > 1 else "") + (f" · {slots} 路并发" if slots > 1 else ""),
+                "items": [],
+                "message": "已加入生成队列",
+                "_t0": time.time(),
             }
             ALBUMS[:] = [{
                 "album_id": task_id,
@@ -695,7 +906,8 @@ class Handler(BaseHTTPRequestHandler):
                 "images": images,
                 "source_work_id": work_id,
             }] + [row for row in ALBUMS if row.get("album_id") != task_id]
-            OUTPUTS.append({"image_url": item["image_url"], "title": "预览生成", "id": "preview"})
+            OUTPUTS.append({"image_url": "/api/mobile/output/preview.png", "title": "预览生成", "id": "preview"})
+            threading.Thread(target=_simulate_job, args=(task_id, total, JOBS[task_id]["title"]), daemon=True).start()
             return self._json({
                 "ok": True,
                 "task_id": task_id,
@@ -704,13 +916,28 @@ class Handler(BaseHTTPRequestHandler):
                 "concurrency": slots,
                 "total": total,
                 "pages": page_count,
+                "progress": 2,
+                "eta_seconds": eta,
+                "eta_text": _format_eta(eta),
+                "expected_seconds": eta,
+                "stage": "queued",
+                "stage_label": "排队等待",
                 "message": (
                     ("已加入生成队列，" + str(page_count) + " 页收进同一组")
                     if page_count > 1 else "已加入生成队列"
-                ) + (f"，{slots} 路并发" if slots > 1 and total > 1 else ""),
+                ) + (f"，{slots} 路并发" if slots > 1 and total > 1 else "") + "，" + _format_eta(eta),
             })
         if path == "/api/pipeline/config":
-            return self._json({"ok": True, "config": payload})
+            if isinstance(payload, dict):
+                for key in (
+                    "auto_after_generate", "upscale", "metadata", "mosaic",
+                    "scale", "mosaic_method", "mosaic_intensity",
+                ):
+                    if key in payload:
+                        PIPELINE_CFG[key] = payload[key]
+                PIPELINE_CFG["mosaic_available"] = True
+                PIPELINE_CFG["mosaic_mode"] = "light"
+            return self._json({"ok": True, "config": dict(PIPELINE_CFG)})
         if path == "/api/pipeline/run":
             return self._json({"ok": True, "message": "已开始"})
         if path == "/api/nai/token":
