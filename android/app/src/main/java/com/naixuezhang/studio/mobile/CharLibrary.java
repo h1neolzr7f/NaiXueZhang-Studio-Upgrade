@@ -176,20 +176,22 @@ final class CharLibrary {
             else compact = alias;
         }
         if (series.isEmpty()) series = seriesOfCopyright(compact);
+        final String compactKey = compact;
+        final String seriesKey = series;
         try {
-            List<String> pool = candidates(compact, series);
+            List<String> pool = candidates(compactKey, seriesKey);
             List<String> hits = new ArrayList<>();
             Set<String> seen = new HashSet<>();
             for (String tag : pool) {
                 if (!seen.add(tag)) continue;
                 String name = nameOf(tag);
-                boolean nameHit = !compact.isEmpty() && (tag.startsWith(compact) || name.startsWith(compact) || name.contains(compact));
-                boolean seriesHit = !series.isEmpty() && tag.contains(series);
+                boolean nameHit = !compactKey.isEmpty() && (tag.startsWith(compactKey) || name.startsWith(compactKey) || name.contains(compactKey));
+                boolean seriesHit = !seriesKey.isEmpty() && tag.contains(seriesKey);
                 if (nameHit || seriesHit) hits.add(tag);
             }
             hits.sort((a, b) -> {
-                int sa = rank(a, compact, series);
-                int sb = rank(b, compact, series);
+                int sa = rank(a, compactKey, seriesKey);
+                int sb = rank(b, compactKey, seriesKey);
                 if (sa != sb) return Integer.compare(sa, sb);
                 return Integer.compare(nameOf(a).length(), nameOf(b).length());
             });
