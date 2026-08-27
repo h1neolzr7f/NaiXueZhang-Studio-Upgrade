@@ -1,10 +1,10 @@
-Nai学长工作室 · 安卓独立版 1.5.2-phone.13（debug）
+Nai学长工作室 · 安卓独立版 1.5.2-phone.14（debug）
 
 安装包：NaiXueZhang-Phone-1.5.2.apk
 包名：com.naixuezhang.studio.mobile
-SHA256：944196a7ea7e58162959ffb1c3f37e79bf0f299ade830d41437753c31ac8589a
+SHA256：6f5382183614b7360ffa4c91145056a9dc079a55dfba843172290ea1137b70d7
 
-安装包约 7.6MB（已打进电脑同款全量 D 站角色包）。
+安装包约 7.7MB（已打进电脑同款全量 D 站角色包，没有 ANR/YOLO 权重）。
 这是 debug 签名包，不是官方 Windows 一键 zip。
 装完只填 NovelAI Token 和 DeepSeek Key，不连电脑，不遥控电脑。
 Token 每行一个，几个就能并发几路。
@@ -14,7 +14,9 @@ Token 每行一个，几个就能并发几路。
 作品页会先识别原图画风。D 站 / 方舟 / 写 OC 都能换。自定义就是 OC 整段咒语，支持 {{权重}}。
 换角方式都摊开：本页换角、按槽位换、全部页换、整系列换角并入队、加入队列。也可写服饰/额外/移除。
 多女角：每个槽选不同人。只换画风也可以点「整系列换画风」。
-队列失败可手动重试或删除，不会自动重试。草稿可手改。图库可删一组。在线库不通时，先开「内置样例」。Clash 填 HTTP（例如 http://127.0.0.1:7890），不要只开全局 VPN。
+队列有进度条、当前阶段和预计还要多久。失败可手动重试或删除，不会自动重试。
+图库可开关超分 2/3/4x、轻量打码（像素/模糊/纯色）和清元数据。打码是肤色区域，漏打请自己看一眼。
+在线库不通时，先开「内置样例」。Clash 填 HTTP（例如 http://127.0.0.1:7890），不要只开全局 VPN。
 
 手机浏览器直接下载：
 https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/raw/cursor/android-phone-standalone-9162/android/download/NaiXueZhang-Phone-1.5.2.apk
