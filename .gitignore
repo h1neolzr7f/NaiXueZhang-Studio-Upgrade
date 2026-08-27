@@ -43,6 +43,7 @@ data/galleries/
 !data/danbooru_recognition.json
 !data/danbooru_style_tags.json
 !data/phone_char_index.txt
+!data/phone_copyright_index.txt
 !data/phone_series_aliases.json
 !data/phone_style_index.json
 !data/director_catalog.json

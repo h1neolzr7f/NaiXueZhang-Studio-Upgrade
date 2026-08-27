@@ -77,6 +77,7 @@ PUBLIC_DATA_FILES = {
     "danbooru_recognition.json",
     "danbooru_style_tags.json",
     "phone_char_index.txt",
+    "phone_copyright_index.txt",
     "phone_series_aliases.json",
     "phone_style_index.json",
     "director_catalog.json",

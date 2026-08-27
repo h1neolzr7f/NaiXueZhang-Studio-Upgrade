@@ -11,18 +11,26 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 final class CharLibrary {
     private final JSONObject presets;
     private final JSONObject ark;
     private final JSONObject aliases;
     private final JSONObject seriesAliases;
+    private final JSONObject tagDict;
     private final CustomCharStore custom;
     private final Context context;
     private List<String> danbooru;
+    private Map<String, List<String>> prefixIndex;
+    private Map<String, List<String>> seriesIndex;
+    private Set<String> copyrights;
 
     CharLibrary(Context context, CustomCharStore custom) {
         this.context = context.getApplicationContext();
@@ -31,6 +39,7 @@ final class CharLibrary {
         ark = readAssetObject(this.context, "data/ark_char_library.json");
         aliases = readAssetObject(this.context, "data/ark_cn_aliases.json");
         seriesAliases = readAssetObject(this.context, "data/phone_series_aliases.json");
+        tagDict = readAssetObject(this.context, "data/tag_dict.json");
     }
 
     JSONObject listPresets(String gender) {
@@ -157,13 +166,22 @@ final class CharLibrary {
 
     private JSONArray searchDanbooru(String gender, String needle, int limit) {
         JSONArray items = new JSONArray();
-        String compact = needle.replace(' ', '_');
-        String series = seriesAlias(needle);
         ensureDanbooru();
         if (danbooru == null || danbooru.isEmpty()) return items;
+        String compact = needle.replace(' ', '_');
+        String alias = resolveAlias(needle);
+        String series = "";
+        if (!alias.isEmpty()) {
+            if (copyrights != null && copyrights.contains(alias)) series = alias;
+            else compact = alias;
+        }
+        if (series.isEmpty()) series = seriesOfCopyright(compact);
         try {
+            List<String> pool = candidates(compact, series);
             List<String> hits = new ArrayList<>();
-            for (String tag : danbooru) {
+            Set<String> seen = new HashSet<>();
+            for (String tag : pool) {
+                if (!seen.add(tag)) continue;
                 String name = nameOf(tag);
                 boolean nameHit = !compact.isEmpty() && (tag.startsWith(compact) || name.startsWith(compact) || name.contains(compact));
                 boolean seriesHit = !series.isEmpty() && tag.contains(series);
@@ -181,6 +199,48 @@ final class CharLibrary {
             }
         } catch (Exception ignored) {}
         return items;
+    }
+
+    private List<String> candidates(String compact, String series) {
+        List<String> pool = new ArrayList<>();
+        if (!series.isEmpty() && seriesIndex != null) {
+            List<String> seriesHits = seriesIndex.get(series);
+            if (seriesHits != null) pool.addAll(seriesHits);
+        }
+        if (compact.length() >= 2 && prefixIndex != null) {
+            List<String> prefixHits = prefixIndex.get(compact.substring(0, 2));
+            if (prefixHits != null) pool.addAll(prefixHits);
+        }
+        if (pool.isEmpty()) return danbooru;
+        return pool;
+    }
+
+    private String resolveAlias(String needle) {
+        String direct = seriesAliases.optString(needle);
+        if (!direct.isEmpty()) return direct.toLowerCase(Locale.ROOT);
+        Iterator<String> keys = seriesAliases.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            if (needle.contains(key.toLowerCase(Locale.ROOT))) {
+                return seriesAliases.optString(key).toLowerCase(Locale.ROOT);
+            }
+        }
+        if (tagDict != null && tagDict.length() > 0) {
+            Iterator<String> dictKeys = tagDict.keys();
+            while (dictKeys.hasNext()) {
+                String key = dictKeys.next();
+                String cn = tagDict.optString(key);
+                if (!cn.isEmpty() && (cn.equals(needle) || needle.equals(key.toLowerCase(Locale.ROOT)))) {
+                    return key.toLowerCase(Locale.ROOT).replace(' ', '_');
+                }
+            }
+        }
+        return "";
+    }
+
+    private String seriesOfCopyright(String compact) {
+        if (copyrights != null && copyrights.contains(compact)) return compact;
+        return "";
     }
 
     private static int rank(String tag, String compact, String series) {
@@ -201,6 +261,13 @@ final class CharLibrary {
         String raw = String.valueOf(tag == null ? "" : tag);
         int open = raw.lastIndexOf("_(");
         return open > 0 ? raw.substring(0, open) : raw;
+    }
+
+    private static String seriesOf(String tag) {
+        String raw = String.valueOf(tag == null ? "" : tag);
+        int open = raw.lastIndexOf("_(");
+        if (open > 0 && raw.endsWith(")")) return raw.substring(open + 2, raw.length() - 1);
+        return "";
     }
 
     private JSONObject danbooruRecord(String gender, String tag) {
@@ -235,24 +302,61 @@ final class CharLibrary {
         return new String[]{raw.replace('_', ' '), ""};
     }
 
-    private String seriesAlias(String needle) {
-        if (seriesAliases == null || seriesAliases.length() == 0) return "";
-        String direct = seriesAliases.optString(needle);
-        if (!direct.isEmpty()) return direct.toLowerCase(Locale.ROOT);
-        Iterator<String> keys = seriesAliases.keys();
-        while (keys.hasNext()) {
-            String key = keys.next();
-            if (needle.contains(key.toLowerCase(Locale.ROOT))) {
-                return seriesAliases.optString(key).toLowerCase(Locale.ROOT);
-            }
-        }
-        return "";
-    }
-
     private synchronized void ensureDanbooru() {
         if (danbooru != null) return;
+        List<String> tags = readLines("data/phone_char_index.txt");
+        if (tags.isEmpty()) tags = readCharactersFromPack();
+        Map<String, List<String>> prefixes = new HashMap<>();
+        Map<String, List<String>> seriesMap = new HashMap<>();
+        for (String tag : tags) {
+            String name = nameOf(tag);
+            if (name.length() >= 2) {
+                String prefix = name.substring(0, 2);
+                List<String> bucket = prefixes.get(prefix);
+                if (bucket == null) {
+                    bucket = new ArrayList<>();
+                    prefixes.put(prefix, bucket);
+                }
+                bucket.add(tag);
+            }
+            String series = seriesOf(tag);
+            if (!series.isEmpty()) {
+                List<String> bucket = seriesMap.get(series);
+                if (bucket == null) {
+                    bucket = new ArrayList<>();
+                    seriesMap.put(series, bucket);
+                }
+                bucket.add(tag);
+            }
+        }
+        danbooru = tags;
+        prefixIndex = prefixes;
+        seriesIndex = seriesMap;
+        copyrights = new HashSet<>(readLines("data/phone_copyright_index.txt"));
+        if (copyrights.isEmpty()) {
+            JSONObject pack = readAssetObject(context, "data/char_tag_index.json");
+            JSONArray raw = pack.optJSONArray("copyrights");
+            if (raw != null) {
+                for (int i = 0; i < raw.length(); i++) copyrights.add(String.valueOf(raw.opt(i)).toLowerCase(Locale.ROOT));
+            }
+        }
+    }
+
+    private List<String> readCharactersFromPack() {
         List<String> tags = new ArrayList<>();
-        try (InputStream in = context.getAssets().open("data/phone_char_index.txt");
+        JSONObject pack = readAssetObject(context, "data/char_tag_index.json");
+        JSONArray raw = pack.optJSONArray("characters");
+        if (raw == null) return tags;
+        for (int i = 0; i < raw.length(); i++) {
+            String tag = String.valueOf(raw.opt(i)).trim().toLowerCase(Locale.ROOT);
+            if (!tag.isEmpty() && tag.length() <= 96) tags.add(tag);
+        }
+        return tags;
+    }
+
+    private List<String> readLines(String name) {
+        List<String> tags = new ArrayList<>();
+        try (InputStream in = context.getAssets().open(name);
              BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -260,7 +364,7 @@ final class CharLibrary {
                 if (!tag.isEmpty()) tags.add(tag);
             }
         } catch (Exception ignored) {}
-        danbooru = tags;
+        return tags;
     }
 
     private String hay(JSONObject item) {

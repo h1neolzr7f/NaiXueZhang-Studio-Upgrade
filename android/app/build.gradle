@@ -9,8 +9,8 @@ android {
         applicationId = "com.naixuezhang.studio.mobile"
         minSdk = 24
         targetSdk = 34
-        versionCode = 157
-        versionName = "1.5.2-phone.6"
+        versionCode = 158
+        versionName = "1.5.2-phone.7"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -51,10 +51,15 @@ tasks.register("syncPhoneAssets") {
                 "char_presets.json",
                 "ark_char_library.json",
                 "ark_cn_aliases.json",
+                "char_tag_index.json",
+                "char_tag_groups.json",
                 "phone_char_index.txt",
+                "phone_copyright_index.txt",
                 "phone_series_aliases.json",
                 "phone_style_index.json",
-                "danbooru_style_tags.json"
+                "danbooru_style_tags.json",
+                "danbooru_creature.json",
+                "tag_dict.json"
             )
             into(dataDir)
         }

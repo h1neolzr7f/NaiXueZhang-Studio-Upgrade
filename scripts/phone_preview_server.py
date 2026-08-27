@@ -105,6 +105,8 @@ STYLES = _load_json("phone_style_index.json")
 SERIES = _load_json("phone_series_aliases.json")
 ARK_ALIASES = _load_json("ark_cn_aliases.json")
 CHAR_INDEX = (DATA / "phone_char_index.txt").read_text(encoding="utf-8").splitlines() if (DATA / "phone_char_index.txt").is_file() else []
+COPYRIGHTS = set((DATA / "phone_copyright_index.txt").read_text(encoding="utf-8").splitlines()) if (DATA / "phone_copyright_index.txt").is_file() else set()
+TAG_DICT = _load_json("tag_dict.json")
 FAV_IDS: list[str] = [DEMO_ID]
 OUTPUTS: list[dict] = []
 ALBUMS: list[dict] = []
@@ -125,12 +127,20 @@ def _search_chars(gender: str, q: str, limit: int) -> list[dict]:
     needle = (q or "").strip().lower()
     compact = needle.replace(" ", "_")
     bucket = "male" if gender == "male" else "female"
-    series = str(SERIES.get(needle) or "").lower()
-    if not series:
+    alias = str(SERIES.get(needle) or "").lower()
+    if not alias:
         for key, value in SERIES.items():
             if needle and str(key).lower() in needle:
-                series = str(value).lower()
+                alias = str(value).lower()
                 break
+    if not alias:
+        for key, value in TAG_DICT.items():
+            if needle and (str(value).lower() == needle or str(key).lower() == needle):
+                alias = str(key).lower().replace(" ", "_")
+                break
+    series = alias if alias in COPYRIGHTS else ""
+    if alias and not series:
+        compact = alias
     items: list[dict] = []
     for row in PRESETS.get(bucket, []) or []:
         blob = " ".join(str(row.get(k) or "") for k in ("id", "label", "name", "tag")).lower()
@@ -382,6 +392,39 @@ class Handler(BaseHTTPRequestHandler):
             item.setdefault("id", "c" + str(len(CUSTOM) + 1))
             CUSTOM.insert(0, item)
             return self._json({"ok": True, "item": item, "message": "已保存自定义角色"})
+        if path == "/api/plugin/char-swap/custom/delete":
+            want = str(payload.get("id") or "")
+            CUSTOM[:] = [item for item in CUSTOM if str(item.get("id")) != want]
+            return self._json({"ok": True, "message": "已删除"})
+        if path.startswith("/api/mobile/queue/") and path.endswith("/cancel"):
+            task_id = unquote(path.split("/queue/", 1)[1].rsplit("/cancel", 1)[0])
+            job = JOBS.get(task_id)
+            if not job:
+                return self._json({"ok": False, "detail": "队列里没有这个任务"}, 400)
+            job["status"] = "cancelled"
+            job["terminal"] = True
+            job["cancellable"] = False
+            job["retryable"] = True
+            job["message"] = "已取消，未发出的张不会再生成"
+            return self._json({**job, "ok": True, "message": job["message"]})
+        if path.startswith("/api/mobile/queue/") and path.endswith("/retry"):
+            task_id = unquote(path.split("/queue/", 1)[1].rsplit("/retry", 1)[0])
+            job = JOBS.get(task_id)
+            if not job:
+                return self._json({"ok": False, "detail": "没有可重试的任务"}, 400)
+            job["status"] = "queued"
+            job["terminal"] = False
+            job["cancellable"] = True
+            job["retryable"] = False
+            job["message"] = "已重新入队"
+            return self._json({**job, "ok": True, "task_id": task_id, "album_id": job.get("album_id") or task_id, "message": "已重新入队"})
+        if path.startswith("/api/mobile/gallery/") and path.endswith("/delete"):
+            album_id = unquote(path.split("/gallery/", 1)[1].rsplit("/delete", 1)[0])
+            before = len(ALBUMS)
+            ALBUMS[:] = [item for item in ALBUMS if item.get("album_id") != album_id]
+            if len(ALBUMS) == before:
+                return self._json({"ok": False, "detail": "图库里没有这个任务"}, 400)
+            return self._json({"ok": True, "album_id": album_id, "message": "已删除这组图"})
         if path == "/api/plugin/char-swap/styles":
             item = dict(payload)
             item.setdefault("id", "s" + str(len(CUSTOM_STYLES) + 1))
@@ -434,6 +477,8 @@ class Handler(BaseHTTPRequestHandler):
                 "album_id": task_id,
                 "status": "done",
                 "terminal": True,
+                "cancellable": False,
+                "retryable": False,
                 "done": copies,
                 "total": copies,
                 "title": payload.get("source_title") or "预览生成",

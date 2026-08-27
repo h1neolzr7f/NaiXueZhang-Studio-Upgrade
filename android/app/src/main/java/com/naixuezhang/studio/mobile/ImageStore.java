@@ -98,6 +98,15 @@ final class ImageStore {
         return saved;
     }
 
+    void delete(String id) {
+        String name = safe(id);
+        if (name.isEmpty()) return;
+        File orig = new File(dir, name + ".png");
+        File fin = new File(dir, name + "_final.png");
+        if (orig.isFile()) orig.delete();
+        if (fin.isFile()) fin.delete();
+    }
+
     void exportOne(String id, byte[] png) throws Exception {
         saveToGallery(safe(id), png);
     }

@@ -236,7 +236,8 @@ final class FavoriteStore {
         if (id.isEmpty()) return false;
         if (DemoWorks.isDemo(id)) return true;
         if (id.startsWith("g")) return has(id);
-        return has(id);
+        if (!has(id)) return false;
+        return "ready".equals(rowState(id));
     }
 
     synchronized void ensureDemo() {
