@@ -21,10 +21,14 @@ final class DeepSeekClient {
         + "面向 nai-diffusion，不要 SD/ComfyUI/LoRA 语法。"
         + "保留角色、动作、构图和氛围；去掉重复冲突 tag；不要输出 steps/seed/width。";
     private static final String DESCRIBE_SYSTEM = ""
-        + "你是 NovelAI 角色标签助手。把用户的中文或英文角色描述转成 Danbooru 风格槽位咒语。"
+        + "你是 NovelAI 角色标签助手。用户会贴一整段 OC / 群友人设或已有咒语。"
+        + "把它拆进各栏，不要简化成人设卡片。"
         + "只返回一个 JSON 对象，不要 Markdown。"
-        + "字段：label, gender(female|male), identity(数组，角色身份 tag),"
-        + " appearance(数组，发色瞳色体态等), char_caption(完整槽位咒语，逗号分隔)。"
+        + "字段：label, gender(female|male), identity(数组),"
+        + " appearance(数组，发色瞳色体态), clothing(服饰替换，逗号串),"
+        + " extra(额外添加，逗号串), remove(要拿掉的标签，逗号串),"
+        + " char_caption(整段槽位咒语，尽量原样保留用户已写的 tag 和 {{权重}}),"
+        + " oc_mode(true)。"
         + "identity 至少一项；不要写 SD/LoRA 语法；不要发明官方角色精确 tag，除非用户明确提到。";
 
     private final TokenStore tokens;
@@ -92,7 +96,7 @@ final class DeepSeekClient {
         }
         String text = String.valueOf(rawText == null ? "" : rawText).trim();
         if (text.isEmpty()) throw new IllegalArgumentException("先写角色描述");
-        if (text.length() > 800) text = text.substring(0, 800);
+        if (text.length() > 6000) text = text.substring(0, 6000);
         String gender = "male".equalsIgnoreCase(genderHint) ? "male" : "female";
         JSONObject user = new JSONObject();
         user.put("task", "describe_character");
@@ -116,6 +120,10 @@ final class DeepSeekClient {
         item.put("identity", identity);
         item.put("appearance", appearance);
         item.put("char_caption", caption);
+        item.put("oc_mode", parsed.optBoolean("oc_mode", true));
+        item.put("clothing", JsonUtil.str(parsed, "clothing"));
+        item.put("extra", JsonUtil.first(parsed, "extra", "extra_tags"));
+        item.put("remove", JsonUtil.first(parsed, "remove", "remove_tags"));
         item.put("tag", identity.optString(0, label));
         JSONObject out = new JSONObject();
         out.put("ok", true);
@@ -130,7 +138,7 @@ final class DeepSeekClient {
         JSONObject body = new JSONObject();
         body.put("model", MODEL);
         body.put("temperature", 0.3);
-        body.put("max_tokens", 1200);
+        body.put("max_tokens", 1800);
         body.put("response_format", new JSONObject().put("type", "json_object"));
         JSONArray messages = new JSONArray();
         messages.put(new JSONObject().put("role", "system").put("content", system));

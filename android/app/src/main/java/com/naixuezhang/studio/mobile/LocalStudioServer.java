@@ -283,6 +283,10 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         }
         if ("GET".equals(request.method) && path.startsWith("/api/nai/aitag/cover/")) {
             String id = LocalHttpServer.decode(path.substring("/api/nai/aitag/cover/".length()));
+            File local = favorites.imageFile(id, 0);
+            if (local != null) {
+                return new LocalHttpServer.Response(200, favorites.contentType(local), favorites.readImage(local));
+            }
             HttpOutbound.Result image = aitag.cover(id);
             return new LocalHttpServer.Response(200, image.contentType, image.body);
         }

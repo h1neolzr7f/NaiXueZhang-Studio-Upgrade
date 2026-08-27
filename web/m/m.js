@@ -38,6 +38,7 @@
   let browseSearchSeq = 0;
   let charSearchSeq = 0;
   let styleSearchSeq = 0;
+  let favIdsAt = 0;
 
   function debounce(fn, ms) {
     let timer = 0;
@@ -421,7 +422,7 @@
       status.className = "m-status";
       status.textContent = state.browseMode === "library" ? "读取本地库…" : "正在搜…";
       try {
-        await refreshFavIds();
+        await refreshFavIds(false);
         const data = state.browseMode === "library"
           ? await api().get("/api/mobile/library/works?q=" + encodeURIComponent(q))
           : await api().get("/api/nai/aitag/search?q=" + encodeURIComponent(q)
@@ -503,9 +504,23 @@
     try { localStorage.setItem(LAST_WORK_KEY, workId); } catch (_) { /* ignore */ }
     root.innerHTML = `<p class="m-status">加载作品…</p>`;
     try {
-      await refreshFavIds();
+      await refreshFavIds(false);
       const local = !!(state.route && state.route.local) || workId === "demo-ark-amiya" || !!state.favIds[workId];
       if (isStandalone() && !local) {
+        const cached = findSearchItem(workId);
+        if (cached) {
+          state.work = window.StandaloneCore
+            ? window.StandaloneCore.decorateWork({ work: cached, images: cached.images || [], source: "aitag-online" })
+            : { work: cached, images: cached.images || [] };
+          state.pageIndex = 0;
+          paintCollect(root);
+          api().get("/api/nai/aitag/work/" + encodeURIComponent(workId)).then((data) => {
+            if (!state.route || String(state.route.id || "") !== String(workId)) return;
+            state.work = window.StandaloneCore ? window.StandaloneCore.decorateWork(data) : data;
+            paintCollect(document.getElementById("mApp"));
+          }).catch(() => {});
+          return;
+        }
         const data = await api().get("/api/nai/aitag/work/" + encodeURIComponent(workId));
         state.work = (window.StandaloneCore) ? window.StandaloneCore.decorateWork(data) : data;
         state.pageIndex = 0;
@@ -576,30 +591,71 @@
     });
   }
 
-  async function refreshFavIds() {
+  async function refreshFavIds(force) {
+    if (!force && favIdsAt && Date.now() - favIdsAt < 2500) return;
     try {
       const data = await api().get("/api/nai/aitag/favorites");
       const next = {};
       (data.ids || []).forEach((id) => { next[String(id)] = true; });
       state.favIds = next;
+      favIdsAt = Date.now();
     } catch (_) { /* ignore */ }
+  }
+
+  function findSearchItem(id) {
+    const items = (state.lastSearchMeta && (state.lastSearchMeta.items || state.lastSearchMeta.works)) || [];
+    return items.find((item) => String(item.work_id || item.id || "") === String(id || "")) || null;
+  }
+
+  function captureVisibleJpeg(img) {
+    try {
+      if (!img || !img.complete || !img.naturalWidth) return "";
+      const canvas = document.createElement("canvas");
+      const max = 720;
+      let width = img.naturalWidth;
+      let height = img.naturalHeight;
+      if (Math.max(width, height) > max) {
+        const scale = max / Math.max(width, height);
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
+      }
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      return canvas.toDataURL("image/jpeg", 0.78);
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function favoriteSnapshot(id, button) {
+    const work = (state.work && state.work.work) || {};
+    const search = findSearchItem(id) || {};
+    const card = button && button.closest ? button.closest(".m-work-card") : null;
+    const img = (card && card.querySelector("img")) || document.querySelector("img.m-preview");
+    const images = (state.work && state.work.images) || search.images || [];
+    const first = images[0] || currentImage() || {};
+    return {
+      title: work.title || search.title || (card && card.querySelector("span") ? card.querySelector("span").textContent : id),
+      creator: work.creator || search.creator || "",
+      cover_url: (img && img.getAttribute("src")) || first.thumbnail_url || first.url || "",
+      image_count: imageCountOf(state.work || search || work),
+      tags: work.tags || search.tags || [],
+      images: images,
+      work: Object.keys(work).length ? work : search,
+      prompt_text: first.prompt_text || "",
+      ai_json: first.ai_json || null,
+      cover_jpeg: captureVisibleJpeg(img),
+    };
   }
 
   async function toggleFavorite(workId, button) {
     const id = String(workId || "");
     if (!id) return;
     try {
-      const work = (state.work && state.work.work) || {};
-      const snapshot = {
-        title: work.title || (button && button.closest(".m-work-card") && button.closest(".m-work-card").querySelector("span")
-          ? button.closest(".m-work-card").querySelector("span").textContent
-          : id),
-        creator: work.creator || "",
-        cover_url: currentImage().thumbnail_url || currentImage().url || "",
-        image_count: imageCountOf(state.work || work),
-        tags: work.tags || [],
-      };
+      const snapshot = favoriteSnapshot(id, button);
       const result = await api().post("/api/nai/aitag/favorites/" + encodeURIComponent(id) + "/toggle", snapshot);
+      favIdsAt = 0;
       if (result.favorited) state.favIds[id] = true;
       else delete state.favIds[id];
       if (button) {
@@ -673,10 +729,10 @@
         </div>
         <div id="mCustomList" class="m-list" style="margin-top:10px"></div>
       </section>
-      <div class="m-quote" style="margin-top:12px">小祥：也可以用中文描述角色，DeepSeek 帮你写成整段 OC 咒语。这步不扣 Anlas。</div>
-      <textarea id="mDescribe" placeholder="例如：粉头发红眼睛的阿米娅风 OC，短外套" style="margin-top:8px"></textarea>
+      <div class="m-quote" style="margin-top:12px">小祥：把一整段 OC 人设或咒语贴下面。已是标签就立刻填好；中文描述才走 DeepSeek 拆栏。这步不扣 Anlas。</div>
+      <textarea id="mDescribe" placeholder="整段 OC：1girl, banana_onee_(oc), {{1.2::horns}} … 或中文人设" style="margin-top:8px"></textarea>
       <div class="m-row" style="margin-top:8px">
-        <button type="button" id="mDescribeBtn" class="m-ghost">DeepSeek 写角色</button>
+        <button type="button" id="mDescribeBtn" class="m-ghost">DeepSeek 拆开填好</button>
       </div>`;
     picker.classList.remove("hidden");
     picker.setAttribute("aria-hidden", "false");
@@ -1337,22 +1393,75 @@
     return loadLocalCustom().filter((item) => !gender || item.gender === gender);
   }
 
+  function fillOcForm(record) {
+    if (!record) return;
+    if (document.getElementById("mCustomName")) document.getElementById("mCustomName").value = record.label || "";
+    if (document.getElementById("mCustomIdentity")) document.getElementById("mCustomIdentity").value = (record.identity || []).join(", ");
+    if (document.getElementById("mCustomAppear")) document.getElementById("mCustomAppear").value = (record.appearance || []).join(", ");
+    if (document.getElementById("mCustomCaption")) document.getElementById("mCustomCaption").value = record.char_caption || "";
+    if (document.getElementById("mCustomClothing")) document.getElementById("mCustomClothing").value = record.clothing || "";
+    if (document.getElementById("mCustomExtra")) document.getElementById("mCustomExtra").value = record.extra || record.extra_tags || "";
+    if (document.getElementById("mCustomRemove")) document.getElementById("mCustomRemove").value = record.remove || record.remove_tags || "";
+    const ocMode = document.getElementById("mCustomOcMode");
+    if (ocMode) {
+      ocMode.checked = record.oc_mode !== false;
+      state.ocMode = ocMode.checked;
+    }
+  }
+
+  function classifyOcLocal(text, gender) {
+    const compact = String(text || "").trim();
+    if (!compact) return null;
+    const parts = compact.split(/[,，\n]/).map((item) => item.trim()).filter(Boolean);
+    const latin = parts.filter((item) => /[A-Za-z_{}:]/.test(item)).length;
+    if (parts.length < 3 || latin < 2) return null;
+    const namePart = parts.find((item) => /\(oc\)|_\(oc\)/i.test(item)) || parts.find((item) => /_\(/i.test(item)) || parts[0];
+    return {
+      id: "typed",
+      label: String(namePart || "OC").replace(/[_(),]/g, " ").trim().slice(0, 40) || "OC",
+      gender: gender,
+      kind: "oc",
+      oc_mode: true,
+      identity: parts.filter((item) => /1girl|1boy|\(oc\)|_\(/i.test(item)).slice(0, 8),
+      appearance: parts.filter((item) => /hair|eyes|skin|ears|horns|tail|bangs/i.test(item)).slice(0, 12),
+      clothing: parts.filter((item) => /dress|shirt|skirt|jacket|uniform|thigh|coat|shoes|boots/i.test(item)).join(", "),
+      extra: "",
+      remove: "",
+      char_caption: parts.join(", "),
+      tag: namePart,
+    };
+  }
+
   async function describeWithDeepSeek() {
     const box = document.getElementById("mDescribe");
     const text = box ? box.value.trim() : "";
     if (!text) {
-      toast("先写角色描述", "err");
+      toast("先把一整段 OC 贴进来", "err");
       return;
     }
     const status = document.getElementById("mWorkStatus");
+    const local = classifyOcLocal(text, state.targetGender);
+    if (local) {
+      fillOcForm(local);
+      pickTarget({
+        reference_id: "custom:" + (local.gender || state.targetGender) + ":typed",
+        label: "OC：" + local.label,
+        record: local,
+      });
+      toast("已按整段咒语填好各栏");
+    }
+    const hasHan = /[\u4e00-\u9fff]/.test(text);
+    if (local && !hasHan) return;
     try {
       const ai = await api().get("/api/ai/status");
       if (!ai.has_api_key && !ai.has_deepseek) {
-        toast("先在设置里填 DeepSeek Key", "err");
-        if (isStandalone()) openSettings();
+        if (!local) {
+          toast("这串不像现成标签。先在设置里填 DeepSeek，才能自动拆栏。", "err");
+          if (isStandalone()) openSettings();
+        }
         return;
       }
-      if (status) status.textContent = "DeepSeek 正在写角色槽…";
+      if (status) status.textContent = "DeepSeek 正在拆 OC…";
       const result = await api().post("/api/mobile/char-describe", {
         text: text,
         gender: state.targetGender,
@@ -1362,21 +1471,18 @@
       }
       const record = result.item || result.record;
       if (!record) throw new Error(result.detail || "DeepSeek 没有返回角色");
-      if (document.getElementById("mCustomName")) document.getElementById("mCustomName").value = record.label || "";
-      if (document.getElementById("mCustomIdentity")) document.getElementById("mCustomIdentity").value = (record.identity || []).join(", ");
-      if (document.getElementById("mCustomAppear")) document.getElementById("mCustomAppear").value = (record.appearance || []).join(", ");
-      if (document.getElementById("mCustomCaption")) document.getElementById("mCustomCaption").value = record.char_caption || "";
+      fillOcForm(record);
       pickTarget({
         reference_id: "custom:" + (record.gender || state.targetGender) + ":typed",
         label: "DeepSeek OC：" + (record.label || "OC"),
         record: record,
       });
       if (status) {
-        status.textContent = result.message || "角色槽已写好，还没扣 Anlas";
+        status.textContent = result.message || "OC 各栏已填好，还没扣 Anlas";
         status.className = "m-status m-ok";
       }
     } catch (error) {
-      toast(error.message || String(error), "err");
+      if (!local) toast(error.message || String(error), "err");
     }
   }
 
