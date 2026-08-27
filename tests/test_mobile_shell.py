@@ -41,6 +41,7 @@ class MobileShellTests(unittest.TestCase):
         css = (WEB / "m" / "m.css").read_text(encoding="utf-8")
         self.assertIn("--sakura", css)
         self.assertIn("#1a1230", css)
+        self.assertIn(".m-progress-bar", css)
 
     def test_mobile_js_uses_api_client_and_keeps_paid_gates(self) -> None:
         js = (WEB / "m" / "m.js").read_text(encoding="utf-8")

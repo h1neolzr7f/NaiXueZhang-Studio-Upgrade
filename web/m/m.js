@@ -139,6 +139,99 @@
       .replace(/"/g, "&quot;");
   }
 
+  function jobIsTerminal(job) {
+    if (!job) return true;
+    const status = String(job.status || "");
+    return !!(job.terminal || status === "done" || status === "error" || status === "cancelled" || status === "unknown");
+  }
+
+  function jobProgressValue(job) {
+    if (!job) return 0;
+    if (job.progress != null && job.progress !== "") {
+      const n = Number(job.progress);
+      if (Number.isFinite(n)) return Math.max(0, Math.min(100, Math.round(n)));
+    }
+    const total = Math.max(1, Number(job.total) || 1);
+    return Math.max(0, Math.min(100, Math.round(((Number(job.done) || 0) * 100) / total)));
+  }
+
+  function jobEtaText(job) {
+    if (!job || jobIsTerminal(job)) {
+      if (job && job.status === "done") return "已完成";
+      return "";
+    }
+    if (job.eta_text) return String(job.eta_text);
+    const sec = Number(job.eta_seconds || job.expected_seconds || 0);
+    if (sec > 0) return "预计还要 " + Math.round(sec) + " 秒";
+    return "正在估算时间";
+  }
+
+  function jobStageLabel(job) {
+    if (!job) return "";
+    return String(job.stage_label || job.stage || job.status || "");
+  }
+
+  function jobStepIndex(job) {
+    const stage = String((job && (job.stage || job.status)) || "");
+    if (stage === "done" || (job && job.status === "done")) return 4;
+    if (stage === "saving") return 4;
+    if (stage === "mosaic" || stage === "pipeline" || stage === "upscale") return stage === "upscale" ? 2 : 3;
+    if (stage === "generating" || stage === "requesting" || stage === "running") return 1;
+    return 0;
+  }
+
+  function jobStepsHtml(job) {
+    const steps = ["排队", "出图", "超分", "打码", "入库"];
+    const active = jobIsTerminal(job) && job && job.status === "done" ? 4 : jobStepIndex(job);
+    return `<div class="m-steps">${steps.map((label, index) => {
+      const cls = index < active ? " done" : (index === active ? " now" : "");
+      return `<span class="m-step${cls}">${escapeHtml(label)}</span>`;
+    }).join("")}</div>`;
+  }
+
+  function jobProgressHtml(job) {
+    const progress = jobProgressValue(job);
+    const terminal = jobIsTerminal(job);
+    const eta = jobEtaText(job);
+    const stage = jobStageLabel(job);
+    const done = Number((job && job.done) || 0);
+    const total = Number((job && job.total) || 1);
+    return `<div class="m-progress${terminal ? (job && job.status === "done" ? " done" : " stop") : ""}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}">
+      <div class="m-progress-bar" style="width:${progress}%"></div>
+    </div>
+    <div class="m-progress-meta">
+      <span>${escapeHtml(stage || "排队")}</span>
+      <strong>${done}/${total}张 · ${progress}%</strong>
+      ${eta ? `<em class="m-eta">${escapeHtml(eta)}</em>` : ""}
+    </div>
+    ${jobStepsHtml(job)}`;
+  }
+
+  function paintJobProgress(el, job) {
+    if (!el) return;
+    el.className = "m-status m-job-live";
+    el.innerHTML = jobProgressHtml(job || {});
+  }
+
+  function queueSummaryHtml(jobs) {
+    const live = (jobs || []).filter((job) => job && !jobIsTerminal(job));
+    if (!live.length) return "";
+    let eta = 0;
+    let done = 0;
+    let total = 0;
+    live.forEach((job) => {
+      eta = Math.max(eta, Number(job.eta_seconds || 0));
+      done += Number(job.done || 0);
+      total += Number(job.total || 1);
+    });
+    const progress = total ? Math.round((done * 100) / total) : 0;
+    return `<div class="m-queue-summary">
+      <strong>进行中 ${live.length} 组</strong>
+      <span>${done}/${total}张 · ${progress}%</span>
+      <em class="m-eta">${eta > 0 ? ("预计还要 " + eta + " 秒") : "正在估算时间"}</em>
+    </div>`;
+  }
+
   function loadQueue() {
     try {
       const raw = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
@@ -1821,10 +1914,15 @@
       try {
         const started = await enqueueGenerate(entry, state.pageIndex, copies);
         if (status) {
-          status.textContent = (started.message || "已加入生成队列") + " · " + copies + "张";
-          status.className = "m-status m-ok";
+          paintJobProgress(status, Object.assign({
+            status: "queued",
+            stage: "queued",
+            stage_label: "已加入生成队列",
+            done: 0,
+            total: copies,
+          }, started));
         }
-        toast("已加入队列，去排队页看进度");
+        toast(started.eta_text ? ("已入队，" + started.eta_text) : "已加入队列，去排队页看进度");
         location.hash = "#/batch";
       } catch (error) {
         if (status) {
@@ -1980,7 +2078,17 @@
       title: work.title || "",
       thumb: img.thumbnail_url || img.url || "",
     };
-    if (statusEl) statusEl.textContent = "排队生成中…";
+    if (statusEl) {
+      paintJobProgress(statusEl, {
+        status: "queued",
+        stage: "queued",
+        stage_label: "排队生成中",
+        done: 0,
+        total: isStandalone() ? (state.copies || 1) : 1,
+        progress: 2,
+        eta_text: "正在估算时间",
+      });
+    }
     const manageBusy = !options || options.manageBusy !== false;
     if (manageBusy) state.busy = true;
     try {
@@ -2005,7 +2113,7 @@
       const taskId = res.task_id || (res.batch && res.batch.task_id) || "";
       if (!taskId) throw new Error("未返回生成任务");
       const job = await api().pollJob(taskId, (progress) => {
-        if (statusEl) statusEl.textContent = "生成中 " + (progress.done || 0) + "/" + (progress.total || 1);
+        paintJobProgress(statusEl, progress);
       });
       if (String(job.status || "") === "unknown") {
         throw new Error(job.message || "这次可能已扣费，不要自动重试");
@@ -2064,24 +2172,27 @@
       ${isStandalone() ? `
       <section class="m-card">
         <h2>生成队列</h2>
-        <p class="m-hint">几个 Token 就几路并发。整系列用「整系列换角并入队」，多页收进图库一组。失败可手动重试或删除，不会自动重试。</p>
+        <p class="m-hint">几个 Token 就几路并发。进度条是当前这组的完成度，旁边是预计还要多久。失败可手动重试或删除，不会自动重试。</p>
+        ${queueSummaryHtml(jobs)}
         <div class="m-row" style="margin-bottom:8px">
           <button type="button" id="mClearEnded" class="m-ghost">清空已结束</button>
         </div>
         <div class="m-list">${jobs.map((job) => `
-          <div class="m-item">
-            <div></div>
-            <div>
-              <strong>${escapeHtml(job.title || job.task_id || "任务")}</strong>
-              <div class="m-hint">${escapeHtml(job.status || "")} · ${job.done || 0}/${job.total || 1}张${job.concurrency > 1 ? " · " + job.concurrency + "路并发" : ""}</div>
-              ${job.message ? `<div class="m-err">${escapeHtml(String(job.message).slice(0, 160))}</div>` : ""}
+          <div class="m-job">
+            <div class="m-job-head">
+              <div>
+                <strong>${escapeHtml(job.title || job.task_id || "任务")}</strong>
+                <div class="m-hint">${escapeHtml(jobStageLabel(job))} · ${job.done || 0}/${job.total || 1}张${job.concurrency > 1 ? " · " + job.concurrency + "路并发" : ""}</div>
+              </div>
+              <div class="m-row">
+                ${job.cancellable ? `<button type="button" class="m-ghost" data-cancel="${escapeHtml(job.task_id || "")}">取消</button>` : ""}
+                ${job.retryable ? `<button type="button" class="m-ghost" data-retry="${escapeHtml(job.task_id || "")}">重试</button>` : ""}
+                <button type="button" class="m-danger" data-del-job="${escapeHtml(job.task_id || "")}">删除</button>
+                <a class="m-ghost" href="#/gallery/${encodeURIComponent(job.album_id || job.task_id || "")}">图库</a>
+              </div>
             </div>
-            <div class="m-row">
-              ${job.cancellable ? `<button type="button" class="m-ghost" data-cancel="${escapeHtml(job.task_id || "")}">取消</button>` : ""}
-              ${job.retryable ? `<button type="button" class="m-ghost" data-retry="${escapeHtml(job.task_id || "")}">重试</button>` : ""}
-              <button type="button" class="m-danger" data-del-job="${escapeHtml(job.task_id || "")}">删除</button>
-              <a class="m-ghost" href="#/gallery/${encodeURIComponent(job.album_id || job.task_id || "")}">图库</a>
-            </div>
+            ${jobProgressHtml(job)}
+            ${job.message && jobIsTerminal(job) ? `<div class="${job.status === "error" || job.status === "unknown" ? "m-err" : "m-hint"}">${escapeHtml(String(job.message).slice(0, 180))}</div>` : ""}
           </div>`).join("") || '<p class="m-hint">队列是空的。在本地库换角后点「整系列换角并入队」。</p>'}
         </div>
       </section>` : ""}
@@ -2190,10 +2301,10 @@
     }
     document.getElementById("mClearOnline").onclick = () => { saveQueue([]); renderBatch(root); };
     document.getElementById("mRunOnline").onclick = runOnlineBatch;
-    if (isStandalone() && jobs.some((job) => job && !job.terminal && job.status !== "done" && job.status !== "error" && job.status !== "cancelled" && job.status !== "unknown")) {
+    if (isStandalone() && jobs.some((job) => job && !jobIsTerminal(job))) {
       setTimeout(() => {
         if (state.route && state.route.name === "batch") renderBatch(root);
-      }, 1800);
+      }, 900);
     }
     let localTargets = [];
     document.getElementById("mLoadLocal").onclick = async () => {
@@ -2436,24 +2547,37 @@
       const auto = !!cfgObj.auto_after_generate;
       const upscale = cfgObj.upscale !== false;
       const metadata = cfgObj.metadata !== false;
+      const mosaic = cfgObj.mosaic !== false && cfgObj.mosaic_available !== false;
+      const scale = Math.max(2, Math.min(Number(cfgObj.scale) || 2, 4));
+      const mosaicMethod = String(cfgObj.mosaic_method || "像素");
       root.innerHTML = `
         <section class="m-hero">
           <p class="m-eyebrow">图库</p>
           <h2>本机图库</h2>
-          <p class="m-hint">按生成任务分组，和电脑大型图库一样：同一任务的图片放在一起，点进去才能看。流水线做本机 2x 超分和清元数据。</p>
+          <p class="m-hint">按生成任务分组。生图后自动跑超分、轻量打码和清元数据。打码借鉴理塘百宝箱手机轻量版，不打包 ANR/YOLO。</p>
         </section>
         <section class="m-card">
           <h2>后处理流水线</h2>
           <p>自动后处理：<strong class="${auto ? "m-ok" : "m-err"}">${auto ? "已开" : "未开"}</strong></p>
-          <p>本机 2x 拉伸：<strong class="${upscale ? "m-ok" : "m-err"}">${upscale ? "已开" : "未开"}</strong></p>
+          <p>本机超分：<strong class="${upscale ? "m-ok" : "m-err"}">${upscale ? scale + "x 已开" : "未开"}</strong></p>
+          <p>轻量打码：<strong class="${mosaic ? "m-ok" : "m-err"}">${mosaic ? mosaicMethod + " 已开" : "未开"}</strong></p>
           <p>清元数据：<strong class="${metadata ? "m-ok" : "m-err"}">${metadata ? "已开" : "未开"}</strong></p>
-          <p class="m-hint">这是 Bitmap 拉伸，不是电脑版 ANR。打码未打包（ANR + YOLO 上百 MB）。</p>
+          <p class="m-hint">超分是本机拉伸。打码按肤色区域做像素/模糊/纯色，漏打请自己再看一眼。不是电脑 ANR。</p>
+          <div class="m-row" style="margin-top:10px">
+            <span class="m-hint">倍率</span>
+            ${[2, 3, 4].map((n) => `<button type="button" class="m-chip${scale === n ? " active" : ""}" data-scale="${n}">${n}x</button>`).join("")}
+          </div>
+          <div class="m-row" style="margin-top:8px">
+            <span class="m-hint">打码</span>
+            ${["像素", "模糊", "纯色"].map((name) => `<button type="button" class="m-chip${mosaicMethod === name ? " active" : ""}" data-mosaic-method="${name}">${name}</button>`).join("")}
+          </div>
           <div class="m-row" style="margin-top:10px">
             <button type="button" id="mPipeRun" class="m-primary">补跑流水线</button>
             <button type="button" id="mPipeAuto" class="m-ghost">${auto ? "关闭自动" : "打开自动"}</button>
           </div>
           <div class="m-row" style="margin-top:8px">
             <button type="button" id="mPipeUp" class="m-ghost">${upscale ? "关闭超分" : "打开超分"}</button>
+            <button type="button" id="mPipeMosaic" class="m-ghost">${mosaic ? "关闭打码" : "打开打码"}</button>
             <button type="button" id="mPipeMeta" class="m-ghost">${metadata ? "关闭清元数据" : "打开清元数据"}</button>
           </div>
           <p id="mPipeStatus" class="m-status"></p>
@@ -2472,7 +2596,7 @@
         </a>`;
       }).join("");
       document.getElementById("mPipeRun").onclick = async () => {
-        if (!await confirmAction("补跑流水线", "会对还没处理的生成图做本机 2x 拉伸和清元数据，并补存相册。不会重新出图，也不会打码。")) return;
+        if (!await confirmAction("补跑流水线", "会对还没处理的生成图做本机超分、轻量打码和清元数据，并补存相册。不会重新出图。")) return;
         const box = document.getElementById("mPipeStatus");
         try {
           const result = await api().post("/api/pipeline/run", { only_missing: true });
@@ -2492,10 +2616,29 @@
         await api().post("/api/pipeline/config", { upscale: !upscale });
         renderGallery(root);
       };
+      const mosaicBtn = document.getElementById("mPipeMosaic");
+      if (mosaicBtn) {
+        mosaicBtn.onclick = async () => {
+          await api().post("/api/pipeline/config", { mosaic: !mosaic });
+          renderGallery(root);
+        };
+      }
       document.getElementById("mPipeMeta").onclick = async () => {
         await api().post("/api/pipeline/config", { metadata: !metadata });
         renderGallery(root);
       };
+      root.querySelectorAll("[data-scale]").forEach((button) => {
+        button.onclick = async () => {
+          await api().post("/api/pipeline/config", { scale: Number(button.getAttribute("data-scale")) || 2 });
+          renderGallery(root);
+        };
+      });
+      root.querySelectorAll("[data-mosaic-method]").forEach((button) => {
+        button.onclick = async () => {
+          await api().post("/api/pipeline/config", { mosaic: true, mosaic_method: button.getAttribute("data-mosaic-method") });
+          renderGallery(root);
+        };
+      });
     } catch (error) {
       root.innerHTML = `<section class="m-card"><h2>图库</h2><p class="m-hint">装到手机后，这里按生成任务分组。电脑预览也可先走一遍收藏→换角→队列。</p></section>`;
     }

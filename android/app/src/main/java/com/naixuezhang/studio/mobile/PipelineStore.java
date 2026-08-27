@@ -27,12 +27,48 @@ final class PipelineStore {
         return prefs.getBoolean("metadata", true);
     }
 
+    boolean mosaicEnabled() {
+        return prefs.getBoolean("mosaic", true);
+    }
+
     int scale() {
         return Math.max(2, Math.min(prefs.getInt("scale", 2), 4));
     }
 
+    String mosaicMethod() {
+        return LightMosaic.normalizeMethod(prefs.getString("mosaic_method", "像素"));
+    }
+
+    int mosaicIntensity() {
+        return LightMosaic.normalizeIntensity(prefs.getInt("mosaic_intensity", 36));
+    }
+
+    int estimateMs() {
+        int ms = 350;
+        if (upscaleEnabled()) ms += 280 * scale() * scale();
+        if (mosaicEnabled()) ms += 900;
+        if (metadataEnabled()) ms += 180;
+        return ms;
+    }
+
+    String summary() {
+        StringBuilder text = new StringBuilder();
+        text.append("超分 ").append(upscaleEnabled() ? scale() + "x" : "关");
+        text.append("，轻量打码 ").append(mosaicEnabled() ? mosaicMethod() : "关");
+        text.append("，清元数据").append(metadataEnabled() ? "开" : "关");
+        return text.toString();
+    }
+
     byte[] process(byte[] png) {
-        return PhonePipeline.process(png, upscaleEnabled(), scale(), metadataEnabled());
+        return PhonePipeline.process(
+            png,
+            upscaleEnabled(),
+            scale(),
+            mosaicEnabled(),
+            mosaicMethod(),
+            mosaicIntensity(),
+            metadataEnabled()
+        );
     }
 
     JSONObject processId(String id) throws Exception {
@@ -48,8 +84,9 @@ final class PipelineStore {
         out.put("upscale", upscaleEnabled());
         out.put("scale", scale());
         out.put("metadata", metadataEnabled());
-        out.put("mosaic", false);
-        out.put("message", "已完成本机流水线：超分 " + (upscaleEnabled() ? scale() + "x" : "关") + "，清元数据" + (metadataEnabled() ? "开" : "关"));
+        out.put("mosaic", mosaicEnabled());
+        out.put("mosaic_method", mosaicMethod());
+        out.put("message", "已完成本机流水线：" + summary());
         return out;
     }
 
@@ -60,12 +97,16 @@ final class PipelineStore {
         cfg.put("upscale", upscaleEnabled());
         cfg.put("scale", scale());
         cfg.put("metadata", metadataEnabled());
-        cfg.put("mosaic", false);
-        cfg.put("mosaic_available", false);
+        cfg.put("mosaic", mosaicEnabled());
+        cfg.put("mosaic_available", true);
+        cfg.put("mosaic_mode", "light");
+        cfg.put("mosaic_method", mosaicMethod());
+        cfg.put("mosaic_intensity", mosaicIntensity());
+        cfg.put("estimate_ms", estimateMs());
         JSONObject out = new JSONObject();
         out.put("ok", true);
         out.put("config", cfg);
-        out.put("message", "手机流水线：超分+清元数据。打码需要电脑 ANR 模型，不打进 APK。");
+        out.put("message", "手机流水线：超分 + 轻量打码 + 清元数据。打码是肤色区域像素/模糊，不是电脑 ANR/YOLO，漏打请自己看一眼。");
         return out;
     }
 
@@ -80,8 +121,17 @@ final class PipelineStore {
         if (payload != null && payload.has("metadata")) {
             edit.putBoolean("metadata", payload.optBoolean("metadata"));
         }
+        if (payload != null && payload.has("mosaic")) {
+            edit.putBoolean("mosaic", payload.optBoolean("mosaic"));
+        }
         if (payload != null && payload.has("scale")) {
             edit.putInt("scale", Math.max(2, Math.min(payload.optInt("scale", 2), 4)));
+        }
+        if (payload != null && payload.has("mosaic_method")) {
+            edit.putString("mosaic_method", LightMosaic.normalizeMethod(payload.optString("mosaic_method")));
+        }
+        if (payload != null && payload.has("mosaic_intensity")) {
+            edit.putInt("mosaic_intensity", LightMosaic.normalizeIntensity(payload.optInt("mosaic_intensity", 36)));
         }
         edit.apply();
         return config();
@@ -119,7 +169,7 @@ final class PipelineStore {
         out.put("ok", true);
         out.put("processed", done);
         out.put("exported", exported);
-        out.put("message", "流水线补跑完成：处理 " + done + " 张，补存相册 " + exported + " 张。打码未执行（需要电脑 ANR）。");
+        out.put("message", "流水线补跑完成：处理 " + done + " 张，补存相册 " + exported + " 张。" + summary());
         return out;
     }
 }

@@ -28,6 +28,8 @@ final class JobStore {
     private final OutputCatalog catalog;
     private final FavoriteStore library;
     private final GalleryStore gallery;
+    private final AtomicInteger learnedMs = new AtomicInteger(14000);
+    private final AtomicInteger learnedSamples = new AtomicInteger(0);
 
     JobStore(
         NaiGenerator generator,
@@ -100,6 +102,12 @@ final class JobStore {
             job.put("queued_at", System.currentTimeMillis());
             job.put("cancellable", true);
             job.put("retryable", false);
+            job.put("running", 0);
+            job.put("progress", 2);
+            job.put("stage", "queued");
+            job.put("stage_label", "排队等待");
+            job.put("concurrency", generator.concurrency());
+            attachEta(job, units.size(), generator.concurrency(), 0);
         }
         jobs.put(id, job);
         JSONObject stored = new JSONObject();
@@ -129,9 +137,21 @@ final class JobStore {
         started.put("total", units.size());
         started.put("pages", storedPages.length());
         started.put("concurrency", generator.concurrency());
+        JSONObject seeded = get(id);
+        if (seeded != null) {
+            started.put("progress", seeded.optInt("progress", 2));
+            started.put("eta_seconds", seeded.optInt("eta_seconds", 0));
+            started.put("eta_text", seeded.optString("eta_text"));
+            started.put("stage", seeded.optString("stage", "queued"));
+            started.put("stage_label", seeded.optString("stage_label", "排队等待"));
+            started.put("expected_seconds", seeded.optInt("expected_seconds", seeded.optInt("eta_seconds", 0)));
+        }
         String message = "已加入生成队列";
         if (storedPages.length() > 1) message = "已加入生成队列，" + storedPages.length() + " 页收进同一组";
         if (generator.concurrency() > 1 && units.size() > 1) message += "，" + generator.concurrency() + " 路并发";
+        if (seeded != null && seeded.optInt("eta_seconds") > 0) {
+            message += "，预计 " + seeded.optString("eta_text", "还要 " + seeded.optInt("eta_seconds") + " 秒");
+        }
         started.put("message", message);
         return started;
     }
@@ -141,7 +161,9 @@ final class JobStore {
         if (job == null) return null;
         synchronized (job) {
             try {
-                return new JSONObject(job.toString());
+                JSONObject copy = new JSONObject(job.toString());
+                decorateLive(copy);
+                return copy;
             } catch (Exception e) {
                 return job;
             }
@@ -253,6 +275,12 @@ final class JobStore {
             put(job, "status", "running");
             synchronized (job) {
                 job.put("concurrency", generator.concurrency());
+                job.put("started_at", System.currentTimeMillis());
+                job.put("wave_started_at", System.currentTimeMillis());
+                job.put("stage", "requesting");
+                job.put("stage_label", "正在请求 NovelAI");
+                job.put("stage_at", System.currentTimeMillis());
+                job.put("running", 0);
                 job.put("message", "生成中 0/" + total + (generator.concurrency() > 1 ? (" · " + generator.concurrency() + " 路并发") : ""));
             }
             CountDownLatch latch = new CountDownLatch(total);
@@ -260,6 +288,8 @@ final class JobStore {
                 final int index = i;
                 final JSONObject unit = units.get(i);
                 workers.execute(() -> {
+                    long unitStart = System.currentTimeMillis();
+                    boolean charged = false;
                     try {
                         if (cancelled.contains(id) || unknown.get() != null) return;
                         JSONObject comment = unit.optJSONObject("comment");
@@ -272,9 +302,14 @@ final class JobStore {
                                 if (seed >= 0) page.put("seed", seed + copyIndex);
                             } catch (Exception ignored) {}
                         }
+                        bumpRunning(job, 1);
+                        charged = true;
+                        markStage(job, "generating", "正在出图");
                         byte[] png = generator.generatePng(page, forceFree);
+                        markStage(job, "pipeline", "本机后处理：" + pipeline.summary());
                         String imageId = images.save(id + "p" + index, png, false);
                         byte[] processed = pipeline.process(png);
+                        markStage(job, "saving", "写入图库和相册");
                         images.saveFinal(imageId, processed);
                         if (pipeline.autoAfterGenerate()) {
                             images.exportOne(imageId + "-final", processed);
@@ -296,16 +331,25 @@ final class JobStore {
                         item.put("library_id", "g" + id);
                         item.put("page_index", pageIndex);
                         item.put("message", pipeline.autoAfterGenerate()
-                            ? "完成：已入图库、跑完 2x 拉伸/清元数据、存进相册"
-                            : "完成：已入图库并跑完流水线");
+                            ? ("完成：已入图库、跑完 " + pipeline.summary() + "、存进相册")
+                            : ("完成：已入图库并跑完流水线（" + pipeline.summary() + "）"));
+                        rememberDuration((int) (System.currentTimeMillis() - unitStart));
                         int done = finished.incrementAndGet();
                         synchronized (job) {
                             collected.put(item);
                             job.put("items", new JSONArray(collected.toString()));
                             job.put("done", done);
                             job.put("status", done >= total ? "done" : "running");
+                            job.put("wave_started_at", System.currentTimeMillis());
                             job.put("message", "生成中 " + done + "/" + total
                                 + (generator.concurrency() > 1 ? (" · " + generator.concurrency() + " 路并发") : ""));
+                            if (done >= total) {
+                                job.put("stage", "done");
+                                job.put("stage_label", "完成");
+                                job.put("progress", 100);
+                                job.put("eta_seconds", 0);
+                                job.put("eta_text", "已完成");
+                            }
                         }
                     } catch (NaiGenerator.NaiError error) {
                         lastError.set(error);
@@ -336,6 +380,7 @@ final class JobStore {
                             } catch (Exception ignored) {}
                         }
                     } finally {
+                        if (charged) bumpRunning(job, -1);
                         latch.countDown();
                     }
                 });
@@ -415,5 +460,134 @@ final class JobStore {
         synchronized (job) {
             job.put(key, value);
         }
+    }
+
+    private void bumpRunning(JSONObject job, int delta) {
+        synchronized (job) {
+            try {
+                int next = Math.max(0, job.optInt("running", 0) + delta);
+                job.put("running", next);
+                if (delta > 0 && job.optLong("wave_started_at", 0L) <= 0L) {
+                    job.put("wave_started_at", System.currentTimeMillis());
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private static void markStage(JSONObject job, String stage, String label) {
+        synchronized (job) {
+            try {
+                job.put("stage", stage);
+                job.put("stage_label", label);
+                job.put("stage_at", System.currentTimeMillis());
+                if (!job.optBoolean("terminal", false)) {
+                    job.put("message", label);
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void rememberDuration(int elapsedMs) {
+        if (elapsedMs < 800) return;
+        int samples = learnedSamples.incrementAndGet();
+        int prev = learnedMs.get();
+        int next = samples <= 1 ? elapsedMs : (int) (prev * 0.72 + elapsedMs * 0.28);
+        learnedMs.set(Math.max(3500, Math.min(90000, next)));
+    }
+
+    private void attachEta(JSONObject job, int leftover, int concurrency, int running) {
+        try {
+            int conc = Math.max(1, concurrency);
+            int wait = Math.max(0, leftover);
+            int avg = Math.max(3500, learnedMs.get() + (pipeline == null ? 1200 : pipeline.estimateMs()));
+            int waves = wait <= 0 ? 0 : (wait + conc - 1) / conc;
+            long eta = (long) waves * avg;
+            if (running > 0) {
+                long waveAt = job.optLong("wave_started_at", job.optLong("started_at", 0L));
+                if (waveAt > 0L) eta = Math.max(800L, eta - (System.currentTimeMillis() - waveAt));
+            }
+            int seconds = wait <= 0 ? 0 : Math.max(1, (int) Math.ceil(eta / 1000.0));
+            job.put("expected_seconds", Math.max(seconds, (wait + conc - 1) / conc * Math.max(1, avg / 1000)));
+            job.put("eta_seconds", seconds);
+            job.put("eta_text", formatEta(seconds));
+            job.put("sec_per_image", Math.round(learnedMs.get() / 100.0) / 10.0);
+        } catch (Exception ignored) {}
+    }
+
+    private void decorateLive(JSONObject job) {
+        try {
+            String status = job.optString("status");
+            boolean terminal = job.optBoolean("terminal", false)
+                || "done".equals(status) || "error".equals(status)
+                || "cancelled".equals(status) || "unknown".equals(status);
+            int done = job.optInt("done");
+            int total = Math.max(1, job.optInt("total"));
+            int running = job.optInt("running");
+            String stage = job.optString("stage", status);
+            long now = System.currentTimeMillis();
+            double frac = done;
+            if ("queued".equals(status)) {
+                frac = 0.02;
+            } else if (!terminal && running > 0) {
+                double unit = stageWeight(stage);
+                if ("generating".equals(stage) || "requesting".equals(stage)) {
+                    long stageAt = job.optLong("stage_at", now);
+                    double t = Math.min(1.0, (now - stageAt) / 14000.0);
+                    unit = 0.12 + t * 0.50;
+                }
+                frac += running * unit;
+            }
+            int progress = terminal && "done".equals(status)
+                ? 100
+                : Math.max(2, Math.min(99, (int) Math.round(frac * 100.0 / total)));
+            if (terminal && !"done".equals(status)) {
+                progress = Math.max(progress, (int) Math.round(done * 100.0 / total));
+            }
+            job.put("progress", progress);
+            if (job.optString("stage_label").isEmpty()) {
+                job.put("stage_label", stageLabel(stage, status));
+            }
+            long started = job.optLong("started_at", job.optLong("queued_at", 0L));
+            if (started > 0L) job.put("elapsed_ms", now - started);
+            if (terminal) {
+                job.put("eta_seconds", 0);
+                if ("done".equals(status)) job.put("eta_text", "已完成");
+                else if (job.optString("eta_text").isEmpty()) job.put("eta_text", "");
+                return;
+            }
+            attachEta(job, Math.max(0, total - done), Math.max(1, job.optInt("concurrency", generator.concurrency())), running);
+        } catch (Exception ignored) {}
+    }
+
+    private static double stageWeight(String stage) {
+        if ("saving".equals(stage)) return 0.94;
+        if ("pipeline".equals(stage) || "upscale".equals(stage) || "mosaic".equals(stage)) return 0.84;
+        if ("generating".equals(stage)) return 0.55;
+        if ("requesting".equals(stage)) return 0.16;
+        return 0.08;
+    }
+
+    static String stageLabel(String stage, String status) {
+        if ("done".equals(status) || "done".equals(stage)) return "完成";
+        if ("error".equals(status)) return "失败";
+        if ("cancelled".equals(status)) return "已取消";
+        if ("unknown".equals(status)) return "结果不明";
+        if ("queued".equals(stage) || "queued".equals(status)) return "排队等待";
+        if ("requesting".equals(stage)) return "正在请求 NovelAI";
+        if ("generating".equals(stage) || "running".equals(stage)) return "正在出图";
+        if ("upscale".equals(stage)) return "本机超分";
+        if ("mosaic".equals(stage)) return "轻量打码";
+        if ("pipeline".equals(stage)) return "本机后处理";
+        if ("saving".equals(stage)) return "写入图库";
+        return "生成中";
+    }
+
+    static String formatEta(int seconds) {
+        if (seconds <= 0) return "即将完成";
+        if (seconds < 60) return "预计还要 " + seconds + " 秒";
+        int minutes = seconds / 60;
+        int rest = seconds % 60;
+        if (rest == 0) return "预计还要 " + minutes + " 分钟";
+        return "预计还要 " + minutes + " 分 " + rest + " 秒";
     }
 }
