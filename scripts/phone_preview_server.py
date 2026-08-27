@@ -119,7 +119,9 @@ PIPELINE_CFG: dict = {
     "metadata": True,
     "mosaic": True,
     "mosaic_available": True,
-    "mosaic_mode": "light",
+    "mosaic_mode": "onnx",
+    "mosaic_model": "censor.onnx",
+    "mosaic_ready": True,
     "mosaic_method": "像素",
     "mosaic_intensity": 36,
     "estimate_ms": 2200,
@@ -745,7 +747,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({
                 "ok": True,
                 "config": dict(PIPELINE_CFG),
-                "message": "手机流水线：超分 + 轻量打码 + 清元数据。打码是肤色区域像素/模糊，不是电脑 ANR/YOLO。",
+                "message": "手机流水线：超分 + 机内 ONNX 打码（理塘同款 censor.onnx）+ 清元数据。",
             })
         if path == "/api/pipeline/status":
             return self._json({"ok": True, "job": {"status": "idle"}, "backlog": {"count": 0}})
@@ -936,7 +938,8 @@ class Handler(BaseHTTPRequestHandler):
                     if key in payload:
                         PIPELINE_CFG[key] = payload[key]
                 PIPELINE_CFG["mosaic_available"] = True
-                PIPELINE_CFG["mosaic_mode"] = "light"
+                PIPELINE_CFG["mosaic_mode"] = "onnx"
+                PIPELINE_CFG["mosaic_model"] = "censor.onnx"
             return self._json({"ok": True, "config": dict(PIPELINE_CFG)})
         if path == "/api/pipeline/run":
             return self._json({"ok": True, "message": "已开始"})

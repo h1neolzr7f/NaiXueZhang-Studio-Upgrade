@@ -46,7 +46,7 @@ final class PipelineStore {
     int estimateMs() {
         int ms = 350;
         if (upscaleEnabled()) ms += 280 * scale() * scale();
-        if (mosaicEnabled()) ms += 900;
+        if (mosaicEnabled()) ms += OnnxCensor.available() ? 2600 : 900;
         if (metadataEnabled()) ms += 180;
         return ms;
     }
@@ -54,7 +54,7 @@ final class PipelineStore {
     String summary() {
         StringBuilder text = new StringBuilder();
         text.append("超分 ").append(upscaleEnabled() ? scale() + "x" : "关");
-        text.append("，轻量打码 ").append(mosaicEnabled() ? mosaicMethod() : "关");
+        text.append("，打码 ").append(mosaicEnabled() ? (OnnxCensor.available() ? "ONNX " : "轻量 ") + mosaicMethod() : "关");
         text.append("，清元数据").append(metadataEnabled() ? "开" : "关");
         return text.toString();
     }
@@ -99,14 +99,18 @@ final class PipelineStore {
         cfg.put("metadata", metadataEnabled());
         cfg.put("mosaic", mosaicEnabled());
         cfg.put("mosaic_available", true);
-        cfg.put("mosaic_mode", "light");
+        cfg.put("mosaic_mode", OnnxCensor.available() ? "onnx" : "light");
+        cfg.put("mosaic_model", "censor.onnx");
+        cfg.put("mosaic_ready", OnnxCensor.available());
         cfg.put("mosaic_method", mosaicMethod());
         cfg.put("mosaic_intensity", mosaicIntensity());
         cfg.put("estimate_ms", estimateMs());
         JSONObject out = new JSONObject();
         out.put("ok", true);
         out.put("config", cfg);
-        out.put("message", "手机流水线：超分 + 轻量打码 + 清元数据。打码是肤色区域像素/模糊，不是电脑 ANR/YOLO，漏打请自己看一眼。");
+        out.put("message", OnnxCensor.available()
+            ? "手机流水线：超分 + 机内 ONNX 打码（理塘同款 censor.onnx）+ 清元数据。"
+            : OnnxCensor.status() + "。模型打进 APK 后启动时加载；未就绪时先用肤色区域打码。");
         return out;
     }
 

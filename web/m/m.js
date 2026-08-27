@@ -2554,15 +2554,15 @@
         <section class="m-hero">
           <p class="m-eyebrow">图库</p>
           <h2>本机图库</h2>
-          <p class="m-hint">按生成任务分组。生图后自动跑超分、轻量打码和清元数据。打码借鉴理塘百宝箱手机轻量版，不打包 ANR/YOLO。</p>
+          <p class="m-hint">按生成任务分组。生图后自动跑超分、机内 ONNX 打码和清元数据。打码模型是理塘同款 censor.onnx，已打进安装包。</p>
         </section>
         <section class="m-card">
           <h2>后处理流水线</h2>
           <p>自动后处理：<strong class="${auto ? "m-ok" : "m-err"}">${auto ? "已开" : "未开"}</strong></p>
           <p>本机超分：<strong class="${upscale ? "m-ok" : "m-err"}">${upscale ? scale + "x 已开" : "未开"}</strong></p>
-          <p>轻量打码：<strong class="${mosaic ? "m-ok" : "m-err"}">${mosaic ? mosaicMethod + " 已开" : "未开"}</strong></p>
+          <p>机内打码：<strong class="${mosaic ? "m-ok" : "m-err"}">${mosaic ? mosaicMethod + " 已开" : "未开"}</strong></p>
           <p>清元数据：<strong class="${metadata ? "m-ok" : "m-err"}">${metadata ? "已开" : "未开"}</strong></p>
-          <p class="m-hint">超分是本机拉伸。打码按肤色区域做像素/模糊/纯色，漏打请自己再看一眼。不是电脑 ANR。</p>
+          <p class="m-hint">超分是本机拉伸。打码用安装包内的 censor.onnx 认欧金金 / 欧芒果 / 欧派派，再按像素/模糊/纯色盖上。漏打请自己再看一眼。</p>
           <div class="m-row" style="margin-top:10px">
             <span class="m-hint">倍率</span>
             ${[2, 3, 4].map((n) => `<button type="button" class="m-chip${scale === n ? " active" : ""}" data-scale="${n}">${n}x</button>`).join("")}
@@ -2596,7 +2596,7 @@
         </a>`;
       }).join("");
       document.getElementById("mPipeRun").onclick = async () => {
-        if (!await confirmAction("补跑流水线", "会对还没处理的生成图做本机超分、轻量打码和清元数据，并补存相册。不会重新出图。")) return;
+        if (!await confirmAction("补跑流水线", "会对还没处理的生成图做本机超分、机内 ONNX 打码和清元数据，并补存相册。不会重新出图。")) return;
         const box = document.getElementById("mPipeStatus");
         try {
           const result = await api().post("/api/pipeline/run", { only_missing: true });

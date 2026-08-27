@@ -10,11 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Phone-light mosaic borrowed from 理塘百宝箱's Android path: pixel / blur / solid
- * on detected regions. No YOLO / ANR / ONNX weights in the APK.
- *
- * Detection is a skin-tone + anatomy-zone heuristic (chest band + lower torso).
- * Missed spots are expected; the UI tells the user to review.
+ * Mosaic paint + fallback detector. Prefer OnnxCensor (bundled censor.onnx).
+ * Heuristic skin boxes are only used if the ONNX session is not ready.
  */
 final class LightMosaic {
     static final String[] METHODS = {"像素", "模糊", "纯色"};
@@ -38,7 +35,7 @@ final class LightMosaic {
         if (src == null) return new Result(null, 0, normalizeMethod(method));
         String kind = normalizeMethod(method);
         int strength = normalizeIntensity(intensity);
-        List<int[]> boxes = detectBoxes(src);
+        List<int[]> boxes = OnnxCensor.detectOrFallback(src);
         if (boxes.isEmpty()) return new Result(src, 0, kind);
         Bitmap out = src.copy(Bitmap.Config.ARGB_8888, true);
         if (out == null) return new Result(src, 0, kind);
