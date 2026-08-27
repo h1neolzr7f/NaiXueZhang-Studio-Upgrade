@@ -271,4 +271,16 @@ assert.ok(String(styled.draft.comment.prompt).includes("watercolor"));
 assert.ok(!String(styled.draft.comment.prompt).includes("official art"));
 assert.ok(core.applyStyleToComment);
 
+const edited = core.applyDraftEdits(draft.draft.comment, {
+  prompt: "1girl, classroom, hand-edited",
+  uc: "lowres, worst quality",
+  seed: 42,
+  steps: 22,
+});
+assert.ok(String(edited.prompt).includes("hand-edited"));
+assert.strictEqual(edited.uc, "lowres, worst quality");
+assert.strictEqual(edited.seed, 42);
+assert.strictEqual(edited.steps, 22);
+assert.ok(String(edited.v4_prompt.caption.base_caption).includes("hand-edited"));
+
 console.log("standalone-core ok");

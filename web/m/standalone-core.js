@@ -829,6 +829,32 @@
     return patched;
   }
 
+  function applyDraftEdits(comment, edits) {
+    const patched = JSON.parse(JSON.stringify(comment || {}));
+    const incoming = edits || {};
+    if (incoming.prompt != null) {
+      patched.prompt = String(incoming.prompt);
+      if (!patched.v4_prompt || typeof patched.v4_prompt !== "object") patched.v4_prompt = {};
+      if (!patched.v4_prompt.caption || typeof patched.v4_prompt.caption !== "object") patched.v4_prompt.caption = {};
+      patched.v4_prompt.caption.base_caption = patched.prompt;
+    }
+    if (incoming.uc != null) {
+      patched.uc = String(incoming.uc);
+      patched.negative_prompt = patched.uc;
+      if (!patched.v4_negative_prompt || typeof patched.v4_negative_prompt !== "object") patched.v4_negative_prompt = {};
+      if (!patched.v4_negative_prompt.caption || typeof patched.v4_negative_prompt.caption !== "object") patched.v4_negative_prompt.caption = {};
+      patched.v4_negative_prompt.caption.base_caption = patched.uc;
+    }
+    if (incoming.seed != null && String(incoming.seed).trim() !== "") {
+      const seedValue = Number(incoming.seed);
+      if (seedValue === -1 || seedValue >= 0) patched.seed = seedValue;
+    }
+    if (incoming.steps != null && String(incoming.steps).trim() !== "") {
+      patched.steps = Math.max(1, Math.min(28, Number(incoming.steps) || 28));
+    }
+    return patched;
+  }
+
   const api = {
     effectiveComment: effectiveComment,
     splitPromptTags: splitPromptTags,
@@ -844,6 +870,7 @@
     buildGeneratePayload: buildGeneratePayload,
     naiRequestBody: naiRequestBody,
     applyOptimizeTexts: applyOptimizeTexts,
+    applyDraftEdits: applyDraftEdits,
     applyStyleToComment: applyStyleToComment,
     fitOpusFreeSize: fitOpusFreeSize,
     promptSnapshot: promptSnapshot,

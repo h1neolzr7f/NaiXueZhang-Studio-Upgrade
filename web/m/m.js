@@ -239,6 +239,21 @@
     return null;
   }
 
+  function remixReady() {
+    if (!isStandalone()) return true;
+    const workId = String((state.work && state.work.work && (state.work.work.work_id || state.work.work.id)) || "");
+    if (!workId) return false;
+    if (DemoWorksSafe(workId) || String(workId).startsWith("g")) return true;
+    return String((state.work && state.work.save_state) || "") === "ready";
+  }
+
+  function remixBlockReason() {
+    const saveState = String((state.work && state.work.save_state) || "");
+    if (saveState === "pending" || saveState === "saving") return "入库还没完成，等本地库显示「可换角生成」再换";
+    if (saveState === "partial") return "入库不完整，等图下完再换角";
+    return "先收藏入本地库，才能换角和生成";
+  }
+
   async function render() {
     state.route = parseRoute();
     if (state.route.mode === "library") state.browseMode = "library";
@@ -575,6 +590,7 @@
           <button type="button" id="mCustomUse" class="m-ghost">用这次不保存</button>
           <button type="button" id="mCustomSave" class="m-primary">保存自定义</button>
         </div>
+        <div id="mCustomList" class="m-list" style="margin-top:10px"></div>
       </details>`;
     picker.classList.remove("hidden");
     picker.setAttribute("aria-hidden", "false");
@@ -608,6 +624,34 @@
     document.getElementById("mCustomSave").onclick = () => useCustomRecord(true);
     document.getElementById("mDescribeBtn").onclick = describeWithDeepSeek;
     searchTargets();
+    refreshCustomList();
+  }
+
+  async function refreshCustomList() {
+    const host = document.getElementById("mCustomList");
+    if (!host) return;
+    const items = await listCustom(state.targetGender);
+    host.innerHTML = items.length
+      ? items.map((item) => `<div class="m-item"><div><strong>${escapeHtml(item.label || item.id)}</strong></div><button type="button" class="m-ghost" data-del-custom="${escapeHtml(item.id)}">删除</button></div>`).join("")
+      : '<p class="m-hint">还没有已保存的自定义角色</p>';
+    host.querySelectorAll("[data-del-custom]").forEach((button) => {
+      button.onclick = async () => {
+        const id = button.getAttribute("data-del-custom");
+        if (!await confirmAction("删除自定义角色", "只删本机保存的这条，不会出图。")) return;
+        try {
+          if (isStandalone()) await api().post("/api/plugin/char-swap/custom/delete", { id: id });
+          else {
+            const next = loadLocalCustom().filter((item) => String(item.id) !== String(id));
+            try { localStorage.setItem("nai-mobile-custom-chars", JSON.stringify(next)); } catch (_) { /* ignore */ }
+          }
+          toast("已删除");
+          refreshCustomList();
+          searchTargets();
+        } catch (error) {
+          toast(error.message || String(error), "err");
+        }
+      };
+    });
   }
 
   function currentDraftEntry() {
@@ -621,15 +665,31 @@
       ? window.StandaloneCore.promptSnapshot(comment)
       : { prompt: comment.prompt || "", uc: comment.uc || comment.negative_prompt || "", char_captions: [] };
     const slots = Array.isArray(snap.char_captions) ? snap.char_captions : [];
+    const prompt = String(snap.base_caption || snap.prompt || comment.prompt || "");
+    const uc = String(comment.uc || comment.negative_prompt || snap.uc || "");
+    const seed = comment.seed == null ? "" : String(comment.seed);
+    const steps = comment.steps == null ? "" : String(comment.steps);
     return `<div class="m-draft" id="mDraftPreview">
       <p><strong>草稿预览</strong> · 还没扣 Anlas</p>
-      <p class="m-meta">底栏：${escapeHtml(String(snap.base_caption || snap.prompt || "").slice(0, 280))}</p>
+      <p class="m-meta">底栏：${escapeHtml(prompt.slice(0, 280))}</p>
       ${slots.map((slot, index) => {
         const text = slot && typeof slot === "object" ? (slot.caption || slot.char_caption || "") : slot;
         return `<p class="m-meta">槽${index + 1}：${escapeHtml(String(text || "").slice(0, 180))}</p>`;
       }).join("")}
-      <p class="m-meta">负面：${escapeHtml(String(snap.uc || "").slice(0, 160))}</p>
+      <p class="m-meta">负面：${escapeHtml(uc.slice(0, 160))}</p>
       ${state.styleLabel ? `<p class="m-meta">画风：${escapeHtml(state.styleLabel)}</p>` : ""}
+      <details class="m-adv">
+        <summary>手改草稿</summary>
+        <textarea id="mDraftPrompt" placeholder="底栏咒语">${escapeHtml(prompt)}</textarea>
+        <textarea id="mDraftUc" placeholder="负面咒语">${escapeHtml(uc)}</textarea>
+        <div class="m-row" style="margin-top:8px">
+          <input id="mDraftSeed" inputmode="numeric" placeholder="seed，空=随机" value="${escapeHtml(seed)}" />
+          <input id="mDraftSteps" inputmode="numeric" placeholder="步数 1-28" value="${escapeHtml(steps)}" />
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mSaveDraft" class="m-ghost">保存手改</button>
+        </div>
+      </details>
     </div>`;
   }
 
@@ -672,6 +732,7 @@
     const promptText = String((comment && (comment.prompt || (comment.v4_prompt && comment.v4_prompt.caption && comment.v4_prompt.caption.base_caption))) || img.prompt_text || "").trim();
     const tags = Array.isArray(work.tags) ? work.tags.map((tag) => String(tag || "")).filter(Boolean).slice(0, 8) : [];
     const saveState = String((state.work && state.work.save_state) || "");
+    const canRemix = remixReady();
     root.innerHTML = `
       <section class="m-card">
         <p class="m-eyebrow">第 1 步 · 看图</p>
@@ -680,7 +741,7 @@
           ${isStandalone() ? `<button type="button" class="m-fav${favOn ? " on" : ""}" data-fav="${escapeHtml(workId)}" aria-label="收藏">${favOn ? "★" : "☆"}</button>` : ""}
         </div>
         <img class="m-preview" src="${escapeHtml(cover)}" alt="">
-        <p class="m-hint">${pageCount}张 · ${images.length} 页已加载${work.creator ? " · " + escapeHtml(work.creator) : ""}${work.ai_type ? " · " + escapeHtml(work.ai_type) : ""}${saveState === "pending" ? " · 入库中" : ""}</p>
+        <p class="m-hint">${pageCount}张 · ${images.length} 页已加载${work.creator ? " · " + escapeHtml(work.creator) : ""}${work.ai_type ? " · " + escapeHtml(work.ai_type) : ""}${saveState === "pending" || saveState === "saving" ? " · 入库中" : saveState === "partial" ? " · 入库不完整" : canRemix ? " · 可换角生成" : ""}</p>
         ${tags.length ? `<p class="m-meta">标签：${escapeHtml(tags.join(" / "))}</p>` : ""}
         ${promptText
           ? `<p class="m-meta">原图咒语：${escapeHtml(promptText.slice(0, 220))}</p>`
@@ -707,10 +768,10 @@
       </section>
       <section class="m-card">
         <p class="m-eyebrow">第 4 步 · 写草稿再出图</p>
-        <p class="m-hint">先点「本页换角」做零费用草稿，确认后再排队生成。同一任务的多张图会收进图库一组。</p>
+        <p class="m-hint">${canRemix ? "先点「本页换角」做零费用草稿，确认后再排队生成。同一任务的多张图会收进图库一组。" : remixBlockReason()}</p>
         <div class="m-row">
-          <button type="button" id="mApplyOne" class="m-primary">本页换角</button>
-          <button type="button" id="mApplyAll" class="m-ghost">全部页换同性别</button>
+          <button type="button" id="mApplyOne" class="m-primary" ${canRemix ? "" : "disabled"}>本页换角</button>
+          <button type="button" id="mApplyAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页换同性别</button>
         </div>
         <div class="m-row" style="margin-top:8px">
           <button type="button" id="mOptimize" class="m-ghost">DeepSeek 优化草稿</button>
@@ -773,6 +834,35 @@
     });
     document.getElementById("mGenOne").onclick = generateCurrent;
     document.getElementById("mQueueBtn").onclick = enqueueCurrent;
+    const saveDraft = document.getElementById("mSaveDraft");
+    if (saveDraft) saveDraft.onclick = saveDraftEdits;
+  }
+
+  function saveDraftEdits() {
+    const entry = currentDraftEntry();
+    const comment = draftComment(entry);
+    if (!comment) {
+      toast("先做本页换角草稿", "err");
+      return;
+    }
+    const promptEl = document.getElementById("mDraftPrompt");
+    const ucEl = document.getElementById("mDraftUc");
+    const seedEl = document.getElementById("mDraftSeed");
+    const stepsEl = document.getElementById("mDraftSteps");
+    const next = (window.StandaloneCore && window.StandaloneCore.applyDraftEdits)
+      ? window.StandaloneCore.applyDraftEdits(comment, {
+        prompt: promptEl ? promptEl.value : comment.prompt,
+        uc: ucEl ? ucEl.value : (comment.uc || comment.negative_prompt || ""),
+        seed: seedEl ? seedEl.value : comment.seed,
+        steps: stepsEl ? stepsEl.value : comment.steps,
+      })
+      : comment;
+    if (entry.draft) entry.draft.comment = next;
+    else entry.comment = next;
+    const workId = String((state.work && state.work.work && (state.work.work.work_id || state.work.work.id)) || "");
+    persistDrafts(workId);
+    toast("手改草稿已保存");
+    paintWork(document.getElementById("mApp"));
   }
 
   function openStylePicker() {
@@ -1080,6 +1170,10 @@
 
   async function applyDraft(options) {
     if (!requireWrite() || state.busy) return;
+    if (isStandalone() && !remixReady()) {
+      toast(remixBlockReason(), "err");
+      return;
+    }
     const workId = String((state.work && state.work.work && state.work.work.work_id) || "");
     if (!workId) return;
     if (!options.allPages && !state.targetId) {
@@ -1163,6 +1257,10 @@
 
   async function generateCurrent() {
     if (!requireWrite() || state.busy) return;
+    if (isStandalone() && !remixReady()) {
+      toast(remixBlockReason(), "err");
+      return;
+    }
     const entry = state.drafts[String(state.pageIndex)];
     const comment = draftComment(entry);
     if (!comment) {
@@ -1339,15 +1437,19 @@
       ${isStandalone() ? `
       <section class="m-card">
         <h2>生成队列</h2>
-        <p class="m-hint">本机单线程排队。同一任务的多张图会收进图库一组，点进去才看大图。</p>
+        <p class="m-hint">本机单线程排队。同一任务的多张图会收进图库一组，点进去才看大图。失败可手动重试，不会自动重试。</p>
         <div class="m-list">${jobs.map((job) => `
           <div class="m-item">
             <div></div>
             <div>
               <strong>${escapeHtml(job.title || job.task_id || "任务")}</strong>
-              <div class="m-hint">${escapeHtml(job.status || "")} · ${job.done || 0}/${job.total || 1}张</div>
+              <div class="m-hint">${escapeHtml(job.status || "")} · ${job.done || 0}/${job.total || 1}张${job.message ? " · " + escapeHtml(String(job.message).slice(0, 40)) : ""}</div>
             </div>
-            <a class="m-ghost" href="#/gallery/${encodeURIComponent(job.album_id || job.task_id || "")}">图库</a>
+            <div class="m-row">
+              ${job.cancellable ? `<button type="button" class="m-ghost" data-cancel="${escapeHtml(job.task_id || "")}">取消</button>` : ""}
+              ${job.retryable ? `<button type="button" class="m-ghost" data-retry="${escapeHtml(job.task_id || "")}">重试</button>` : ""}
+              <a class="m-ghost" href="#/gallery/${encodeURIComponent(job.album_id || job.task_id || "")}">图库</a>
+            </div>
           </div>`).join("") || '<p class="m-hint">队列是空的。在本地库换角后点「加入队列」。</p>'}
         </div>
       </section>` : ""}
@@ -1392,6 +1494,34 @@
         next.splice(Number(button.dataset.drop), 1);
         saveQueue(next);
         renderBatch(root);
+      };
+    });
+    root.querySelectorAll("[data-cancel]").forEach((button) => {
+      button.onclick = async () => {
+        const taskId = button.getAttribute("data-cancel");
+        if (!taskId) return;
+        if (!await confirmAction("取消队列", "未发出的张不会再生成。已经发出的请求拦不住。")) return;
+        try {
+          await api().post("/api/mobile/queue/" + encodeURIComponent(taskId) + "/cancel", {});
+          toast("已取消");
+          renderBatch(root);
+        } catch (error) {
+          toast(friendlyError(error), "err");
+        }
+      };
+    });
+    root.querySelectorAll("[data-retry]").forEach((button) => {
+      button.onclick = async () => {
+        const taskId = button.getAttribute("data-retry");
+        if (!taskId) return;
+        if (!await confirmAction("重试这组", "不会自动重试。结果不明时可能已扣费，先看 NovelAI 记录。")) return;
+        try {
+          const started = await api().post("/api/mobile/queue/" + encodeURIComponent(taskId) + "/retry", {});
+          toast(started.message || "已重新入队");
+          renderBatch(root);
+        } catch (error) {
+          toast(friendlyError(error), "err");
+        }
       };
     });
     document.getElementById("mClearOnline").onclick = () => { saveQueue([]); renderBatch(root); };
@@ -1646,9 +1776,9 @@
         <section class="m-card">
           <h2>后处理流水线</h2>
           <p>自动后处理：<strong class="${auto ? "m-ok" : "m-err"}">${auto ? "已开" : "未开"}</strong></p>
-          <p>超分 2x：<strong class="${upscale ? "m-ok" : "m-err"}">${upscale ? "已开" : "未开"}</strong></p>
+          <p>本机 2x 拉伸：<strong class="${upscale ? "m-ok" : "m-err"}">${upscale ? "已开" : "未开"}</strong></p>
           <p>清元数据：<strong class="${metadata ? "m-ok" : "m-err"}">${metadata ? "已开" : "未开"}</strong></p>
-          <p class="m-hint">打码：未打包（电脑版靠外部 ANR + YOLO，上百 MB）。</p>
+          <p class="m-hint">这是 Bitmap 拉伸，不是电脑版 ANR。打码未打包（ANR + YOLO 上百 MB）。</p>
           <div class="m-row" style="margin-top:10px">
             <button type="button" id="mPipeRun" class="m-primary">补跑流水线</button>
             <button type="button" id="mPipeAuto" class="m-ghost">${auto ? "关闭自动" : "打开自动"}</button>
@@ -1673,7 +1803,7 @@
         </a>`;
       }).join("");
       document.getElementById("mPipeRun").onclick = async () => {
-        if (!await confirmAction("补跑流水线", "会对还没处理的生成图做超分和清元数据，并补存相册。不会重新出图，也不会打码。")) return;
+        if (!await confirmAction("补跑流水线", "会对还没处理的生成图做本机 2x 拉伸和清元数据，并补存相册。不会重新出图，也不会打码。")) return;
         const box = document.getElementById("mPipeStatus");
         try {
           const result = await api().post("/api/pipeline/run", { only_missing: true });
@@ -1716,6 +1846,7 @@
           <div class="m-row">
             <a class="m-ghost" href="#/gallery">返回图库</a>
             ${album.source_work_id ? `<a class="m-ghost" href="#/library/${encodeURIComponent("g" + album.album_id)}">用这组再换角</a>` : ""}
+            <button type="button" id="mAlbumDel" class="m-danger">删除这组</button>
           </div>
         </section>
         <div class="m-grid" id="mAlbumGrid"></div>`;
@@ -1726,6 +1857,19 @@
           <em class="m-page-badge">P${index + 1}</em>
           <span>第 ${index + 1} 张</span>
         </a>`).join("") || '<p class="m-hint">这个任务还没有图。</p>';
+      const del = document.getElementById("mAlbumDel");
+      if (del) {
+        del.onclick = async () => {
+          if (!await confirmAction("删除这组", "只删应用里的这组图，系统相册里已导出的还在。")) return;
+          try {
+            await api().post("/api/mobile/gallery/" + encodeURIComponent(albumId) + "/delete", {});
+            toast("已删除这组图");
+            location.hash = "#/gallery";
+          } catch (error) {
+            toast(friendlyError(error), "err");
+          }
+        };
+      }
     } catch (error) {
       root.innerHTML = `<section class="m-card"><h2>图库任务</h2><p class="m-err">${escapeHtml(friendlyError(error))}</p>
         <div class="m-row"><a class="m-primary" href="#/gallery">返回图库</a></div></section>`;

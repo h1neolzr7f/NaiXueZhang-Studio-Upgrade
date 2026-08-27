@@ -102,6 +102,27 @@ final class GalleryStore {
         return out;
     }
 
+    synchronized JSONObject remove(String albumId) throws Exception {
+        String id = normalize(albumId);
+        if (id.isEmpty()) throw new IllegalArgumentException("缺少图库任务 id");
+        JSONArray all = readAll();
+        JSONArray next = new JSONArray();
+        JSONObject removed = null;
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject album = all.optJSONObject(i);
+            if (album != null && id.equals(album.optString("album_id"))) removed = album;
+            else if (album != null) next.put(album);
+        }
+        if (removed == null) throw new IllegalArgumentException("图库里没有这个任务");
+        writeAll(next);
+        JSONObject out = new JSONObject();
+        out.put("ok", true);
+        out.put("album_id", id);
+        out.put("removed", removed);
+        out.put("message", "已删除这组图");
+        return out;
+    }
+
     synchronized JSONObject get(String albumId) {
         JSONObject album = find(normalize(albumId));
         if (album == null) return null;

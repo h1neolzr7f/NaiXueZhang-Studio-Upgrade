@@ -1,34 +1,49 @@
 #!/usr/bin/env python3
-"""Build the compact Danbooru character index used by the phone app."""
+"""Build the complete phone character index from the desktop char_tag_index pack."""
 
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
-OUT = DATA / "phone_char_index.txt"
-REC = DATA / "danbooru_recognition.json"
-PAT = re.compile(r"^[a-z0-9][a-z0-9_'.\-]*_\([^)]+\)$", re.I)
-SKIP = re.compile(r"(cosplay|crossover|parody|meme|logo|symbol|chibi_version)", re.I)
+INDEX = DATA / "char_tag_index.json"
+OUT_CHARS = DATA / "phone_char_index.txt"
+OUT_COPYRIGHTS = DATA / "phone_copyright_index.txt"
+
+
+def _clean(raw: object) -> str:
+    tag = str(raw or "").strip().lower()
+    if not tag or len(tag) > 96:
+        return ""
+    return tag
 
 
 def main() -> None:
-    rec = json.loads(REC.read_text(encoding="utf-8"))
+    pack = json.loads(INDEX.read_text(encoding="utf-8"))
     seen: set[str] = set()
-    tags: list[str] = []
-    for raw in rec.get("characters") or []:
-        if not isinstance(raw, str):
-            continue
-        tag = raw.strip().lower()
-        if tag in seen or len(tag) > 72 or not PAT.match(tag) or SKIP.search(tag):
+    chars: list[str] = []
+    for raw in pack.get("characters") or []:
+        tag = _clean(raw)
+        if not tag or tag in seen:
             continue
         seen.add(tag)
-        tags.append(tag)
-    OUT.write_text("\n".join(tags) + "\n", encoding="utf-8")
-    print(f"wrote {OUT} lines={len(tags)} bytes={OUT.stat().st_size}")
+        chars.append(tag)
+    copyrights: list[str] = []
+    seen_c: set[str] = set()
+    for raw in pack.get("copyrights") or []:
+        tag = _clean(raw)
+        if not tag or tag in seen_c:
+            continue
+        seen_c.add(tag)
+        copyrights.append(tag)
+    OUT_CHARS.write_text("\n".join(chars) + "\n", encoding="utf-8")
+    OUT_COPYRIGHTS.write_text("\n".join(copyrights) + "\n", encoding="utf-8")
+    print(
+        f"wrote {OUT_CHARS} lines={len(chars)} bytes={OUT_CHARS.stat().st_size} "
+        f"copyrights={len(copyrights)} pack={INDEX.stat().st_size}"
+    )
 
 
 if __name__ == "__main__":

@@ -166,6 +166,24 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         if ("GET".equals(request.method) && "/api/mobile/gallery".equals(path)) {
             return json(200, gallery.list().toString());
         }
+        if ("POST".equals(request.method) && path.startsWith("/api/mobile/gallery/") && path.endsWith("/delete")) {
+            String albumId = LocalHttpServer.decode(path.substring("/api/mobile/gallery/".length(), path.length() - "/delete".length()));
+            try {
+                JSONObject removed = gallery.remove(albumId);
+                org.json.JSONArray albumImages = removed.optJSONObject("removed") == null
+                    ? null
+                    : removed.getJSONObject("removed").optJSONArray("images");
+                if (albumImages != null) {
+                    for (int i = 0; i < albumImages.length(); i++) {
+                        JSONObject image = albumImages.optJSONObject(i);
+                        if (image != null) this.images.delete(JsonUtil.first(image, "id", "image_id"));
+                    }
+                }
+                return json(200, removed.toString());
+            } catch (Exception error) {
+                return json(400, errorJson(error.getMessage()));
+            }
+        }
         if ("GET".equals(request.method) && path.startsWith("/api/mobile/gallery/")) {
             String albumId = LocalHttpServer.decode(path.substring("/api/mobile/gallery/".length()));
             JSONObject album = gallery.get(albumId);
@@ -174,6 +192,22 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
         }
         if ("GET".equals(request.method) && "/api/mobile/queue".equals(path)) {
             return json(200, jobs.list().toString());
+        }
+        if ("POST".equals(request.method) && path.startsWith("/api/mobile/queue/") && path.endsWith("/cancel")) {
+            String taskId = LocalHttpServer.decode(path.substring("/api/mobile/queue/".length(), path.length() - "/cancel".length()));
+            try {
+                return json(200, jobs.cancel(taskId).toString());
+            } catch (Exception error) {
+                return json(400, errorJson(error.getMessage()));
+            }
+        }
+        if ("POST".equals(request.method) && path.startsWith("/api/mobile/queue/") && path.endsWith("/retry")) {
+            String taskId = LocalHttpServer.decode(path.substring("/api/mobile/queue/".length(), path.length() - "/retry".length()));
+            try {
+                return json(200, jobs.retry(taskId).toString());
+            } catch (Exception error) {
+                return json(400, errorJson(error.getMessage()));
+            }
         }
         if ("GET".equals(request.method) && "/api/nai/aitag/probe".equals(path)) {
             return json(200, aitag.probe().toString());
@@ -289,7 +323,10 @@ final class LocalStudioServer implements LocalHttpServer.Handler {
             String workId = JsonUtil.first(payload, "work_id_str", "remote_work_id");
             if (workId.isEmpty() && payload.opt("work_id") != null) workId = String.valueOf(payload.opt("work_id"));
             if (!favorites.canRemix(workId)) {
-                return json(400, "{\"ok\":false,\"detail\":\"先收藏入本地库，才能换角和生成\"}");
+                String detail = favorites.has(workId)
+                    ? "入库还没完成，等本地库显示「可换角生成」再换"
+                    : "先收藏入本地库，才能换角和生成";
+                return json(400, errorJson(detail));
             }
             boolean forceFree = !payload.has("force_free") || payload.optBoolean("force_free", true);
             int copies = parseInt(String.valueOf(payload.opt("copies")), 1);
