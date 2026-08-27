@@ -586,9 +586,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": False, "detail": "先收藏入本地库，才能换角和生成"}, 400)
             copies = max(1, min(8, int(payload.get("copies") or 1)))
             slots = max(1, len(PREVIEW_TOKENS) or 1)
+            series_pages = payload.get("pages") or []
+            page_count = len(series_pages) if series_pages else 1
+            total = max(1, page_count * copies)
             task_id = "previewjob01"
             images = []
-            for index in range(copies):
+            for index in range(total):
                 images.append({
                     "id": f"preview{index}",
                     "image_url": "/api/mobile/output/preview.png",
@@ -611,18 +614,19 @@ class Handler(BaseHTTPRequestHandler):
                 "terminal": True,
                 "cancellable": False,
                 "retryable": False,
-                "done": copies,
-                "total": copies,
+                "done": total,
+                "total": total,
+                "pages": page_count,
                 "concurrency": slots,
                 "title": payload.get("source_title") or "预览生成",
                 "items": [item],
-                "message": f"完成 {copies} 张，已按同一任务收入图库" + (f" · {slots} 路并发" if slots > 1 else ""),
+                "message": f"完成 {total} 张，已按同一任务收入图库" + (f" · {page_count} 页" if page_count > 1 else "") + (f" · {slots} 路并发" if slots > 1 else ""),
             }
             ALBUMS[:] = [{
                 "album_id": task_id,
                 "task_id": task_id,
                 "title": payload.get("source_title") or "预览生成",
-                "image_count": copies,
+                "image_count": total,
                 "cover_url": "/api/mobile/output/preview.png",
                 "images": images,
                 "source_work_id": work_id,
@@ -633,9 +637,13 @@ class Handler(BaseHTTPRequestHandler):
                 "task_id": task_id,
                 "album_id": task_id,
                 "queued": True,
-                "total": copies,
                 "concurrency": slots,
-                "message": "已加入生成队列" + (f"，{slots} 路并发" if slots > 1 and copies > 1 else ""),
+                "total": total,
+                "pages": page_count,
+                "message": (
+                    ("已加入生成队列，" + str(page_count) + " 页收进同一组")
+                    if page_count > 1 else "已加入生成队列"
+                ) + (f"，{slots} 路并发" if slots > 1 and total > 1 else ""),
             })
         if path == "/api/pipeline/config":
             return self._json({"ok": True, "config": payload})

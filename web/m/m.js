@@ -20,6 +20,7 @@
     styleRecord: null,
     copies: 1,
     slot: null,
+    slotTargets: {},
     pageIndex: 0,
     busy: false,
     favIds: {},
@@ -146,6 +147,18 @@
     const id = String(workId || "");
     if (!id) return;
     try { localStorage.setItem(DRAFTS_KEY + ":" + id, JSON.stringify(state.drafts || {})); } catch (_) { /* ignore */ }
+    try { localStorage.setItem(DRAFTS_KEY + "-slots:" + id, JSON.stringify(state.slotTargets || {})); } catch (_) { /* ignore */ }
+  }
+
+  function restoreSlotTargets(workId) {
+    const id = String(workId || "");
+    if (!id) return {};
+    try {
+      const raw = JSON.parse(localStorage.getItem(DRAFTS_KEY + "-slots:" + id) || "{}");
+      return raw && typeof raw === "object" ? raw : {};
+    } catch (_) {
+      return {};
+    }
   }
 
   function restoreDrafts(workId) {
@@ -484,6 +497,7 @@
       state.pageIndex = 0;
       state.slot = (state.work.character_candidates || [])[0] || null;
       state.drafts = restoreDrafts(workId);
+      state.slotTargets = restoreSlotTargets(workId);
       paintWork(root);
     } catch (error) {
       root.innerHTML = `<section class="m-card"><h2>换角</h2><p class="m-err">${escapeHtml(friendlyError(error))}</p>
@@ -793,6 +807,7 @@
         <div class="m-row">
           <button type="button" id="mOpenPicker" class="m-primary">点开搜索</button>
         </div>
+        <div id="mSlotAssign" style="margin-top:10px"></div>
         <p class="m-hint" id="mStyleHint" style="margin-top:10px">${state.styleLabel ? ("画风：" + state.styleLabel) : "画风可选。点开后选内置或自定义。"}</p>
         <div class="m-row">
           <button type="button" id="mOpenStyle" class="m-ghost">选画风</button>
@@ -800,18 +815,28 @@
       </section>
       <section class="m-card">
         <p class="m-eyebrow">第 4 步 · 写草稿再出图</p>
-        <p class="m-hint">${canRemix ? "先点「本页换角」做零费用草稿，确认后再排队生成。同一任务的多张图会收进图库一组。" : remixBlockReason()}</p>
+        <p class="m-hint">${canRemix
+          ? ("先写零费用草稿，再入队。多女角可给每个槽选不同人。整系列用「全部页加入队列」，会收进图库一组。已草稿 "
+            + Object.keys(state.drafts || {}).length + "/" + pageCount + " 页")
+          : remixBlockReason()}</p>
         <div class="m-row">
           <button type="button" id="mApplyOne" class="m-primary" ${canRemix ? "" : "disabled"}>本页换角</button>
+          <button type="button" id="mApplyPageGender" class="m-ghost" ${canRemix ? "" : "disabled"}>本页全部女槽</button>
+        </div>
+        <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mApplySlots" class="m-ghost" ${canRemix ? "" : "disabled"}>按槽位换本页</button>
           <button type="button" id="mApplyAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页换同性别</button>
         </div>
         <div class="m-row" style="margin-top:8px">
+          <button type="button" id="mApplySlotsAll" class="m-ghost" ${canRemix ? "" : "disabled"}>全部页按槽位换</button>
           <button type="button" id="mOptimize" class="m-ghost">DeepSeek 优化草稿</button>
         </div>
         <div class="m-row" style="margin-top:8px">
           <input id="mCopies" inputmode="numeric" value="${escapeHtml(String(state.copies || 1))}" placeholder="张数 1-8" />
           <button type="button" id="mGenOne" class="m-primary">加入队列</button>
-          <button type="button" id="mQueueBtn" class="m-ghost">加入批量</button>
+          ${isStandalone()
+            ? `<button type="button" id="mGenSeries" class="m-ghost">全部页加入队列</button>`
+            : `<button type="button" id="mQueueBtn" class="m-ghost">加入批量</button>`}
         </div>
         ${draftPreviewHtml(currentDraftEntry())}
         <p id="mWorkStatus" class="m-status"></p>
@@ -822,7 +847,7 @@
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "m-chip" + (index === state.pageIndex ? " active" : "");
-      chip.textContent = "P" + (index + 1);
+      chip.textContent = "P" + (index + 1) + (state.drafts[String(index)] ? "✓" : "");
       chip.onclick = () => { state.pageIndex = index; paintWork(root); };
       pages.appendChild(chip);
     });
@@ -858,14 +883,28 @@
     const openStyle = document.getElementById("mOpenStyle");
     if (openStyle) openStyle.onclick = openStylePicker;
     bindFavButtons(root);
+    paintSlotAssign(root, candidates);
     document.getElementById("mOptimize").onclick = optimizeCurrentDraft;
     document.getElementById("mApplyOne").onclick = () => applyDraft({ allPages: false, genderScope: "" });
+    const pageGender = document.getElementById("mApplyPageGender");
+    if (pageGender) {
+      const role = (state.slot && state.slot.role === "male") ? "male" : "female";
+      pageGender.textContent = role === "male" ? "本页全部男槽" : "本页全部女槽";
+      pageGender.onclick = () => applyDraft({ allPages: false, genderScope: role });
+    }
     document.getElementById("mApplyAll").onclick = () => applyDraft({
       allPages: true,
       genderScope: (state.slot && state.slot.role === "male") ? "male" : "female",
     });
+    const applySlots = document.getElementById("mApplySlots");
+    if (applySlots) applySlots.onclick = () => applyDraft({ allPages: false, useSlotTargets: true });
+    const applySlotsAll = document.getElementById("mApplySlotsAll");
+    if (applySlotsAll) applySlotsAll.onclick = () => applyDraft({ allPages: true, useSlotTargets: true });
     document.getElementById("mGenOne").onclick = generateCurrent;
-    document.getElementById("mQueueBtn").onclick = enqueueCurrent;
+    const genSeries = document.getElementById("mGenSeries");
+    if (genSeries) genSeries.onclick = enqueueSeries;
+    const queueBtn = document.getElementById("mQueueBtn");
+    if (queueBtn) queueBtn.onclick = enqueueCurrent;
     const saveDraft = document.getElementById("mSaveDraft");
     if (saveDraft) saveDraft.onclick = saveDraftEdits;
   }
@@ -991,9 +1030,84 @@
     state.targetRecord = (window.StandaloneCore && item.record)
       ? window.StandaloneCore.targetRecord(item.record, item.reference_id)
       : item.record || null;
+    rememberSlotTarget();
     const hint = document.getElementById("mTargetHint");
     if (hint) hint.textContent = "已选 " + item.label;
     closeCharPicker();
+    const app = document.getElementById("mApp");
+    if (app && state.route && state.route.name === "work") paintWork(app);
+  }
+
+  function rememberSlotTarget() {
+    if (!state.slot || !state.targetRecord) return;
+    const candidates = (state.work && state.work.character_candidates) || [];
+    const idx = window.StandaloneCore && window.StandaloneCore.genderSlotIndexOf
+      ? window.StandaloneCore.genderSlotIndexOf(candidates, state.slot)
+      : -1;
+    const role = state.slot.role === "male" ? "male" : (state.slot.role === "female" ? "female" : "");
+    if (idx < 0 || !role) return;
+    state.slotTargets[role + ":" + idx] = {
+      gender: role,
+      gender_slot_index: idx,
+      slot_index: Number(state.slot.slot_index || 0),
+      candidate_id: state.slot.candidate_id,
+      targetId: state.targetId,
+      targetLabel: state.targetLabel,
+      targetRecord: state.targetRecord,
+    };
+    const workId = String((state.work && state.work.work && (state.work.work.work_id || state.work.work.id)) || "");
+    persistDrafts(workId);
+  }
+
+  function collectSlotTargets(gender) {
+    const role = gender === "male" ? "male" : "female";
+    return Object.keys(state.slotTargets || {})
+      .filter((key) => key.indexOf(role + ":") === 0)
+      .map((key) => state.slotTargets[key])
+      .filter((item) => item && item.targetRecord)
+      .map((item) => ({
+        gender: item.gender || role,
+        gender_slot_index: item.gender_slot_index,
+        slot_index: item.slot_index,
+        target_record: item.targetRecord,
+        target_reference_id: item.targetId,
+      }));
+  }
+
+  function paintSlotAssign(root, candidates) {
+    const host = document.getElementById("mSlotAssign");
+    if (!host) return;
+    const page = (candidates || []).filter((item) => Number(item.image_index) === Number(state.pageIndex));
+    const females = page.filter((item) => item.role === "female");
+    const males = page.filter((item) => item.role === "male");
+    const rows = females.length >= 2 ? females : (males.length >= 2 ? males : []);
+    if (!rows.length) {
+      host.innerHTML = "";
+      return;
+    }
+    const role = rows[0].role === "male" ? "male" : "female";
+    host.innerHTML = `<p class="m-hint">这页有 ${rows.length} 个${role === "male" ? "男" : "女"}槽。每个槽选不同人后，点「按槽位换本页」或「全部页按槽位换」。</p>`;
+    rows.forEach((item, index) => {
+      const assigned = state.slotTargets[role + ":" + index];
+      const row = document.createElement("div");
+      row.className = "m-row";
+      row.style.marginTop = "8px";
+      row.innerHTML = `<button type="button" class="m-ghost" data-assign-slot="${index}">${role === "male" ? "男" : "女"}槽${index + 1} · ${escapeHtml(item.label || ("槽" + (Number(item.slot_index) + 1)))} → ${assigned && assigned.targetLabel ? escapeHtml(assigned.targetLabel) : "还没选"}</button>`;
+      host.appendChild(row);
+      const btn = row.querySelector("[data-assign-slot]");
+      if (btn) {
+        btn.onclick = () => {
+          state.slot = item;
+          state.targetGender = role;
+          if (assigned) {
+            state.targetId = assigned.targetId;
+            state.targetLabel = assigned.targetLabel;
+            state.targetRecord = assigned.targetRecord;
+          }
+          openCharPicker();
+        };
+      }
+    });
   }
 
   function customDraftFromForm() {
@@ -1221,11 +1335,26 @@
     }
     const workId = String((state.work && state.work.work && state.work.work.work_id) || "");
     if (!workId) return;
-    if (!options.allPages && !state.targetId) {
+    const slotTargets = options.useSlotTargets
+      ? collectSlotTargets((state.slot && state.slot.role === "male") ? "male" : "female")
+      : [];
+    if (options.useSlotTargets && !slotTargets.length) {
+      toast("先给每个角色槽选好人", "err");
+      return;
+    }
+    if (!options.useSlotTargets && !state.targetId) {
       toast("先选目标角色", "err");
       return;
     }
-    if (options.allPages && !await confirmAction("全部页换女角", "会给每一页做零费用草稿，不会出图。")) return;
+    const roleLabel = (options.genderScope === "male" || (state.slot && state.slot.role === "male")) ? "男" : "女";
+    if (options.allPages) {
+      const title = options.useSlotTargets ? "全部页按槽位换" : ("全部页换" + roleLabel + "角");
+      if (!await confirmAction(title, "会给每一页做零费用草稿，不会出图。缺槽的页会跳过该槽。")) return;
+    } else if (options.genderScope) {
+      if (!await confirmAction("本页全部" + roleLabel + "槽", "只改这一页的全部" + roleLabel + "槽，换成同一个人。不会出图。")) return;
+    } else if (options.useSlotTargets) {
+      if (!await confirmAction("按槽位换本页", "按你给每个槽选的人写草稿，不会出图。")) return;
+    }
     const status = document.getElementById("mWorkStatus");
     status.textContent = "正在写草稿…";
     state.busy = true;
@@ -1234,12 +1363,15 @@
         const compileOpts = {
           image_index: state.pageIndex,
           slot_index: Number((state.slot && state.slot.slot_index) || 0),
-          candidate_id: options.allPages ? "" : String((state.slot && state.slot.candidate_id) || ""),
-          gender_scope: options.genderScope || "",
-          target_record: state.targetRecord,
-          target_reference_id: state.targetId,
+          candidate_id: (options.allPages || options.genderScope || options.useSlotTargets)
+            ? ""
+            : String((state.slot && state.slot.candidate_id) || ""),
+          gender_scope: options.useSlotTargets ? "" : (options.genderScope || ""),
+          target_record: options.useSlotTargets ? null : state.targetRecord,
+          target_reference_id: options.useSlotTargets ? "" : state.targetId,
           style_record: state.styleRecord,
         };
+        if (options.useSlotTargets) compileOpts.slot_targets = slotTargets;
         const result = options.allPages
           ? window.StandaloneCore.compileDrafts(state.work, compileOpts)
           : window.StandaloneCore.compileDraft(state.work, compileOpts);
@@ -1382,6 +1514,89 @@
     return res;
   }
 
+  async function enqueueSeries() {
+    if (!requireWrite() || state.busy) return;
+    if (isStandalone() && !remixReady()) {
+      toast(remixBlockReason(), "err");
+      return;
+    }
+    const keys = Object.keys(state.drafts || {}).sort((a, b) => Number(a) - Number(b));
+    if (!keys.length) {
+      toast("先给各页写草稿。可用「全部页换同性别」或「全部页按槽位换」", "err");
+      return;
+    }
+    const nai = await api().get("/api/nai/status");
+    if (!nai.has_token) {
+      toast(isStandalone() ? "先在设置里填 NovelAI Token" : "电脑上还没配置 NovelAI Token", "err");
+      if (isStandalone()) openSettings();
+      return;
+    }
+    const copiesBox = document.getElementById("mCopies");
+    const copies = Math.max(1, Math.min(8, Number(copiesBox && copiesBox.value) || state.copies || 1));
+    state.copies = copies;
+    if (!await confirmAction(
+      "全部页加入队列",
+      "默认免费档。已草稿的 " + keys.length + " 页各出 " + copies + " 张，收进图库同一组。多个 Token 会并发。点确认后才会调用 NovelAI。"
+    )) return;
+    const work = (state.work && state.work.work) || {};
+    const workId = String(work.work_id || work.id || "");
+    const pages = [];
+    keys.forEach((key) => {
+      const comment = draftComment(state.drafts[key]);
+      if (!comment) return;
+      const snapshot = JSON.parse(JSON.stringify(comment));
+      snapshot._aitag_source = {
+        work_id: workId,
+        page_index: Number(key),
+        title: work.title || "",
+        thumb: currentImage().thumbnail_url || currentImage().url || "",
+      };
+      pages.push({
+        comment: snapshot,
+        patched_comment: snapshot,
+        page_index: Number(key),
+      });
+    });
+    if (!pages.length) {
+      toast("草稿不完整", "err");
+      return;
+    }
+    const status = document.getElementById("mWorkStatus");
+    try {
+      const res = await api().request("/api/nai/generate", {
+        method: "POST",
+        body: {
+          patched_comment: pages[0].patched_comment,
+          pages: pages,
+          work_id: work.work_id || null,
+          work_id_str: workId,
+          remote_work_id: workId,
+          source_gallery_id: "phone-local",
+          source_title: work.title || "",
+          source_thumb: currentImage().thumbnail_url || currentImage().url || "",
+          copies: copies,
+          force_free: true,
+          prompt_profile: "native",
+        },
+        timeoutMs: 60000,
+      });
+      if (!res || !res.ok) throw new Error((res && (res.message || res.detail)) || "入队失败");
+      if (status) {
+        status.textContent = (res.message || "已加入生成队列") + " · " + pages.length + "页";
+        status.className = "m-status m-ok";
+      }
+      toast(res.message || "整系列已入队，去排队页看进度");
+      location.hash = "#/batch";
+    } catch (error) {
+      if (status) {
+        status.textContent = error.message || String(error);
+        status.className = "m-status m-err";
+      } else {
+        toast(error.message || String(error), "err");
+      }
+    }
+  }
+
   function DemoWorksSafe(workId) {
     return String(workId || "") === "demo-ark-amiya";
   }
@@ -1482,7 +1697,7 @@
       ${isStandalone() ? `
       <section class="m-card">
         <h2>生成队列</h2>
-        <p class="m-hint">几个 Token 就几路并发。同一任务的多张图会收进图库一组，点进去才看大图。失败可手动重试，不会自动重试。</p>
+        <p class="m-hint">几个 Token 就几路并发。整系列用「全部页加入队列」，多页收进图库一组。失败可手动重试，不会自动重试。</p>
         <div class="m-list">${jobs.map((job) => `
           <div class="m-item">
             <div></div>
