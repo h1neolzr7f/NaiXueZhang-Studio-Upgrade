@@ -120,3 +120,15 @@
     }
     return `开始生成 ${n} 张`;
   }
+
+  function syncSeriesToggle() {
+    const wrap = $("studioSeriesToggle");
+    const box = $("studioSeriesAll");
+    const label = $("studioSeriesAllLabel");
+    const pages = seriesPageCount();
+    if (wrap) wrap.classList.toggle("hidden", pages <= 1);
+    if (label && pages > 1) label.textContent = `生成本系列全部 ${pages} 页`;
+    if ($("studioGenerate") && !state.generating) {
+      $("studioGenerate").textContent = generateButtonLabel(currentCopies());
+    }
+  }
