@@ -32,7 +32,7 @@ OPTIMIZE_SYSTEM = """你是 NovelAI 资深咒语顾问。任务：把用户给�
 硬规则：
 - 面向 NovelAI / nai-diffusion，不要 SD/ComfyUI/LoRA 语法。
 - 保留原图核心意图：角色、动作、构图、氛围不要乱改。
-- 去掉重复、冲突、无意义 tag；适度补强质量与光照，不要堆砖 score_9 类垃圾 tag。
+- 去掉重复、冲突、无意义 tag；适度补强质量与光照，不要堆砌 score_9 类垃圾 tag。
 - 多角色时 char_captions 数量与输入一致，不要合并角色。
 - 不要输出 steps/seed/width 等参数。
 - 允许灵活文本风格，不必死磕某种社区格式。
