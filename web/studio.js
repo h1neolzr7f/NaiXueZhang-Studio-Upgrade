@@ -388,6 +388,7 @@
     syncSeriesToggle();
     refreshReady();
     if (!draftSaved) {
+      // 静默吞掉会让用户以为草稿已持久化，刷新后才发现丢失
       setStatus("本地草稿保存失败（缓存可能已满），刷新前请勿关闭页面", false, true);
     } else if (statusText) {
       setStatus(statusText, true, true);
