@@ -7,6 +7,7 @@ import json
 import re
 from typing import Any
 
+from nai_prompt_playbook import apply_playbook_to_comment_texts, playbook_optimizer_rules
 from nai_prompt_profiles import (
     PROFILE_ANIMA_EPIC,
     PROFILE_ANIMA_FAITHFUL,
@@ -31,10 +32,11 @@ OPTIMIZE_SYSTEM = """你是 NovelAI 资深咒语顾问。任务：把用户给�
 硬规则：
 - 面向 NovelAI / nai-diffusion，不要 SD/ComfyUI/LoRA 语法。
 - 保留原图核心意图：角色、动作、构图、氛围不要乱改。
-- 去掉重复、冲突、无意义 tag；适度补强质量与光照，不要堆砌 score_9 类垃圾 tag。
+- 去掉重复、冲突、无意义 tag；适度补强质量与光照，不要堆砖 score_9 类垃圾 tag。
 - 多角色时 char_captions 数量与输入一致，不要合并角色。
 - 不要输出 steps/seed/width 等参数。
-- 允许灵活文本风格，不必死磕某种社区格式。"""
+- 允许灵活文本风格，不必死磕某种社区格式。
+""" + playbook_optimizer_rules()
 
 
 def _prompt_snapshot(comment: dict[str, Any]) -> dict[str, Any]:
@@ -128,17 +130,69 @@ def _local_optimize(comment: dict[str, Any], *, profile: str) -> dict[str, Any]:
     }
 
 
+def _apply_playbook_result(
+    comment: dict[str, Any],
+    texts: dict[str, Any],
+    *,
+    intent: str = "",
+    provider: str,
+    profile: str,
+    label: str,
+    before: dict[str, Any] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    report = apply_playbook_to_comment_texts(texts, intent=intent)
+    patched = _apply_texts_to_comment(comment, report["texts"])
+    payload = {
+        "ok": True,
+        "provider": provider,
+        "profile": profile,
+        "label": label,
+        "texts": _prompt_snapshot(patched),
+        "comment": patched,
+        "notes": str((extra or {}).get("notes") or report.get("notes") or "").strip(),
+        "playbook": {
+            "demand": report.get("demand"),
+            "outfit_override": report.get("outfit_override"),
+            "copyright_minimal": report.get("copyright_minimal"),
+            "stripped": report.get("stripped") or [],
+            "moved_to_slots": report.get("moved_to_slots") or [],
+            "moved_to_base": report.get("moved_to_base") or [],
+            "notes": report.get("notes") or "",
+        },
+    }
+    if before is not None:
+        payload["before"] = before
+    if extra:
+        for key, value in extra.items():
+            if key != "notes":
+                payload[key] = value
+    return payload
+
+
 def optimize_nai_prompt(
     comment: dict[str, Any],
     *,
     mode: str = "smart",
     profile: str = "",
+    intent: str = "",
 ) -> dict[str, Any]:
-    """Optimize prompt for better NAI results. mode: smart | local | anima_faithful | anima_epic."""
+    """Optimize prompt for better NAI results. mode: smart | local | playbook | anima_*."""
     comment = copy.deepcopy(comment or {})
     mode_key = str(mode or "smart").strip().lower()
     if mode_key in {"local", "native", "none"}:
         return _local_optimize(comment, profile="native")
+    if mode_key in {"playbook", "v5", "slot"}:
+        before = _prompt_snapshot(comment)
+        return _apply_playbook_result(
+            comment,
+            before,
+            intent=intent,
+            provider="local",
+            profile="v5_playbook",
+            label="V5 槽位整理",
+            before=before,
+        )
     if mode_key in {"anima", "anima_faithful", "anima_v1", "faithful"}:
         return _local_optimize(comment, profile=PROFILE_ANIMA_FAITHFUL)
     if mode_key in {"anima_epic", "anima_v2", "epic"}:
@@ -175,19 +229,20 @@ def optimize_nai_prompt(
         "base_caption": str(parsed.get("base_caption") or parsed.get("prompt") or before.get("base_caption") or "").strip(),
         "char_captions": parsed.get("char_captions") if isinstance(parsed.get("char_captions"), list) else before.get("char_captions"),
     }
-    patched = _apply_texts_to_comment(comment, texts)
     ai_cfg = normalize_ai_config(cfg.get("ai") or {})
-    return {
-        "ok": True,
-        "provider": "llm",
-        "profile": "nai_smart",
-        "label": "智能优化",
-        "texts": _prompt_snapshot(patched),
-        "before": before,
-        "comment": patched,
-        "notes": str(parsed.get("notes") or "").strip(),
-        "model": ai_cfg.get("model") or "",
-    }
+    return _apply_playbook_result(
+        comment,
+        texts,
+        intent=intent,
+        provider="llm",
+        profile="nai_smart",
+        label="智能优化",
+        before=before,
+        extra={
+            "notes": str(parsed.get("notes") or "").strip(),
+            "model": ai_cfg.get("model") or "",
+        },
+    )
 
 
 def ai_status() -> dict[str, Any]:
