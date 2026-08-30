@@ -182,7 +182,7 @@ class StudioServiceTests(unittest.TestCase):
             data = root / "data"
             (data / "images").mkdir(parents=True)
             inside = data / "images" / "ref.png"
-            inside.write_bytes(b"\\x89PNG\\r\\n\\x1a\\n")
+            inside.write_bytes(b"\x89PNG\r\n\x1a\n")
             outside = root / "secret.png"
             outside.write_bytes(b"secret")
             with patch("studio_service.DATA_DIR", data):
