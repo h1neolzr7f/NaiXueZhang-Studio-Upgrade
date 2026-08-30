@@ -274,9 +274,11 @@ def sanitize_comment(comment: dict[str, Any], **flags: Any) -> dict[str, Any]:
     }
 
 
-def optimize_comment(comment: dict[str, Any], *, mode: str = "smart", profile: str = "") -> dict[str, Any]:
+def optimize_comment(
+    comment: dict[str, Any], *, mode: str = "smart", profile: str = "", intent: str = ""
+) -> dict[str, Any]:
     try:
-        return optimize_nai_prompt(comment, mode=mode, profile=profile)
+        return optimize_nai_prompt(comment, mode=mode, profile=profile, intent=intent)
     except Exception as exc:
         if mode == "smart":
             before = _prompt_snapshot(comment)
@@ -376,7 +378,8 @@ def studio_config() -> dict[str, Any]:
         "ok": True,
         "ai": ai_status(),
         "optimize_modes": [
-            {"id": "smart", "label": "智能优化", "description": "LLM 改写为更适合 NAI 出图的咒语"},
+            {"id": "smart", "label": "智能优化", "description": "LLM 改写为更适合 NAI 出图的咒语，再按 V5 槽位整理"},
+            {"id": "playbook", "label": "V5 槽位整理", "description": "本地整理：版权角色极简、外貌进槽、动作回主提示词"},
             {"id": "sanitize", "label": "仅净化", "description": "本地去敏感/无效 tag"},
             {"id": "anima_faithful", "label": "Anima V1（本地）", "description": "可选本地风格预设"},
             {"id": "anima_epic", "label": "Anima V2（本地）", "description": "可选本地风格预设"},
