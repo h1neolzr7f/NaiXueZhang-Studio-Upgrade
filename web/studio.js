@@ -303,3 +303,94 @@
     };
     return applyDraftObject(pack, `已切换到 p${pageIndex}`);
   }
+
+  function applyDraftObject(draft, statusText) {
+    if (!isUsableDraft(draft)) return false;
+    state.draftId = String(draft.draftId || draft.draft_id || "").trim();
+    const source = draft.source && typeof draft.source === "object" ? draft.source : {};
+    state.sourceProvider = String(source.provider || draft.sourceKind || "").trim();
+    if (Array.isArray(draft.pages) && draft.pages.length) {
+      state.aitagPages = draft.pages
+        .map((p) => ({
+          image_index: Number(p.image_index ?? p.draft?.pageIndex ?? 0) || 0,
+          slot_indexes: p.slot_indexes || [],
+          draft: p.draft || p,
+        }))
+        .filter((p) => p.draft && typeof p.draft === "object");
+    } else if (!(Array.isArray(state.aitagPages) && state.aitagPages.length)) {
+      state.aitagPages = [];
+    }
+    if (state.sourceProvider === "aitag-online") {
+      const workLabel = source.workId || source.workIdStr || draft.onlineReference?.workId || "";
+      const pageN = state.aitagPages.length;
+      state.sourceLabel = workLabel
+        ? `AITag #${workLabel}${pageN > 1 ? ` · ${pageN} 页` : ""}`
+        : "AITag 在线";
+      state.workId = 0;
+      state.pageIndex = Number(draft.pageIndex || source.imageIndex || 0) || 0;
+      state.onlineWorkIdStr = String(
+        source.workIdStr
+        || source.workId
+        || draft.onlineWorkIdStr
+        || draft.onlineReference?.workId
+        || state.onlineWorkIdStr
+        || ""
+      ).trim();
+      state.onlineSourceTitle = String(
+        source.title
+        || draft.title
+        || draft.sourceTitle
+        || state.onlineSourceTitle
+        || ""
+      ).trim();
+      state.onlineSourceThumb = String(
+        source.thumb
+        || draft.thumb
+        || draft.sourceThumb
+        || state.onlineSourceThumb
+        || ""
+      ).trim();
+    } else {
+      const localId = draft.workId || source.workId || state.workId;
+      if (localId) state.workId = localId;
+      state.pageIndex = Number(draft.pageIndex || source.imageIndex || 0) || 0;
+      const pageN = state.aitagPages.length;
+      if (state.workId) {
+        state.sourceLabel = `来源 #${state.workId}${pageN > 1 ? ` · ${pageN} 页` : ""}`;
+      }
+    }
+    if (draft.comment && typeof draft.comment === "object") {
+      state.comment = draft.comment;
+    }
+    if (draft.texts) applyTextsToForm(draft.texts);
+    if (draft.params) fillParams(draft.params);
+    if (draft.refs) {
+      if ($("studioVibeUrl")) $("studioVibeUrl").value = draft.refs.vibe || "";
+      if ($("studioCharRefUrl")) $("studioCharRefUrl").value = draft.refs.char || "";
+      if ($("studioVibeStrength") && draft.refs.strength) {
+        $("studioVibeStrength").value = draft.refs.strength;
+        if ($("studioStrengthVal")) $("studioStrengthVal").textContent = Number(draft.refs.strength).toFixed(2);
+      }
+    }
+    let draftSaved = true;
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        ...draft,
+        draftId: state.draftId,
+        pages: state.aitagPages,
+        pageIndex: state.pageIndex,
+        ts: Date.now(),
+      }));
+    } catch (_) {
+      draftSaved = false;
+    }
+    renderAitagPageTabs();
+    syncSeriesToggle();
+    refreshReady();
+    if (!draftSaved) {
+      setStatus("本地草稿保存失败（缓存可能已满），刷新前请勿关闭页面", false, true);
+    } else if (statusText) {
+      setStatus(statusText, true, true);
+    }
+    return true;
+  }
