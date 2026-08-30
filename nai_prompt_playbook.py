@@ -335,7 +335,7 @@ def _minimize_known_character(tags: list[str], *, keep_outfit: bool) -> tuple[li
 
 def _normalize_counts(
     base_tags: list[str], slot_tags: list[list[str]]
-) -> tuple[list[str], list[list[str]]:
+) -> tuple[list[str], list[list[str]]]:
     counts = [tag for tag in base_tags if _count_kind(tag)]
     if not counts:
         inferred = _infer_count_from_slots(slot_tags)
