@@ -42,12 +42,20 @@ class UserPrefsTests(unittest.TestCase):
         self.assertEqual(raw["default_optimize_mode"], "sanitize")
         self.assertFalse(prefs["quick_send_studio"])
 
+    def test_playbook_is_a_valid_default_optimize_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "user_prefs.json"
+            with patch.object(user_prefs, "PREFS_PATH", path):
+                user_prefs.save_prefs({"default_optimize_mode": "playbook"})
+                prefs = user_prefs.load_prefs()
+        self.assertEqual(prefs["default_optimize_mode"], "playbook")
+
 
 class StudioFallbackTests(unittest.TestCase):
     def test_smart_optimize_fallback_to_sanitize(self) -> None:
         comment = {"prompt": "1girl, gore, standing", "uc": "bad"}
 
-        def _fake_optimize(c, mode="smart", profile=""):
+        def _fake_optimize(c, mode="smart", profile="", intent=""):
             if mode == "smart":
                 raise ValueError("no api key")
             return {

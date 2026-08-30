@@ -94,12 +94,15 @@ class StudioServiceTests(unittest.TestCase):
                 result = optimize_nai_prompt(comment, mode="smart")
         self.assertEqual(result.get("provider"), "llm")
         self.assertIn("surtr", result["texts"]["char_captions"][0].lower())
+        self.assertNotIn("red hair", result["texts"]["char_captions"][0].lower())
         self.assertEqual(result.get("notes"), "强化质量与背景")
+        self.assertIn("playbook", result)
 
     def test_studio_config_lists_modes(self) -> None:
         cfg = studio_config()
         ids = [m["id"] for m in cfg.get("optimize_modes") or []]
         self.assertIn("smart", ids)
+        self.assertIn("playbook", ids)
         self.assertIn("sanitize", ids)
 
     def test_sanitize_comment(self) -> None:

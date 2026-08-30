@@ -60,6 +60,7 @@ class StudioWorkbenchTests(unittest.TestCase):
         self.assertNotIn("if (p.batch != null", js)
         self.assertIn("/api/studio/queue", js)
         self.assertIn("Ctrl+Enter", js) or self.assertIn("ctrlKey", js)
+        self.assertIn("body: { comment, mode: modeKey, intent }", js)
 
     def test_queue_and_config_routes(self) -> None:
         client = TestClient(server.app)
