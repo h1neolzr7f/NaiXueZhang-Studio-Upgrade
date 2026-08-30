@@ -275,3 +275,31 @@
       };
     });
   }
+
+  function switchAitagPage(pageIndex) {
+    flushCurrentAitagPage();
+    const pages = Array.isArray(state.aitagPages) ? state.aitagPages : [];
+    const hit = pages.find((p) => Number(p.image_index) === Number(pageIndex));
+    if (!hit || !hit.draft || typeof hit.draft !== "object") {
+      setStatus(`没有 p${pageIndex} 的草稿`, false);
+      return false;
+    }
+    const pack = {
+      ...hit.draft,
+      draftId: state.draftId,
+      workId: state.workId,
+      sourceKind: state.sourceProvider || hit.draft.source?.provider || "",
+      source: hit.draft.source || {
+        provider: state.sourceProvider || "site",
+        imageIndex: pageIndex,
+        workId: state.workId || 0,
+      },
+      pageIndex: Number(pageIndex) || 0,
+      pages: state.aitagPages,
+      texts: hit.draft.texts,
+      params: hit.draft.params,
+      refs: hit.draft.refs,
+      comment: hit.draft.comment,
+    };
+    return applyDraftObject(pack, `已切换到 p${pageIndex}`);
+  }
