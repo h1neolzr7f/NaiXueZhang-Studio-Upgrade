@@ -199,3 +199,79 @@
     }
     setChip("prompt", hasPrompt ? "ok" : "warn", hasPrompt ? "咒语就绪" : "待填咒语");
   }
+
+  function isUsableDraft(draft) {
+    if (!draft || typeof draft !== "object") return false;
+    const texts = draft.texts || {};
+    return !!(texts.prompt || texts.base_caption || (texts.char_captions || []).length || draft.comment);
+  }
+
+  function renderAitagPageTabs() {
+    const host = $("studioAitagPages");
+    if (!host) return;
+    const pages = Array.isArray(state.aitagPages) ? state.aitagPages : [];
+    if (pages.length <= 1) {
+      host.classList.add("hidden");
+      host.innerHTML = "";
+      syncSeriesToggle();
+      return;
+    }
+    host.classList.remove("hidden");
+    host.innerHTML = pages.map((page) => {
+      const idx = Number(page.image_index || 0);
+      const active = idx === Number(state.pageIndex || 0);
+      return `<button type="button" class="studio-btn${active ? "" : " ghost"} studio-aitag-page-tab" data-aitag-page="${idx}" aria-pressed="${active ? "true" : "false"}">p${idx}</button>`;
+    }).join("");
+    host.querySelectorAll("[data-aitag-page]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.getAttribute("data-aitag-page") || 0);
+        switchAitagPage(idx);
+      });
+    });
+    syncSeriesToggle();
+  }
+
+  function flushCurrentAitagPage() {
+    if (!Array.isArray(state.aitagPages) || !state.aitagPages.length) return;
+    const idx = Number(state.pageIndex) || 0;
+    const texts = textsFromForm();
+    let comment = null;
+    try { comment = commentFromForm(); } catch (_) { comment = state.comment; }
+    const params = {
+      width: $("studioWidth")?.value,
+      height: $("studioHeight")?.value,
+      steps: $("studioSteps")?.value,
+      scale: $("studioScale")?.value,
+      seed: $("studioSeed")?.value,
+      sampler: $("studioSampler")?.value,
+      batch: $("studioBatchCount")?.value,
+    };
+    const refs = {
+      vibe: $("studioVibeUrl")?.value || "",
+      char: $("studioCharRefUrl")?.value || "",
+      strength: $("studioVibeStrength")?.value || "0.6",
+    };
+    state.aitagPages = state.aitagPages.map((p) => {
+      if (Number(p.image_index) !== idx) return p;
+      const prev = (p.draft && typeof p.draft === "object") ? p.draft : {};
+      return {
+        ...p,
+        draft: {
+          ...prev,
+          texts,
+          comment: comment || prev.comment || null,
+          params: { ...(prev.params || {}), ...params },
+          refs: { ...(prev.refs || {}), ...refs },
+          pageIndex: idx,
+          source: prev.source || {
+            provider: state.sourceProvider || "site",
+            imageIndex: idx,
+            workId: state.workId || 0,
+            workIdStr: state.onlineWorkIdStr || "",
+            title: state.onlineSourceTitle || "",
+            thumb: state.onlineSourceThumb || "",
+          },
+        },
+      };
+    });
+  }
