@@ -32,7 +32,7 @@ def load_prefs() -> dict[str, Any]:
     out["nai_only_gallery"] = bool(out.get("nai_only_gallery", True))
     out["quick_send_studio"] = bool(out.get("quick_send_studio", False))
     mode = str(out.get("default_optimize_mode") or "smart").strip().lower()
-    if mode not in {"smart", "sanitize", "anima_epic", "anima_faithful", "native"}:
+    if mode not in {"smart", "playbook", "sanitize", "anima_epic", "anima_faithful", "native"}:
         mode = "smart"
     out["default_optimize_mode"] = mode
     out["show_other_ai_types"] = bool(out.get("show_other_ai_types", False))

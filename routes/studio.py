@@ -81,7 +81,12 @@ def api_studio_optimize(payload: dict = Body(default_factory=dict)) -> dict:
     if mode == "sanitize":
         return sanitize_comment(comment)
     try:
-        return optimize_comment(comment, mode=mode, profile=str(payload.get("profile") or ""))
+        return optimize_comment(
+            comment,
+            mode=mode,
+            profile=str(payload.get("profile") or ""),
+            intent=str(payload.get("intent") or payload.get("prompt") or ""),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
