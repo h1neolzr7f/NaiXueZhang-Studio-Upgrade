@@ -120,3 +120,88 @@
     }
     return `开始生成 ${n} 张`;
   }
+
+  function syncSeriesToggle() {
+    const wrap = $("studioSeriesToggle");
+    const box = $("studioSeriesAll");
+    const label = $("studioSeriesAllLabel");
+    const pages = seriesPageCount();
+    if (wrap) wrap.classList.toggle("hidden", pages <= 1);
+    if (label && pages > 1) label.textContent = `生成本系列全部 ${pages} 页`;
+    if ($("studioGenerate") && !state.generating) {
+      $("studioGenerate").textContent = generateButtonLabel(currentCopies());
+    }
+  }
+
+  function persistSeriesPref() {
+    try {
+      localStorage.setItem(SERIES_KEY, $("studioSeriesAll")?.checked ? "1" : "0");
+    } catch (_) { /* ignore */ }
+  }
+
+  function restoreSeriesPref() {
+    const box = $("studioSeriesAll");
+    if (!box) return;
+    try {
+      const saved = localStorage.getItem(SERIES_KEY);
+      if (saved === "0") box.checked = false;
+      else if (saved === "1") box.checked = true;
+    } catch (_) { /* ignore */ }
+    syncSeriesToggle();
+  }
+
+  function restoreCopies() {
+    let saved = "";
+    try {
+      saved = localStorage.getItem(COPIES_KEY) || "";
+    } catch (_) {
+      saved = "";
+    }
+    setCopies(saved || $("studioBatchCount")?.value || "1", false);
+  }
+
+  async function api(path, opts) {
+    if (!window.ApiClient) throw new Error("ApiClient is not loaded");
+    return window.ApiClient.request(path, opts || {});
+  }
+
+  function toast(msg, kind) {
+    try {
+      if (window.UiToast) {
+        if (kind === "ok") return window.UiToast.ok(msg);
+        if (kind === "err") return window.UiToast.err(msg);
+        return window.UiToast.show(msg);
+      }
+    } catch (_) { /* ignore */ }
+  }
+
+  function setStatus(text, ok, warn) {
+    const el = $("studioStatus");
+    if (!el) return;
+    el.textContent = text || "";
+    el.className = "studio-status"
+      + (text ? (warn ? " warn" : (ok ? " ok" : " err")) : "");
+  }
+
+  function setChip(key, cls, label) {
+    const el = document.querySelector(`#studioReady [data-chip="${key}"]`);
+    if (!el) return;
+    el.className = "studio-chip " + (cls || "warn");
+    if (label) el.textContent = label;
+  }
+
+  function refreshReady() {
+    const hasPrompt = !!(textsFromForm().prompt || textsFromForm().base_caption);
+    if (state.sourceProvider === "aitag-online") {
+      setChip("source", "ok", state.sourceLabel || "AITag 在线");
+    } else {
+      setChip("source", state.workId ? "ok" : "warn", state.workId ? `来源 #${state.workId}` : "无来源");
+    }
+    setChip("prompt", hasPrompt ? "ok" : "warn", hasPrompt ? "咒语就绪" : "待填咒语");
+  }
+
+  function isUsableDraft(draft) {
+    if (!draft || typeof draft !== "object") return false;
+    const texts = draft.texts || {};
+    return !!(texts.prompt || texts.base_caption || (texts.char_captions || []).length || draft.comment);
+  }
