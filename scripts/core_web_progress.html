@@ -79,8 +79,10 @@
             <label class="field span-2"><span>搜索标签 / 每行一个</span><textarea id="pixivSearchQueries" placeholder="例如：original\n女の子"></textarea></label>
             <label class="field"><span>画师 UID / 每行一个</span><textarea id="pixivUserIds" inputmode="numeric"></textarea></label>
             <label class="toggle-field span-3"><input id="pixivRanking" type="checkbox" /><span>把 Pixiv 日榜加入本轮发现范围</span></label>
+            <label class="toggle-field span-3"><input id="pixivResetSearch" type="checkbox" /><span>保存时重置采集断点（换标签后建议勾选）</span></label>
           </div>
 
+          <div class="action-row task-presets" id="pixivTaskPresets" aria-label="采集任务预设"></div>
           <div class="action-row">
             <button class="atlas-button secondary" id="pixivSave" type="button">保存参数</button>
             <button class="atlas-button" id="pixivPreflight" data-target="pixiv" type="button">只读预检</button>

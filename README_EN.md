@@ -1,121 +1,86 @@
-<div align="center">
+# NaiXueZhang Studio
 
-# 🐾 NaiXueZhang Studio
+A Windows application for managing a local NovelAI image library, prompts and generation jobs. Search references, edit parameters, queue work and organize results from one interface, with images and job records stored locally.
 
-### A local-first NovelAI asset library and production workspace
+[中文](README.md) · [Windows download](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) · [User guide](docs/user-guide.md) · [Version changes](docs/UPGRADE.md)
 
-**Discover references · verify metadata · manage prompts · swap characters · queue generations · post-process · prepare Pixiv releases**
+This repository is the **v1.5.2 maintenance line**. The older v1.4 line is preserved in [NaiXueZhang-Studio](https://github.com/h1neolzr7f/NaiXueZhang-Studio). The Windows release does not include an Android APK.
 
-[中文](README.md)
+## Preview
 
-![Release](https://img.shields.io/badge/Release-v1.5.2-6f42c1)
-![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
-![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Local First](https://img.shields.io/badge/Privacy-Local--first-7A5AF8)
+![Running Studio interface with prompt, scene and preview panels](docs/screenshots/demo-studio.png)
 
-[Download the v1.5.2 Windows package](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) ·
-[User guide](docs/user-guide.md) ·
-[Roadmap](ROADMAP.md) ·
-[Contributing](CONTRIBUTING.md)
+Captured from the actual application using an empty local library and no account credentials. The prompt is hand-written demo text. No generation request or paid API call was made; the preview is intentionally empty. See the [verification record](docs/verification-2026-08-31.md) for the environment, steps and limitations.
 
-</div>
+## What it does
 
-<p align="center">
-  <img src="docs/screenshots/01-gallery.png" alt="Local NovelAI gallery with search, collections, and assistant sidebar" width="900">
-</p>
+- Imports local images, reads NovelAI metadata and searches works, authors, tags and prompts.
+- Edits scene and character parameters, manages drafts, previews character replacement and queues generation jobs with parameter snapshots.
+- Organizes results by source work, with post-processing, a recycle bin and publishing preparation tools.
+- Connects to optional external services for generation, discovery, assistants and publishing. These integrations need their own configuration; opening the local interface does not require an account.
 
-<p align="center">
-  <img src="docs/screenshots/02-studio.png" alt="NovelAI prompt workspace and generation settings" width="440">
-  &nbsp;
-  <img src="docs/screenshots/03-butler.png" alt="Local workflow assistant with explicit safety boundaries" width="440">
-</p>
+This is an unofficial project, with no affiliation to NovelAI, Pixiv or other third-party services. Their availability, account requirements and charges are controlled by those services. Use only material you have permission to process.
 
-> [!TIP]
-> New users should start with the [v1.5.2 one-click Windows archive](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2). The frozen v1.4 interface and historical releases remain available in the [stable line](https://github.com/h1neolzr7f/NaiXueZhang-Studio).
+## Run on Windows
 
-## Why it exists
+Download the complete package from the [v1.5.2 release](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2), verify the SHA-256 listed there, extract it to a writable folder and run `一键启动.bat`. Open `http://127.0.0.1:8797/`. Runtime data is stored in `data/` beside the application.
 
-Generating one image is easy. Keeping thousands of references, prompts, characters, sources, paid tasks, derived files, and release records consistent over time is the harder engineering problem.
-
-NaiXueZhang Studio turns that scattered workflow into one recoverable local system:
-
-| Fragmented task | Integrated workflow |
-|---|---|
-| Browse folders containing thousands of images | SQLite FTS, metadata validation, facets, and source tracking |
-| Copy prompts and character traits by hand | Prompt assets, character swapping, drafts, and reusable recipes |
-| Lose state when a paid request or app crashes | Persistent task state, frozen parameters, and explicit unknown-charge handling |
-| Run separate upscale, censor, and metadata scripts | A single post-processing and pre-publication pipeline |
-| Leave provider tokens in plain configuration | Windows DPAPI, local session tokens, and fail-closed writes |
-
-This is not another single-image generator. It is a **local-first creative asset and production platform** for repeatable NovelAI workflows.
-
-## What is new in v1.5.2
-
-- Generated files are stored per source work. Originals, metadata-stripped `_clean`/`_final`, and sidecars live in separate folders.
-- Opening the generated folder in Explorer works and reports failures instead of doing nothing.
-- Crawler start no longer reports success when nothing started.
-- Settings state that this package is NovelAI-only.
-
-The Windows zip does not include a phone APK.
-
-## What is new in v1.5.1
-
-- Primary nav is now gallery, generated library, studio, remix, publish, and settings. Queue, crawler, and tags stay under More.
-- Studio can enqueue every page in a series. Restarted queued jobs can be resumed without redoing finished pages.
-- Generated results group by source work. Deleted files go to a local trash that does not auto-expire.
-- Studio and character-swap stay on the Opus free path.
-- NovelAI tokens are edited in Settings; the remix panel still edits the same pool.
-
-The Windows zip does not include a phone APK.
-
-## Main capabilities
-
-- Strict NovelAI metadata admission and provenance records
-- Searchable local galleries, tags, characters, styles, prompts, and sources
-- Drag-and-drop local library ingestion
-- Character replacement and persistent multi-token generation queues
-- Crash recovery without silently retrying chargeable requests
-- Upscaling, censorship, metadata cleanup, and publication checks
-- Pixiv draft preparation and release records
-- Local assistants separated into read-only help, named diagnostics, and confirmed production actions
-
-## Quick start
-
-Requirements: Windows 10/11. The source build uses Python 3.13.
-
-1. Download and fully extract the [v1.5.2 archive](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2).
-2. Double-click the included launcher.
-3. Open `http://127.0.0.1:8797/` if the browser does not open automatically.
-4. Add provider credentials only inside the local settings UI.
-
-From source:
+For source development, use Windows and Python 3.13:
 
 ```powershell
 git clone https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade.git
 cd NaiXueZhang-Studio-Upgrade
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.core.lock.txt
-python server.py
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.core.lock.txt
+.\.venv\Scripts\python.exe server.py
 ```
 
-## Engineering highlights
+The default interface is `/`; an alternative workspace is available at `/app`. Static assets are included. After changing `frontend/`, rebuild with Node.js 20+:
 
-- FastAPI local service with a React/TypeScript workspace
-- SQLite FTS, schema migrations, atomic file writes, and persistent jobs
-- Windows DPAPI credential protection; plaintext persistence is rejected when encryption is unavailable
-- Localhost write-session tokens and path traversal protection
-- Charge-aware task semantics: HTTP 5xx responses are not silently retried
-- Sensitive-data scanning, packaging checks, and regression tests
-- Explicit provenance, author exclusion, recoverable cleanup, and exportable source manifests
+```powershell
+npm --prefix frontend ci
+npm run workspace:build
+python scripts/asset_versions.py
+```
 
-## Privacy and project status
+Core dependencies run the local service. Assistants, browser publishing and some post-processing tools require additional setup described in the [user guide](docs/user-guide.md).
 
-The service listens on `127.0.0.1` by default. Local images, prompts, databases, generation history, and credentials are not included in releases. Optional online discovery reads third-party metadata only when the user requests it.
+## Code map
 
-This is an unofficial project and is not affiliated with pixiv Inc., NovelAI/Anlatan, or other third-party services. Users remain responsible for provider terms, applicable law, and third-party rights. See [DISCLAIMER.md](DISCLAIMER.md), [RESPONSIBLE_USE.md](RESPONSIBLE_USE.md), and [SECURITY.md](SECURITY.md).
+| Location | Responsibility |
+| --- | --- |
+| `routes/`, `server.py` | FastAPI routes and local service entry point |
+| `db.py`, `gallery_catalog.py` | SQLite, full-text search and library indexing |
+| `generation_jobs.py`, `production_queue.py` | Job state, parameters and queue persistence |
+| `nai/`, `butler/` | Generation and assistant implementations, behind compatibility entry points |
+| `web/`, `frontend/` | Classic pages and React / TypeScript workspace |
+| `tests/`, `scripts/` | Regression tests, packaging and publication checks |
 
-## License
+One design concern is how to represent failure after an external request has already been sent. A missing response does not prove that a generation was not charged. Unknown outcomes remain explicit instead of being treated as successful or automatically resubmitted.
 
-Code is released under the [MIT License](LICENSE). The code license does not grant rights to third-party images, prompts, characters, trademarks, or platform data.
+## Operational limits
+
+- Studio and character replacement default to the application's free-tier parameter limits. This is not a promise of free access or a guarantee against charges.
+- Submitted prompts are frozen. Requests with received HTTP 5xx responses or unknown billing outcomes are not automatically resubmitted; other failures follow their specific job-state rules.
+- Batch replacement uses preview before execution. Unsent work and sent work with unknown outcomes must be handled separately after a restart.
+- The service binds to `127.0.0.1` by default, uses a local session token for writes and Windows DPAPI for stored credentials. This is not a complete multi-user authentication system; do not expose it directly to the public internet.
+- Local storage does not make every feature offline. Generation, assistants, discovery and publishing can send required data to configured services. Review prompts, assets and account settings before use.
+
+## Development checks
+
+After installing core dependencies, run a small set of existing tests without real accounts:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install pytest
+.\.venv\Scripts\python.exe -m pytest -q tests/test_backend_persistence_contracts.py tests/test_qq_nai_metadata.py tests/test_batch_preview_dedup.py
+```
+
+On 2026-08-31, these tests reported **31 passed** locally. This is not a full-suite, paid-generation or installer validation claim. Details are in the [verification record](docs/verification-2026-08-31.md); broader checks are defined in [CI](.github/workflows/tests.yml) and [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Contributing and license
+
+For a bug, include the version, operating system, minimal reproduction steps and redacted logs. Fixes, regression cases, documentation and usability improvements are welcome. Describe the scope before starting a large change; planned work is listed in [ROADMAP.md](ROADMAP.md).
+
+Do not upload credentials, private databases or unauthorized images in issues, pull requests or screenshots. Follow [SECURITY.md](SECURITY.md) for security reports.
+
+Code is licensed under [MIT](LICENSE). This does not grant rights to third-party images, characters, trademarks or platform data. See [responsible use](RESPONSIBLE_USE.md) and the [disclaimer](DISCLAIMER.md).

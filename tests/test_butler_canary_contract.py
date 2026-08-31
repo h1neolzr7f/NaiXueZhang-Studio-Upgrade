@@ -104,8 +104,8 @@ class ButlerCanaryContractTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["prepared"]["total_images"], 1)
             self.assertFalse(result["prepared"]["upload_started"])
             start.assert_called_once()
-            # 会员号默认走 Opus 订阅通道（force_free=false），不再切共享 trial
-            self.assertFalse(start.call_args.kwargs["force_free"])
+            # force_free 保留免费档限制；会员账号仍走订阅通道，不启用共享 trial。
+            self.assertTrue(start.call_args.kwargs["force_free"])
             self.assertTrue(start.call_args.kwargs["generate"])
             self.assertFalse(start.call_args.kwargs["preview_only"])
             prepare.assert_called_once_with(

@@ -1,265 +1,94 @@
-<div align="center">
+# Nai学长工作室
 
-# 🐾 Nai学长工作室
+管理本地 NovelAI 图库、提示词和生成任务的 Windows 工具。它把素材检索、参数编辑、批量生成、后处理和投稿准备放在同一个界面中，图片和任务记录保存在本机。
 
-### 当前维护线 v1.5.2 · 本地优先的 NovelAI 生产工作台
+[English](README_EN.md) · [Windows 下载](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) · [使用指南](docs/user-guide.md) · [版本变化](docs/UPGRADE.md)
 
-[English](README_EN.md)
+本仓库是 **v1.5.2 当前维护线**；旧的 v1.4 保留在 [NaiXueZhang-Studio](https://github.com/h1neolzr7f/NaiXueZhang-Studio)。Windows 发布包不包含 Android APK。
 
-**素材发现 · NAI 元数据验证 · 图库拖入 · 侧栏助手 · 角色换角 · 批量生成 · 后处理 · Pixiv 发布**
+## 界面预览
 
-![Line](https://img.shields.io/badge/Line-Current_v1.5.2-6f42c1)
-![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
-![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Local First](https://img.shields.io/badge/Privacy-Local--first-7A5AF8)
+![实际运行的工作台：提示词、场景与预览分栏](docs/screenshots/demo-studio.png)
 
-[下载 v1.5.2 Windows 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) ·
-[稳定版 v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0) ·
-[升级说明](docs/UPGRADE.md) ·
-[使用指南](docs/user-guide.md) ·
-[路线图](ROADMAP.md) ·
-[参与贡献](CONTRIBUTING.md) ·
-[责任与来源](RESPONSIBLE_USE.md)
+在无账号、空图库环境下运行当前源码后截取。图中提示词是手工输入的演示文本，没有发起生成请求，也没有调用付费接口；右侧为空是因为本次没有生成图片。环境、复现步骤和测试范围见[验证记录](docs/verification-2026-08-31.md)。
 
-</div>
+## 主要功能
 
-<p align="center">
-  <img src="docs/screenshots/01-gallery.png" alt="本地图库：arknights 检索、四库切换，右侧助手凑企鹅 Live2D 侧栏" width="900">
-</p>
-<p align="center"><sub>图库 · 检索与作品流，右侧是助手凑企鹅</sub></p>
+- **图库与来源**：导入本地图片、解析 NovelAI 元数据，按作品、作者、标签和提示词检索。来自第三方平台的素材需要用户具有相应使用权。
+- **提示词与生成**：编辑场景和角色参数，管理草稿、换角预检与批量任务。生成任务保存参数快照，便于回看当时提交的内容。
+- **任务与结果**：将生成记录和文件分开管理，按源作品归档；提供后处理、回收站和投稿准备入口。
+- **可选外部服务**：NovelAI 生成、素材发现、助手及发布功能需要对应配置。未配置账号也可以启动界面，但不能完成这些外部操作。
 
-<p align="center">
-  <img src="docs/screenshots/02-studio.png" alt="生图工作台：咒语分区与生成参数，右侧助手凑企鹅" width="440">
-  &nbsp;
-  <img src="docs/screenshots/03-butler.png" alt="客服小祥完整对话：图库体检、技能与安全边界" width="440">
-</p>
-<p align="center"><sub>工作台（左）· 客服小祥完整对话（右）</sub></p>
+NovelAI、Pixiv 等均为第三方服务，本项目没有官方隶属或合作关系。服务可用性、账户资格和费用以相应平台为准。
 
-> [!TIP]
-> **第一次来？** 直接下载 [v1.5.2 Windows 一键包](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2)，完整解压后双击「一键启动.bat」。不需要先搭数据库或配置 Web 服务。想继续使用冻结界面，请前往 [v1.4 稳定保留线](https://github.com/h1neolzr7f/NaiXueZhang-Studio)。
+## 开始使用
 
-## 一分钟了解
+### Windows 发布包
 
-| 你原来需要做的事 | Nai学长工作室放到了一起 |
-|---|---|
-| 在文件夹里翻数千张图片 | SQLite FTS、标签图谱、来源与 NAI 元数据检索 |
-| 手工复制 Prompt、换角色、改参数 | Prompt 资产、角色换角、草稿与批量任务 |
-| 担心失败重试重复扣费 | 免费档锁死、任务冻结参数、重启后续跑、未知扣费明确标记 |
-| 在多个脚本间做超分、打码和清理 | 后处理、可取消、元数据处理与发布前检查 |
-| 把 Token 散落在配置文件 | 设置中心一份账号池、Windows DPAPI、本地会话令牌 |
+1. 从 [v1.5.2 Release](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) 下载完整包，按发布说明核对 SHA-256。
+2. 完整解压到可写目录，双击 `一键启动.bat`。
+3. 打开 `http://127.0.0.1:8797/`。运行数据保存在程序目录下的 `data/`；配置外部账号前，可先浏览工作台和设置说明。
 
-**它不是单次出图按钮，而是面向长期创作的本地资产库与生产流水线。**
+### 从源码运行
 
-> [!IMPORTANT]
-> **非官方项目。** 本项目与 pixiv Inc.、NovelAI（Anlatan Inc.）及其他第三方平台不存在隶属、授权或合作关系。使用者应自行确认访问、下载、处理与发布行为符合适用法律、平台规则及第三方权利要求。维护者不为绕过访问控制、干扰平台运行、未经授权的数据采集或侵权传播提供支持。详见 [免责声明](DISCLAIMER.md) 与 [负责任使用说明](RESPONSIBLE_USE.md)。
-
-> [!NOTE]
-> **本仓库发布升级版 v1.5.2。** 默认打开经典图库 `http://127.0.0.1:8797/`，`/app` 工作区仍可用。  
-> Windows 一键包请从本仓库 [Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) 下载，并用发布说明中的 SHA-256 核对压缩包。需要冻结的 v1.4.0 修复版时，请到 [稳定版仓库](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0)。
-
-## 与稳定版的关系
-
-| | 稳定版 | 本仓库（升级版） |
-|---|---|---|
-| 仓库 | [`NaiXueZhang-Studio`](https://github.com/h1neolzr7f/NaiXueZhang-Studio) | [`NaiXueZhang-Studio-Upgrade`](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade) |
-| 定位 | 已冻结的 v1.4.0 修复版 | 当前维护线，现发布 **v1.5.2** |
-| 默认入口 | 经典图库 `/` | 经典图库 `/`（`/app` 工作区保留） |
-| 一键 Windows 包 | [v1.4.0](https://github.com/h1neolzr7f/NaiXueZhang-Studio/releases/tag/v1.4.0) | **[v1.5.2](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2)** |
-| 付费出图闸门 | v1.4.0 已落地 | 保持；工作台与换角默认锁免费档 |
-
-完整对照见 [docs/UPGRADE.md](docs/UPGRADE.md)。第一次使用见 [docs/user-guide.md](docs/user-guide.md)。
-
-## v1.5.2 相对 v1.5.1
-
-- **生成文件夹按作品分类**：本机 `data/generated` 不再平铺。每个源作品一个目录。
-- **三份图分开**：`images/原图` 仍带 NovelAI 元数据；`images/已去元数据` 收 `_clean` / `_final`；`files` 收 meta 和缩略图。
-- **打开文件夹可用**：生成库「打开生成文件夹」会打开本机目录；失败会提示。
-- **假成功收口**：采集没起来不再报绿色成功；生成失败改为真实 HTTP 错误。
-- **设置说清楚**：本包只收 NovelAI，相关开关锁定。Live2D 开关也管边缘立绘。
-
-Windows 一键包**不含**手机 APK。`android/` 与 `/m` 仍在源码里，不作为本版交付。
-
-## v1.5.1 相对 v1.5.0
-
-- **导航收口**：一级只留图库、生成库、工作台、换角、发布、设置。待生成、爬虫、分类和其他工具仍在「更多」，功能没有砍掉。
-- **系列出图**：工作台可一次把本系列全部页入队。
-- **重启后续跑**：未发出的排队任务仍会在进程重启时取消；工作台和生成库会提示续跑，只补未发出的页。
-- **生成库收套**：同一源作品不再按每次任务裂成多张封面。删除进回收站，可恢复，不会自动清空。
-- **免费档对齐**：工作台、在线换角、换角插件都走 Opus 免费档，不按张扣付费 Anlas。
-- **后处理可取消**：生成库和后处理页可以停掉进行中的流水线。
-- **账号池一份**：NovelAI / 闲云 Token 以设置中心为准。换角页仍可展开高级编辑，改的是同一份池子。
-
-Windows 一键包**不含**手机 APK。`android/` 与 `/m` 仍在源码里，不作为本版交付。
-
-## v1.5.0 相对 v1.4.0
-
-- **主图库拖入文件夹**：在「图库」切到自选库或 Q群 后，把本地图片或文件夹拖进页面。只收带 NovelAI 元数据的图；每一批自动进一个「拖入」文件夹，文件夹可合并，再加入批量换角。
-- **两位侧栏助手**：左侧客服小祥、右侧助手凑企鹅，一键包内含 Live2D 立绘。完整对话在「更多」里。划过立绘可互动。
-- **`/app` 工作区仍可用**：图库、工作台、换角、分类、发布等也可在同一套工作区里打开。
-- **后端拆分**：`nai_api.py`、`butler_service.py` 改为 facade；实现放在 `nai/`、`butler/`。
-- **付费路径没有放宽**：点一次冻结 Prompt；HTTP 5xx 有响应时不自动重试；`unknown` / 崩溃恢复默认不重试；写接口统一走带会话令牌的 `ApiClient`。
-
-发行包**不包含**你的图库、Token、Cookie 或数据库。侧栏助手的 Live2D 立绘随包提供；MIT 许可不授予角色或造型权利。
-
-## 它解决什么问题？
-
-AI 绘图的难点往往不是“生成一张图”，而是长期管理数千张素材、Prompt、角色、来源、任务和发布记录。
-
-Nai学长工作室把原本分散在浏览器、文件夹、脚本和多个工具中的流程，整理成一套可恢复、可检索、可追踪的本地工作台：
-
-```mermaid
-flowchart LR
-    A[Pixiv / AITag 在线发现 / 本地拖入] --> B[来源与 NAI 元数据验证]
-    B --> C[本地图库与标签图谱]
-    C --> D[Studio / 换角 / Prompt]
-    D --> E[多 Token 生成队列]
-    E --> F[超分 / 打码 / 元数据处理]
-    F --> G[审核与 Pixiv 发布]
-    C --> H[客服小祥 / 助手凑企鹅]
-    H --> D
-    H --> E
-```
-
-## 核心能力
-
-| 能力 | 说明 |
-|---|---|
-| **严格 NAI 准入** | 逐页解析图片元数据，仅将可验证的 NovelAI 作品纳入目标图库 |
-| **本地优先** | 图片、数据库、配置和任务状态默认保存在本机，不上传用户图库 |
-| **图库拖入** | 自选库 / Q群 支持拖入文件或文件夹，自动建夹、合并，再送批量换角 |
-| **Prompt 与角色资产** | 搜索原始 Prompt、角色、作品、画师、动作、服装、场景与构图标签 |
-| **批量创作** | 系列入队、角色换角预检、生成队列、失败续跑；默认免费档 |
-| **后处理闭环** | 超分、打码、可取消、元数据清理与发布前检查 |
-| **两位助手** | 小祥负责用法、采集、收藏与排障；凑企鹅负责选材、换角、出图与投稿准备 |
-| **Pixiv 发布** | 多账号、浏览器登录、选择器探测、组上传与一键起号；打开的是本机 Chrome，不是 Anlas |
-| **来源追踪** | 保存作者、作品链接、源状态和作者声明，可导出来源清单 |
-
-## 界面入口
-
-服务启动后打开：
-
-```text
-http://127.0.0.1:8797/
-```
-
-主导航固定 6 项：图库、生成库、工作台、换角、发布、设置。待生成、爬虫、分类、导演台、管家、后处理在「更多」里。工作区入口为 `/app`。
-
-## 付费出图约定
-
-这些规则在升级版中仍然有效，工作区不会绕过：
-
-- 点击生成时冻结当时的 Prompt 快照（`frozen_comment`）；
-- 默认 `force_free=true`，工作台与换角锁免费档；
-- NovelAI HTTP 5xx 有响应时不自动重试；
-- 任务状态为 `unknown` 或 `recovered_after_restart` 时，不把这次当成「没扣费」再自动重试；
-- 导演台必须先零费用预检，再带 `confirmed` 与 `preview_id` 启动；
-- 批量换角同样先 `/batch/preview`，再 `/batch/run`。
-
-## 快速开始
-
-### 方式一：升级版一键包（推荐）
-
-从 [升级版 Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) 下载 **v1.5.2** 便携包。解压后双击「一键启动.bat」。程序默认打开：
-
-```text
-http://127.0.0.1:8797/
-```
-
-运行数据在程序同目录的 `data/`。发行包不包含 Token、Cookie、图库或本地数据库。侧栏 Live2D 立绘随包提供。
-
-### 方式二：从本仓库源码运行
-
-需要 Windows 10/11 与 Python 3.13：
+建议使用 Windows 与 Python 3.13，在 PowerShell 中执行：
 
 ```powershell
 git clone https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade.git
 cd NaiXueZhang-Studio-Upgrade
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.core.lock.txt
-python server.py
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.core.lock.txt
+.\.venv\Scripts\python.exe server.py
 ```
 
-浏览器打开 `http://127.0.0.1:8797/`。工作区在 `/app`。
-
-修改 `frontend/` 后需要 Node.js 20+ 做**构建**（运行时不需要 Node）：
+默认入口是 `http://127.0.0.1:8797/`，另一个工作区入口为 `/app`。源码运行使用仓库内的静态资源；修改 `frontend/` 后才需要 Node.js 20+ 重新构建：
 
 ```powershell
+npm --prefix frontend ci
 npm run workspace:build
 python scripts/asset_versions.py
 ```
 
-产物写入 `web/app/workspace.js` 与 `web/app/workspace.css`。
+核心依赖用于本地服务。助手、浏览器发布和部分后处理功能还需要各自的依赖与配置，见[使用指南](docs/user-guide.md)。不要把基本页面启动成功当成全部集成已经可用。
 
-## 技术结构
+## 值得查看的实现
 
-```text
-FastAPI localhost service
-├─ routes/                 API 与页面路由
-├─ web/                    经典 HTML / 静态资源
-├─ web/app/                预编译工作区（Vite 产物）
-├─ frontend/               工作区 TypeScript 源码
-├─ nai/                    NovelAI Token、生成、导演实现
-├─ butler/                 管家规划、执行、工作流运行时
-├─ nai_api.py / butler_service.py   兼容 facade
-├─ db.py                   SQLite、FTS 与迁移
-├─ pixiv_*                 素材发现、账号与发布
-├─ scripts/                验证、打包、敏感信息扫描
-└─ tests/                  后端、前端契约、安全与持久化回归
-```
+| 位置 | 内容 |
+| --- | --- |
+| `routes/`、`server.py` | FastAPI 路由与本地服务入口 |
+| `db.py`、`gallery_catalog.py` | SQLite、全文检索与图库索引 |
+| `generation_jobs.py`、`production_queue.py` | 生成任务状态、参数与队列持久化 |
+| `nai/`、`butler/` | 生成接口和助手实现；顶层模块保留兼容入口 |
+| `web/`、`frontend/` | 经典页面与 React / TypeScript 工作区 |
+| `tests/`、`scripts/` | 回归测试、打包和发布检查 |
 
-关键工程特性：
+这里比较在意的是失败后的状态是否说得清楚。例如，生成请求已经发出，但响应丢失时，不能直接认定“没有扣费”再重试。项目为未知结果保留状态，由用户核对；不把它显示为成功。
 
-- SQLite FTS 与大型图库索引；
-- 任务持久化、断点恢复和原子文件写入；
-- Windows DPAPI 本地凭据加密（非 Windows 拒绝把密钥明文写入 `data/`）；
-- localhost 写操作会话令牌（失败则拒绝写入）；
-- 付费生图任务持久化：5xx 不自动重试、崩溃标扣费未知；
-- 更新包 HTTPS + SHA-256 校验；
-- 路径越界保护与文件体积限制。
+## 生成与数据边界
 
-## 隐私与安全
+- 工作台和换角默认约束在项目配置的免费档参数范围内。这不代表任何账号都能免费使用，也不是免扣费保证。
+- 提交时固定提示词参数；对已收到 HTTP 5xx 响应或扣费状态未知的任务，不自动重复提交。其他错误的处理以具体任务状态和实现为准。
+- 批量换角先预览再执行；重启后的未发送任务与已经发送但结果未知的任务需要区别处理。
+- 服务默认监听 `127.0.0.1`，写接口使用本地会话令牌；Windows 上的凭据落盘使用 DPAPI。这些措施不等于完整的多用户认证，不建议直接暴露到公网。
+- 本地保存不代表所有操作离线：生成、助手、采集和投稿可能向所配置的服务发送必要数据。使用前请检查账号、提示词和素材的范围。
 
-- 服务默认仅监听 `127.0.0.1`；
-- NovelAI Token 与 Pixiv refresh token 在 Windows 上通过 DPAPI 加密落盘；
-- 本地图库、Prompt、生成记录不上传到项目服务器；
-- 前端禁止裸 `fetch(`，统一使用带会话令牌的 `ApiClient`；
-- 发布包会排除图片、数据库、缓存、凭据和本地运行日志。
+## 开发与验证
 
-安全问题请不要在公开 Issue 中粘贴 Token、Cookie、完整路径或私人素材，参见 [SECURITY.md](SECURITY.md)。
-
-## 测试
+安装核心依赖后，可以先运行不需要真实账号的选定回归测试：
 
 ```powershell
-python -m pip install -r requirements.core.lock.txt pytest
-python -m pytest -q --ignore=tests/test_pixiv_selector_probe.py
-python scripts/scan_sensitive.py --git-candidates
+.\.venv\Scripts\python.exe -m pip install pytest
+.\.venv\Scripts\python.exe -m pytest -q tests/test_backend_persistence_contracts.py tests/test_qq_nai_metadata.py tests/test_batch_preview_dedup.py
 ```
 
-请勿对整个工作区执行 `python -m compileall .`：它会走进本地 `runtime/`。CI 已排除该目录。
+2026-08-31 的本地检查为 **31 passed**。这是选定测试结果，不是全量通过声明，也不包含付费生成或安装包验收。详细环境见[验证记录](docs/verification-2026-08-31.md)；完整 CI 配置见[测试工作流](.github/workflows/tests.yml)。
 
-## 贡献
+更大范围的开发检查和前端改动说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。不要对整个目录直接执行 `compileall`，以免扫描本地运行环境和数据。
 
-欢迎提交 Bug 修复、测试、大图库性能、工作区可用性与文档改进。开始前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+## 反馈、贡献与许可
 
-不要在 PR、Issue、测试数据或截图中提交第三方受版权保护的图片、真实凭据或私人运行数据。
+Bug 请附版本、系统、最小复现步骤和脱敏日志。修复、回归用例、文档与可用性改进都可以提交；较大改动先说明问题和范围。后续计划见 [ROADMAP.md](ROADMAP.md)。
 
-## 路线图
+不要在 Issue、PR 或截图中提交 Token、Cookie、私人数据库及未经授权的图片。安全问题请按 [SECURITY.md](SECURITY.md) 报告。
 
-升级版已完成的结构工作见 [docs/UPGRADE.md](docs/UPGRADE.md)。后续方向（配方血缘、参数实验室、相似图等）见 [ROADMAP.md](ROADMAP.md)。
-
-## 许可
-
-代码采用 [MIT License](LICENSE)。代码许可不授予任何第三方图片、Prompt、角色、商标或平台数据的权利。
-
-本项目按现状提供。完整边界见 [DISCLAIMER.md](DISCLAIMER.md)。
-
----
-
-<div align="center">
-
-**Nai学长工作室 · 升级版 v1.5.2** · 一键包与源码  
-请从 [本仓库 Releases](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) 下载并核对 SHA-256。
-
-</div>
+代码采用 [MIT License](LICENSE)，不授予第三方素材、角色、商标或平台数据的权利。更多说明见[负责任使用](RESPONSIBLE_USE.md)与[免责声明](DISCLAIMER.md)。
