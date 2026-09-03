@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from nai_prompt_optimizer import ai_status
+from nai_prompt_playbook import apply_playbook_to_comment_texts
 from pixiv_launch import chat_json
 from product_ops import build_product_health
 from gallery_catalog import get_db, get_spec
@@ -122,6 +123,14 @@ def _prepare_studio(args: dict[str, Any]) -> dict[str, Any]:
     texts.setdefault("base_caption", texts.get("prompt") or "")
     texts.setdefault("uc", "")
     texts.setdefault("char_captions", [])
+    playbook = None
+    if args.get("prompt"):
+        playbook = apply_playbook_to_comment_texts(
+            texts,
+            intent=str(args.get("intent") or args.get("prompt") or ""),
+        )
+        texts = playbook["texts"]
+        texts.setdefault("uc", "")
 
     defaults = api.studio_config().get("defaults") or {}
     params = {**defaults, **(source.get("params") or {})}
@@ -129,7 +138,7 @@ def _prepare_studio(args: dict[str, Any]) -> dict[str, Any]:
         if key in args:
             params[key] = args[key]
     params["batch"] = int(args.get("batch_count") or 1)
-    return {
+    result = {
         "ok": True,
         "tool": "prepare_studio",
         "title": source.get("title") or ("独立 Prompt 草稿" if not work_id else f"作品 {work_id}"),
@@ -144,6 +153,17 @@ def _prepare_studio(args: dict[str, Any]) -> dict[str, Any]:
         },
         "studio_url": f"/studio?butler=1&gallery={gallery_id}",
     }
+    if playbook:
+        result["playbook"] = {
+            "demand": playbook.get("demand"),
+            "outfit_override": playbook.get("outfit_override"),
+            "copyright_minimal": playbook.get("copyright_minimal"),
+            "stripped": playbook.get("stripped") or [],
+            "notes": playbook.get("notes") or "",
+        }
+        if playbook.get("notes"):
+            result["message"] = playbook["notes"]
+    return result
 
 
 
