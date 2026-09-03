@@ -2,7 +2,7 @@
 
 管理本地 NovelAI 图库、提示词和生成任务的 Windows 工具。它把素材检索、参数编辑、批量生成、后处理和投稿准备放在同一个界面中，图片和任务记录保存在本机。
 
-[English](README_EN.md) · [Windows 下载](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) · [使用指南](docs/user-guide.md) · [版本变化](docs/UPGRADE.md)
+[English](README_EN.md) · [Windows 下载](https://github.com/h1neolzr7f/NaiXueZhang-Studio-Upgrade/releases/tag/v1.5.2) · [使用指南](docs/user-guide.md) · [维护与治理](MAINTAINERS.md) · [支持范围](SUPPORT.md) · [版本变化](docs/UPGRADE.md)
 
 本仓库是 **v1.5.2 当前维护线**；旧的 v1.4 保留在 [NaiXueZhang-Studio](https://github.com/h1neolzr7f/NaiXueZhang-Studio)。Windows 发布包不包含 Android APK。
 
@@ -87,7 +87,7 @@ python scripts/asset_versions.py
 
 ## 反馈、贡献与许可
 
-Bug 请附版本、系统、最小复现步骤和脱敏日志。修复、回归用例、文档与可用性改进都可以提交；较大改动先说明问题和范围。后续计划见 [ROADMAP.md](ROADMAP.md)。
+Bug 请附版本、系统、最小复现步骤和脱敏日志。修复、回归用例、文档与可用性改进都可以提交；较大改动先说明问题和范围。维护责任与决策流程见 [MAINTAINERS.md](MAINTAINERS.md)，支持渠道与边界见 [SUPPORT.md](SUPPORT.md)，后续计划见 [ROADMAP.md](ROADMAP.md)。
 
 不要在 Issue、PR 或截图中提交 Token、Cookie、私人数据库及未经授权的图片。安全问题请按 [SECURITY.md](SECURITY.md) 报告。
 
